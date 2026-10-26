@@ -1,0 +1,88 @@
+{
+  "id": "kraeuterhexe",
+  "name": "Kräuterhexe",
+  "sigil": "cauldron",
+  "tagline": "Man flüstert über dich. Man kommt trotzdem, wenn das Fieber steigt.",
+  "description": "Du kennst Kräuter, Gifte und alte Bräuche, die die Kirche nicht gern sieht. In einer Welt mit etwas Magie wirken deine Flüche wirklich.",
+  "role": "Kräuterkunde & Flüche",
+  "difficulty": 3,
+  "beginnerTip": "Anspruchsvoller: wenig Trefferpunkte, dafür starke Tränke und Flüche. Braucht mindestens „Wenig Magie“.",
+  "hitDie": 6,
+  "primaryAttributes": [
+    "verstand",
+    "weisheit"
+  ],
+  "recommendedAttributes": {
+    "staerke": 8,
+    "geschick": 10,
+    "konstitution": 12,
+    "verstand": 15,
+    "weisheit": 13,
+    "ausstrahlung": 12
+  },
+  "trainedSkills": [
+    "heilkunde",
+    "glaube_sagen"
+  ],
+  "skillChoices": {
+    "count": 2,
+    "from": [
+      "ueberleben",
+      "einschuechtern",
+      "taeuschen",
+      "menschenkenntnis",
+      "gelehrsamkeit"
+    ]
+  },
+  "armor": [
+    "leicht"
+  ],
+  "startingEquipment": [
+    "sichel",
+    "dolch",
+    "waffenrock",
+    "kraeuterbeutel",
+    "moerser",
+    "talisman",
+    "heilsalbe",
+    "rucksack"
+  ],
+  "equippedWeapon": "sichel",
+  "equippedArmor": "waffenrock",
+  "equippedShield": null,
+  "startingMoney": {
+    "gulden": 0,
+    "groschen": 6,
+    "pfennig": 0
+  },
+  "requiresMagic": "low",
+  "abilities": [
+    {
+      "id": "kraeutertrank",
+      "name": "Kräutertrank",
+      "type": "heilung",
+      "uses": "einmal_pro_rast",
+      "level": 1,
+      "text": "Während einer kurzen Rast braust du einen Trank. Wer ihn trinkt, heilt 2W4 + Verstandsbonus Trefferpunkte oder wird von einer Vergiftung befreit.",
+      "beginnerText": "Aus Kräutern und Wurzeln mischst du einen Heiltrank."
+    },
+    {
+      "id": "boeser_blick",
+      "name": "Böser Blick",
+      "type": "magie",
+      "uses": "einmal_pro_kampf",
+      "level": 1,
+      "text": "Ein Wesen in Sichtweite muss eine Weisheitsprobe (SG 8 + Können-Bonus + Verstandsbonus) bestehen, sonst hat es eine Runde lang Nachteil auf alle Würfe.",
+      "beginnerText": "Du starrst jemanden an und murmelst etwas – plötzlich geht ihm alles schief."
+    },
+    {
+      "id": "giftkunde",
+      "name": "Giftkunde",
+      "type": "wissen",
+      "uses": "passiv",
+      "level": 1,
+      "text": "Du erkennst Gifte und Krankheiten automatisch, wenn du sie riechen oder untersuchen kannst.",
+      "beginnerText": "Ein Schnuppern genügt: Du weißt, ob im Becher Gift ist."
+    }
+  ]
+}

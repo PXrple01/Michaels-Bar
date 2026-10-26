@@ -1,0 +1,88 @@
+{
+  "id": "gaukler",
+  "name": "Gaukler",
+  "sigil": "mask",
+  "tagline": "Ein Lied, ein Lächeln, ein Messer im Ärmel.",
+  "description": "Du ziehst mit Liedern, Späßen und Taschenspielertricks durchs Land. Du lenkst ab, überzeugst und bist schneller weg, als man schauen kann.",
+  "role": "Redner & Trickser",
+  "difficulty": 2,
+  "beginnerTip": "Für alle, die gern reden, flunkern und Probleme ohne Kampf lösen.",
+  "hitDie": 8,
+  "primaryAttributes": [
+    "ausstrahlung",
+    "geschick"
+  ],
+  "recommendedAttributes": {
+    "staerke": 9,
+    "geschick": 14,
+    "konstitution": 10,
+    "verstand": 10,
+    "weisheit": 11,
+    "ausstrahlung": 15
+  },
+  "trainedSkills": [
+    "auftreten"
+  ],
+  "skillChoices": {
+    "count": 3,
+    "from": [
+      "ueberreden",
+      "taeuschen",
+      "fingerfertigkeit",
+      "heimlichkeit",
+      "menschenkenntnis",
+      "athletik"
+    ]
+  },
+  "armor": [
+    "leicht"
+  ],
+  "startingEquipment": [
+    "kurzschwert",
+    "wurfmesser",
+    "waffenrock",
+    "laute",
+    "bunte_kleider",
+    "jonglierbaelle",
+    "rucksack",
+    "proviant"
+  ],
+  "equippedWeapon": "kurzschwert",
+  "equippedArmor": "waffenrock",
+  "equippedShield": null,
+  "startingMoney": {
+    "gulden": 0,
+    "groschen": 12,
+    "pfennig": 0
+  },
+  "requiresMagic": "none",
+  "abilities": [
+    {
+      "id": "ablenkung",
+      "name": "Ablenkung",
+      "type": "kontrolle",
+      "uses": "einmal_pro_kampf",
+      "level": 1,
+      "text": "Mit einem Kunststück oder Spott lenkst du einen Gegner ab: Der nächste Angriff eines Verbündeten gegen ihn hat Vorteil.",
+      "beginnerText": "Du ziehst alle Blicke auf dich – deine Freunde nutzen die Lücke."
+    },
+    {
+      "id": "mutmacher",
+      "name": "Lied des Mutes",
+      "type": "unterstuetzung",
+      "uses": "einmal_pro_rast",
+      "level": 1,
+      "text": "Bis zu drei Verbündete, die dich hören, erhalten einen Bonuswürfel (1W6), den sie einmal zu einer Probe addieren dürfen.",
+      "beginnerText": "Ein mitreißendes Lied: Deine Gefährten bekommen einen Extra-Würfel für eine Probe."
+    },
+    {
+      "id": "flinke_zunge",
+      "name": "Flinke Zunge",
+      "type": "sozial",
+      "uses": "passiv",
+      "level": 1,
+      "text": "Wenn du bei Überreden oder Täuschen eine 1 bis 4 würfelst, darfst du stattdessen eine 5 nehmen.",
+      "beginnerText": "Selbst wenn es schiefgeht, redest du dich nie ganz um Kopf und Kragen."
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "_hinweis": "Gerüst – die Tabellen werden in Etappe 3 gefüllt und für den Startimpuls gewürfelt.",
+  "orte": ["Taverne", "Marktplatz", "Gefängnis", "Schiff", "Kloster", "Schlachtfeld", "Wegkreuzung"],
+  "jahreszeiten": ["Frühling, Nieselregen", "Hochsommer, drückende Hitze", "Herbst, dichter Nebel", "Winter, Schneesturm"],
+  "anlaesse": ["Erbe", "Flucht", "Auftrag", "Verrat", "Fund", "Unglück", "Einladung"],
+  "npc_eigenschaften": ["misstrauisch", "geschwätzig", "verzweifelt", "gierig", "fromm", "verschlagen"],
+  "konflikte": ["Fehde zweier Familien", "Seuche im Dorf", "Söldner plündern", "verschwundenes Kind"]
+}

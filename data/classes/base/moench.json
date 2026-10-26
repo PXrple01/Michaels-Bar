@@ -1,0 +1,87 @@
+{
+  "id": "moench",
+  "name": "Mönch",
+  "sigil": "candle",
+  "tagline": "Ora et labora – und manchmal auch kämpfen.",
+  "description": "Du hast im Kloster gelebt, Bücher kopiert, Kranke gepflegt und gebetet. Dein Wissen und deine Heilkunst retten Leben.",
+  "role": "Heiler & Gelehrter",
+  "difficulty": 1,
+  "beginnerTip": "Gut für Einsteiger, die helfen und Rätsel lösen statt vorne zu kämpfen.",
+  "hitDie": 8,
+  "primaryAttributes": [
+    "weisheit",
+    "verstand"
+  ],
+  "recommendedAttributes": {
+    "staerke": 9,
+    "geschick": 10,
+    "konstitution": 12,
+    "verstand": 13,
+    "weisheit": 15,
+    "ausstrahlung": 11
+  },
+  "trainedSkills": [
+    "heilkunde",
+    "gelehrsamkeit"
+  ],
+  "skillChoices": {
+    "count": 1,
+    "from": [
+      "glaube_sagen",
+      "menschenkenntnis",
+      "handwerk",
+      "ueberreden"
+    ]
+  },
+  "armor": [
+    "leicht"
+  ],
+  "startingEquipment": [
+    "kampfstab",
+    "waffenrock",
+    "rosenkranz",
+    "gebetbuch",
+    "heilsalbe",
+    "kraeuterbeutel",
+    "rucksack",
+    "proviant"
+  ],
+  "equippedWeapon": "kampfstab",
+  "equippedArmor": "waffenrock",
+  "equippedShield": null,
+  "startingMoney": {
+    "gulden": 0,
+    "groschen": 4,
+    "pfennig": 0
+  },
+  "requiresMagic": "none",
+  "abilities": [
+    {
+      "id": "wundversorgung",
+      "name": "Wundversorgung",
+      "type": "heilung",
+      "uses": "einmal_pro_rast",
+      "level": 1,
+      "text": "Mit einer Aktion versorgst du eine Person in Reichweite: Sie heilt 1W8 + Weisheitsbonus Trefferpunkte.",
+      "beginnerText": "Du verbindest Wunden fachkundig – ein Gefährte bekommt Trefferpunkte zurück."
+    },
+    {
+      "id": "gebet_zuversicht",
+      "name": "Gebet der Zuversicht",
+      "type": "unterstuetzung",
+      "uses": "einmal_pro_tag",
+      "level": 1,
+      "text": "Ein Verbündeter, der dein Gebet hört, erhält Vorteil auf eine Probe seiner Wahl in der nächsten Stunde.",
+      "beginnerText": "Dein Gebet gibt einem Freund Kraft: Er darf bei einer Probe zweimal würfeln."
+    },
+    {
+      "id": "schriftkundig",
+      "name": "Schriftkundig",
+      "type": "wissen",
+      "uses": "passiv",
+      "level": 1,
+      "text": "Du liest und schreibst Latein und die Landessprache. Vorteil auf Gelehrsamkeit bei Urkunden und Chroniken.",
+      "beginnerText": "Du kannst lesen – das können die wenigsten! Alte Schriften verraten dir viel."
+    }
+  ]
+}

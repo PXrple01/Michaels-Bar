@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "name": "Würfel & Schicksal – Grundregeln",
+
+  "attributes": [
+    { "id": "staerke",      "name": "Stärke",       "short": "STÄ", "icon": "fist",   "description": "Körperkraft. Wichtig für schwere Waffen, Klettern, Tragen und Türen aufbrechen.", "examples": ["Ein Fass stemmen", "Mit dem Langschwert zuschlagen", "Einen Fluss durchschwimmen"] },
+    { "id": "geschick",     "name": "Geschick",     "short": "GES", "icon": "feather","description": "Gewandtheit und Fingerfertigkeit. Wichtig für Bögen, Ausweichen, Schleichen und Schlösser.", "examples": ["Lautlos an der Wache vorbei", "Einen Pfeil ins Ziel bringen", "Einem Hieb ausweichen"] },
+    { "id": "konstitution", "name": "Konstitution", "short": "KON", "icon": "heart",  "description": "Zähigkeit und Gesundheit. Mehr Konstitution bedeutet mehr Trefferpunkte und Widerstand gegen Gift und Seuchen.", "examples": ["Die Pest überstehen", "Drei Tage ohne Schlaf marschieren", "Einen Krug Starkbier vertragen"] },
+    { "id": "verstand",     "name": "Verstand",     "short": "VER", "icon": "book",   "description": "Wissen, Logik und Gedächtnis. Wichtig für Gelehrte, Kräuterkunde und das Entschlüsseln von Rätseln.", "examples": ["Eine lateinische Urkunde lesen", "Ein Gift erkennen", "Einen Plan durchschauen"] },
+    { "id": "weisheit",     "name": "Weisheit",     "short": "WEI", "icon": "eye",    "description": "Aufmerksamkeit, Menschenkenntnis und Bauchgefühl. Wichtig, um Lügen zu erkennen und Gefahren zu bemerken.", "examples": ["Einen Hinterhalt bemerken", "Spuren im Wald lesen", "Merken, dass der Wirt lügt"] },
+    { "id": "ausstrahlung", "name": "Ausstrahlung", "short": "AUS", "icon": "crown",  "description": "Charme, Willenskraft und Auftreten. Wichtig, um zu überzeugen, zu feilschen, zu täuschen oder einzuschüchtern.", "examples": ["Den Fürsten überzeugen", "Auf dem Markt feilschen", "Eine Menge mitreißen"] }
+  ],
+
+  "attributeRules": {
+    "base": 10,
+    "min": 6,
+    "max": 16,
+    "pointBudget": 12,
+    "costPerPointUpTo13": 1,
+    "costPerPointAbove13": 2,
+    "refundPerPointBelowBase": 1,
+    "maxLoweredAttributes": 2,
+    "modifierFormula": "floor((wert - 10) / 2)",
+    "explanation": "Jedes Attribut startet bei 10 (Durchschnitt). Du hast 12 Punkte zum Verteilen. Bis 13 kostet jeder Punkt 1, darüber 2. Senkst du ein Attribut unter 10, bekommst du pro Punkt 1 zurück (höchstens zwei Attribute, nicht unter 6)."
+  },
+
+  "levels": {
+    "min": 1,
+    "max": 10,
+    "xpTable": [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000],
+    "skillBonus": [2, 2, 2, 2, 3, 3, 3, 3, 4, 4]
+  },
+
+  "checks": {
+    "die": 20,
+    "difficulties": [
+      { "id": "sehr_leicht",     "name": "Sehr leicht",     "dc": 5,  "example": "Über einen Bach springen" },
+      { "id": "leicht",          "name": "Leicht",          "dc": 10, "example": "Ein scheues Pferd beruhigen" },
+      { "id": "mittel",          "name": "Mittel",          "dc": 13, "example": "Eine Klostermauer erklimmen" },
+      { "id": "schwer",          "name": "Schwer",          "dc": 16, "example": "Ein Burgtor-Schloss knacken" },
+      { "id": "sehr_schwer",     "name": "Sehr schwer",     "dc": 19, "example": "Einen Wolf mit bloßen Händen bezwingen" },
+      { "id": "fast_unmoeglich", "name": "Fast unmöglich",  "dc": 22, "example": "Den König zur Abdankung überreden" }
+    ],
+    "naturalTwenty": "Eine natürliche 20 ist immer ein Erfolg – ein kritischer Treffer mit besonderer Wirkung.",
+    "naturalOne": "Eine natürliche 1 ist immer ein Fehlschlag – ein Patzer mit unangenehmen Folgen.",
+    "advantage": "Vorteil: Würfle zwei W20 und nimm den höheren.",
+    "disadvantage": "Nachteil: Würfle zwei W20 und nimm den niedrigeren."
+  },
+
+  "combat": {
+    "baseArmor": 10,
+    "unarmedDamage": "1W2",
+    "criticalHit": "Bei einer natürlichen 20 werden alle Schadenswürfel doppelt geworfen.",
+    "deathAtZero": "Bei 0 Trefferpunkten bist du bewusstlos. Drei misslungene Rettungswürfe (W20 unter 10) bedeuten den Tod."
+  },
+
+  "skills": [
+    { "id": "athletik",       "name": "Athletik",        "attribute": "staerke",      "description": "Klettern, Schwimmen, Springen, Ringen." },
+    { "id": "heimlichkeit",   "name": "Heimlichkeit",    "attribute": "geschick",     "description": "Schleichen und sich verstecken." },
+    { "id": "fingerfertigkeit","name": "Fingerfertigkeit","attribute": "geschick",    "description": "Taschendiebstahl, Schlösser öffnen, Taschenspielertricks." },
+    { "id": "reiten",         "name": "Reiten",          "attribute": "geschick",     "description": "Pferde lenken, auch im Galopp oder Kampf." },
+    { "id": "zaehigkeit",     "name": "Zähigkeit",       "attribute": "konstitution", "description": "Kälte, Hunger, Gift und Krankheit widerstehen." },
+    { "id": "gelehrsamkeit",  "name": "Gelehrsamkeit",   "attribute": "verstand",     "description": "Lesen, Schreiben, Geschichte, Recht und Sprachen." },
+    { "id": "glaube_sagen",   "name": "Glaube & Sagen",  "attribute": "verstand",     "description": "Heilige, Rituale, Aberglaube und alte Legenden." },
+    { "id": "handwerk",       "name": "Handwerk",        "attribute": "verstand",     "description": "Schmieden, Zimmern, Bauen, Reparieren." },
+    { "id": "wahrnehmung",    "name": "Wahrnehmung",     "attribute": "weisheit",     "description": "Etwas sehen, hören oder riechen, das anderen entgeht." },
+    { "id": "heilkunde",      "name": "Heilkunde",       "attribute": "weisheit",     "description": "Wunden versorgen, Kräuter anwenden, Krankheiten erkennen." },
+    { "id": "ueberleben",     "name": "Überleben",       "attribute": "weisheit",     "description": "Fährten lesen, jagen, in der Wildnis zurechtfinden." },
+    { "id": "menschenkenntnis","name": "Menschenkenntnis","attribute": "weisheit",    "description": "Lügen und wahre Absichten erkennen." },
+    { "id": "ueberreden",     "name": "Überreden",       "attribute": "ausstrahlung", "description": "Mit Worten und Charme überzeugen oder feilschen." },
+    { "id": "taeuschen",      "name": "Täuschen",        "attribute": "ausstrahlung", "description": "Lügen, verkleiden, falsche Fährten legen." },
+    { "id": "einschuechtern", "name": "Einschüchtern",   "attribute": "ausstrahlung", "description": "Drohen und Angst einjagen." },
+    { "id": "auftreten",      "name": "Auftreten",       "attribute": "ausstrahlung", "description": "Musik, Gaukelei, Predigt, Schauspiel." }
+  ],
+
+  "stands": [
+    { "id": "bauer",      "name": "Bauernkind",       "description": "Du bist auf dem Feld aufgewachsen, kennst harte Arbeit, Wetter und Vieh.", "skill": "ueberleben",    "feature": "Bauernvolk hilft dir: Auf dem Land findest du immer ein Nachtlager im Heu.", "money": { "gulden": 0, "groschen": 8, "pfennig": 0 } },
+    { "id": "buerger",    "name": "Bürgerkind",       "description": "Du stammst aus einer Handwerker- oder Kaufmannsfamilie in der Stadt.",          "skill": "handwerk",      "feature": "Zunftkontakte: In Städten kennst du jemanden, der jemanden kennt.",          "money": { "gulden": 1, "groschen": 5, "pfennig": 0 } },
+    { "id": "klerus",     "name": "Klosterzögling",   "description": "Du wurdest hinter Klostermauern erzogen, kannst lesen und beten.",              "skill": "gelehrsamkeit", "feature": "Kirchenasyl: Klöster und Pfarrer gewähren dir Obdach und Gehör.",            "money": { "gulden": 0, "groschen": 5, "pfennig": 0 } },
+    { "id": "adel",       "name": "Verarmter Adel",   "description": "Dein Geschlecht ist alt, doch die Truhen sind leer. Dein Name öffnet manche Tür.", "skill": "reiten",     "feature": "Wappen: Niederer Adel und Burgvögte behandeln dich als ihresgleichen.",    "money": { "gulden": 2, "groschen": 0, "pfennig": 0 } },
+    { "id": "fahrend",    "name": "Fahrendes Volk",   "description": "Du bist mit Gauklern, Händlern oder Pilgern über die Straßen gezogen.",         "skill": "auftreten",     "feature": "Straßenkunde: Du kennst Schleichwege, Herbergen und Lagerfeuerlieder.",   "money": { "gulden": 0, "groschen": 10, "pfennig": 0 } },
+    { "id": "ausgestossen","name": "Ausgestoßener",   "description": "Verbannt, geächtet oder entflohen – du hast gelernt, im Schatten zu überleben.", "skill": "heimlichkeit", "feature": "Unterwelt: Diebe, Hehler und Schmuggler erkennen dich als einen der ihren.", "money": { "gulden": 0, "groschen": 3, "pfennig": 0 } }
+  ],
+
+  "currency": {
+    "units": [
+      { "id": "gulden",   "name": "Gulden",   "symbol": "G", "valueInPfennig": 240 },
+      { "id": "groschen", "name": "Groschen", "symbol": "g", "valueInPfennig": 12 },
+      { "id": "pfennig",  "name": "Pfennig",  "symbol": "Pf", "valueInPfennig": 1 }
+    ],
+    "examples": ["Ein Laib Brot: 1 Pfennig", "Eine Nacht in der Herberge: 4 Pfennig", "Ein Langschwert: 1 Gulden", "Ein Reitpferd: 8 Gulden"]
+  },
+
+  "items": [
+    { "id": "dolch",         "name": "Dolch",            "type": "weapon", "damage": "1W4",  "attribute": ["staerke", "geschick"], "properties": ["leicht", "werfbar"] },
+    { "id": "kurzschwert",   "name": "Kurzschwert",      "type": "weapon", "damage": "1W6",  "attribute": ["staerke", "geschick"], "properties": ["leicht"] },
+    { "id": "langschwert",   "name": "Langschwert",      "type": "weapon", "damage": "1W8",  "attribute": ["staerke"], "properties": [] },
+    { "id": "streitkolben",  "name": "Streitkolben",     "type": "weapon", "damage": "1W6",  "attribute": ["staerke"], "properties": [] },
+    { "id": "streitaxt",     "name": "Streitaxt",        "type": "weapon", "damage": "1W8",  "attribute": ["staerke"], "properties": [] },
+    { "id": "hellebarde",    "name": "Hellebarde",       "type": "weapon", "damage": "1W10", "attribute": ["staerke"], "properties": ["zweihändig", "Reichweite"] },
+    { "id": "speer",         "name": "Speer",            "type": "weapon", "damage": "1W6",  "attribute": ["staerke"], "properties": ["werfbar"] },
+    { "id": "kampfstab",     "name": "Kampfstab",        "type": "weapon", "damage": "1W6",  "attribute": ["staerke", "geschick"], "properties": ["zweihändig"] },
+    { "id": "kurzbogen",     "name": "Kurzbogen",        "type": "weapon", "damage": "1W6",  "attribute": ["geschick"], "properties": ["Fernkampf", "zweihändig"] },
+    { "id": "langbogen",     "name": "Langbogen",        "type": "weapon", "damage": "1W8",  "attribute": ["geschick"], "properties": ["Fernkampf", "zweihändig"] },
+    { "id": "armbrust",      "name": "Armbrust",         "type": "weapon", "damage": "1W10", "attribute": ["geschick"], "properties": ["Fernkampf", "Nachladen"] },
+    { "id": "wurfmesser",    "name": "Wurfmesser (3)",   "type": "weapon", "damage": "1W4",  "attribute": ["geschick"], "properties": ["werfbar", "leicht"] },
+    { "id": "sichel",        "name": "Kräutersichel",    "type": "weapon", "damage": "1W4",  "attribute": ["staerke", "geschick"], "properties": ["leicht"] },
+
+    { "id": "waffenrock",    "name": "Gepolsterter Waffenrock", "type": "armor", "category": "leicht", "armorBonus": 1, "maxDexBonus": null },
+    { "id": "lederwams",     "name": "Lederwams",        "type": "armor", "category": "leicht", "armorBonus": 2, "maxDexBonus": null },
+    { "id": "kettenhemd",    "name": "Kettenhemd",       "type": "armor", "category": "mittel", "armorBonus": 4, "maxDexBonus": 2 },
+    { "id": "plattenharnisch","name": "Plattenharnisch", "type": "armor", "category": "schwer", "armorBonus": 7, "maxDexBonus": 0 },
+    { "id": "schild",        "name": "Holzschild",       "type": "shield", "armorBonus": 2 },
+
+    { "id": "rucksack",      "name": "Rucksack",         "type": "gear" },
+    { "id": "seil",          "name": "Hanfseil (15 Schritt)", "type": "gear" },
+    { "id": "fackeln",       "name": "Fackeln (5)",      "type": "gear" },
+    { "id": "zunderbuechse", "name": "Zunderbüchse",     "type": "gear" },
+    { "id": "proviant",      "name": "Proviant (5 Tage)","type": "gear" },
+    { "id": "wasserschlauch","name": "Wasserschlauch",   "type": "gear" },
+    { "id": "decke",         "name": "Wolldecke",        "type": "gear" },
+    { "id": "rosenkranz",    "name": "Rosenkranz",       "type": "gear" },
+    { "id": "gebetbuch",     "name": "Gebetbuch",        "type": "gear" },
+    { "id": "kraeuterbeutel","name": "Kräuterbeutel",    "type": "gear" },
+    { "id": "heilsalbe",     "name": "Heilsalbe (3)",    "type": "consumable", "effect": "Heilt 1W4+1 Trefferpunkte" },
+    { "id": "laute",         "name": "Laute",            "type": "gear" },
+    { "id": "bunte_kleider", "name": "Bunte Gauklerkleider", "type": "gear" },
+    { "id": "jonglierbaelle","name": "Jonglierbälle",    "type": "gear" },
+    { "id": "dietriche",     "name": "Dietriche",        "type": "gear" },
+    { "id": "jagdhorn",      "name": "Jagdhorn",         "type": "gear" },
+    { "id": "fallen",        "name": "Tierfallen (2)",   "type": "gear" },
+    { "id": "wappenrock",    "name": "Wappenrock",       "type": "gear" },
+    { "id": "moerser",       "name": "Mörser & Stößel",  "type": "gear" },
+    { "id": "talisman",      "name": "Seltsamer Talisman","type": "gear" },
+    { "id": "wuerfelbecher", "name": "Würfelbecher",     "type": "gear" }
+  ],
+
+  "magicLevels": [
+    { "id": "none",   "name": "Keine Magie",  "description": "Nur Aberglaube, Kräuterkunde und Glaube. Wunder bleiben Gerüchte." },
+    { "id": "low",    "name": "Wenig Magie",  "description": "Selten, leise und gefürchtet: Segen, Flüche, Visionen. Niemand wirft Feuerbälle." },
+    { "id": "medium", "name": "Etwas Magie",  "description": "Hexen, Alchemisten und Spukgestalten existieren. Wer Magie wirkt, wird bemerkt." },
+    { "id": "high",   "name": "Viel Magie",   "description": "Drachen, Zauberer und verwunschene Wälder. Magie ist Teil der Welt." }
+  ],
+
+  "classBuilder": {
+    "pointBudgetPerLevel": [10, 12, 14, 16, 19, 22, 25, 28, 32, 36],
+    "hitDie": { "min": 6, "max": 12, "allowed": [6, 8, 10, 12] },
+    "maxDamageDie": 12,
+    "maxDamageDiceCount": 2,
+    "maxFlatDamageBonus": 3,
+    "armorBonus": { "min": 0, "max": 3 },
+    "attackBonus": { "min": 0, "max": 2 },
+    "maxTrainedSkills": 4,
+    "maxAbilitiesAtLevel1": 3,
+    "abilityTypes": ["angriff", "verteidigung", "heilung", "unterstuetzung", "kontrolle", "bewegung", "wissen", "sozial", "handwerk", "magie"],
+    "abilityUses": ["passiv", "einmal_pro_kampf", "einmal_pro_rast", "einmal_pro_tag", "beliebig"],
+    "forbiddenEffects": ["unendlich", "unverwundbar", "sofortiger_sieg", "regeln_aendern", "unbegrenzt", "tötet_sofort", "unsterblich"]
+  }
+}

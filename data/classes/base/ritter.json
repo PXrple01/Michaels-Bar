@@ -1,0 +1,90 @@
+{
+  "id": "ritter",
+  "name": "Ritter",
+  "sigil": "shield",
+  "tagline": "Schwert, Schild und ein Eid, der schwerer wiegt als Stahl.",
+  "description": "Du bist im Waffenhandwerk ausgebildet und trägst schwere Rüstung. Im Kampf stehst du in der ersten Reihe und schützt die anderen.",
+  "role": "Beschützer",
+  "difficulty": 1,
+  "beginnerTip": "Ideal für den Einstieg: viele Trefferpunkte, hohe Rüstung und einfache Fähigkeiten.",
+  "hitDie": 10,
+  "primaryAttributes": [
+    "staerke",
+    "konstitution"
+  ],
+  "recommendedAttributes": {
+    "staerke": 15,
+    "geschick": 10,
+    "konstitution": 14,
+    "verstand": 9,
+    "weisheit": 10,
+    "ausstrahlung": 11
+  },
+  "trainedSkills": [
+    "athletik"
+  ],
+  "skillChoices": {
+    "count": 2,
+    "from": [
+      "reiten",
+      "einschuechtern",
+      "menschenkenntnis",
+      "glaube_sagen",
+      "wahrnehmung"
+    ]
+  },
+  "armor": [
+    "leicht",
+    "mittel",
+    "schwer",
+    "schild"
+  ],
+  "startingEquipment": [
+    "langschwert",
+    "kettenhemd",
+    "schild",
+    "wappenrock",
+    "rucksack",
+    "proviant",
+    "wasserschlauch",
+    "decke"
+  ],
+  "equippedWeapon": "langschwert",
+  "equippedArmor": "kettenhemd",
+  "equippedShield": "schild",
+  "startingMoney": {
+    "gulden": 1,
+    "groschen": 0,
+    "pfennig": 0
+  },
+  "requiresMagic": "none",
+  "abilities": [
+    {
+      "id": "schildwall",
+      "name": "Schildwall",
+      "type": "verteidigung",
+      "uses": "einmal_pro_kampf",
+      "level": 1,
+      "text": "Als Reaktion erhält ein Verbündeter neben dir +2 Rüstung bis zum Beginn deines nächsten Zuges.",
+      "beginnerText": "Du springst mit dem Schild vor einen Freund. Gegner treffen ihn schwerer."
+    },
+    {
+      "id": "ritterlicher_schlag",
+      "name": "Ritterlicher Schlag",
+      "type": "angriff",
+      "uses": "einmal_pro_rast",
+      "level": 1,
+      "text": "Ein Nahkampftreffer verursacht zusätzlich 1W8 Schaden.",
+      "beginnerText": "Ein besonders wuchtiger Hieb – einmal, bis du dich ausruhst."
+    },
+    {
+      "id": "eid",
+      "name": "Eid der Treue",
+      "type": "sozial",
+      "uses": "passiv",
+      "level": 1,
+      "text": "Vorteil auf Proben gegen Furcht und Einschüchterung.",
+      "beginnerText": "Dein Eid macht dich mutig: Angst hat es schwer bei dir."
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+node_modules/
+dist/
+saves/characters/*.json
+saves/rolls.log
+scratch/

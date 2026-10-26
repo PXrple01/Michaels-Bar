@@ -1,0 +1,89 @@
+{
+  "id": "jaeger",
+  "name": "Jäger",
+  "sigil": "bow",
+  "tagline": "Der Wald ist dein Haus, der Bogen deine Stimme.",
+  "description": "Du kennst die Wälder, liest Fährten, stellst Fallen und triffst aus großer Entfernung. Wilderer oder Förster – das entscheidest du.",
+  "role": "Fernkämpfer & Kundschafter",
+  "difficulty": 2,
+  "beginnerTip": "Für alle, die gern auf Abstand kämpfen und die Wildnis erkunden.",
+  "hitDie": 8,
+  "primaryAttributes": [
+    "geschick",
+    "weisheit"
+  ],
+  "recommendedAttributes": {
+    "staerke": 10,
+    "geschick": 15,
+    "konstitution": 11,
+    "verstand": 10,
+    "weisheit": 14,
+    "ausstrahlung": 9
+  },
+  "trainedSkills": [
+    "ueberleben",
+    "wahrnehmung"
+  ],
+  "skillChoices": {
+    "count": 2,
+    "from": [
+      "heimlichkeit",
+      "athletik",
+      "heilkunde",
+      "reiten",
+      "zaehigkeit"
+    ]
+  },
+  "armor": [
+    "leicht",
+    "mittel"
+  ],
+  "startingEquipment": [
+    "langbogen",
+    "dolch",
+    "lederwams",
+    "jagdhorn",
+    "fallen",
+    "seil",
+    "rucksack",
+    "proviant"
+  ],
+  "equippedWeapon": "langbogen",
+  "equippedArmor": "lederwams",
+  "equippedShield": null,
+  "startingMoney": {
+    "gulden": 0,
+    "groschen": 8,
+    "pfennig": 0
+  },
+  "requiresMagic": "none",
+  "abilities": [
+    {
+      "id": "gezielter_schuss",
+      "name": "Gezielter Schuss",
+      "type": "angriff",
+      "uses": "einmal_pro_kampf",
+      "level": 1,
+      "text": "Du nimmst dir Zeit zum Zielen: Dein nächster Fernkampfangriff hat Vorteil und verursacht +1W6 Schaden.",
+      "beginnerText": "Ruhig atmen, zielen, loslassen – ein besonders sicherer und harter Schuss."
+    },
+    {
+      "id": "faehrtenleser",
+      "name": "Fährtenleser",
+      "type": "wissen",
+      "uses": "passiv",
+      "level": 1,
+      "text": "Vorteil auf Überleben, um Spuren zu folgen. Du erkennst, wie viele Wesen wann vorbeikamen.",
+      "beginnerText": "Ein abgeknickter Zweig, ein Fußabdruck – du liest den Wald wie ein Buch."
+    },
+    {
+      "id": "lautlos",
+      "name": "Lautlos im Unterholz",
+      "type": "bewegung",
+      "uses": "passiv",
+      "level": 1,
+      "text": "In Wald und Wildnis hast du Vorteil auf Heimlichkeit.",
+      "beginnerText": "Im Wald hört dich niemand kommen."
+    }
+  ]
+}

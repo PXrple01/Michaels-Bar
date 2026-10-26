@@ -1,0 +1,88 @@
+{
+  "id": "soeldner",
+  "name": "Söldner",
+  "sigil": "axe",
+  "tagline": "Wer zahlt, bekommt deine Klinge. Wer mehr zahlt, auch deine Treue.",
+  "description": "Du hast in vielen Fehden gekämpft, für wen auch immer. Du bist zäh, praktisch und kennst jeden schmutzigen Trick.",
+  "role": "Kämpfer",
+  "difficulty": 1,
+  "beginnerTip": "Einfach zu spielen: robust, vielseitig im Kampf und mit einer Selbstheilung.",
+  "hitDie": 10,
+  "primaryAttributes": [
+    "staerke",
+    "konstitution"
+  ],
+  "recommendedAttributes": {
+    "staerke": 14,
+    "geschick": 13,
+    "konstitution": 14,
+    "verstand": 9,
+    "weisheit": 10,
+    "ausstrahlung": 10
+  },
+  "trainedSkills": [
+    "zaehigkeit"
+  ],
+  "skillChoices": {
+    "count": 2,
+    "from": [
+      "athletik",
+      "einschuechtern",
+      "ueberleben",
+      "wahrnehmung",
+      "taeuschen"
+    ]
+  },
+  "armor": [
+    "leicht",
+    "mittel",
+    "schild"
+  ],
+  "startingEquipment": [
+    "streitaxt",
+    "armbrust",
+    "lederwams",
+    "rucksack",
+    "proviant",
+    "wasserschlauch",
+    "wuerfelbecher"
+  ],
+  "equippedWeapon": "streitaxt",
+  "equippedArmor": "lederwams",
+  "equippedShield": null,
+  "startingMoney": {
+    "gulden": 0,
+    "groschen": 15,
+    "pfennig": 0
+  },
+  "requiresMagic": "none",
+  "abilities": [
+    {
+      "id": "zweiter_atem",
+      "name": "Zweiter Atem",
+      "type": "heilung",
+      "uses": "einmal_pro_rast",
+      "level": 1,
+      "text": "Als Bonusaktion heilst du dich um 1W10 + Stufe Trefferpunkte.",
+      "beginnerText": "Du beißt die Zähne zusammen und kämpfst weiter – du heilst dich selbst."
+    },
+    {
+      "id": "schmutziger_trick",
+      "name": "Schmutziger Trick",
+      "type": "kontrolle",
+      "uses": "einmal_pro_kampf",
+      "level": 1,
+      "text": "Statt anzugreifen wirfst du Sand, trittst oder stößt: Ein Gegner hat Nachteil auf seinen nächsten Angriff.",
+      "beginnerText": "Sand in die Augen! Der Gegner trifft beim nächsten Mal schlechter."
+    },
+    {
+      "id": "kriegserfahrung",
+      "name": "Kriegserfahrung",
+      "type": "wissen",
+      "uses": "passiv",
+      "level": 1,
+      "text": "Du erkennst Waffen, Wappen und Truppenstärken. Vorteil auf Proben, um eine Kampflage einzuschätzen.",
+      "beginnerText": "Du hast schon viel gesehen und durchschaust Schlachten schnell."
+    }
+  ]
+}

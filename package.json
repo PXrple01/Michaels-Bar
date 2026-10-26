@@ -1,0 +1,33 @@
+{
+  "name": "wuerfel-und-schicksal",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Mittelalterliches Erzähl-Rollenspiel im Browser mit fairem 3D-Würfel",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c magenta,blue \"tsx watch server/index.ts\" \"vite\"",
+    "build": "vite build",
+    "start": "npm run build && tsx server/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/cinzel": "^5.3.0",
+    "@fontsource/cinzel-decorative": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "cannon-es": "^0.20.0",
+    "express": "^5.3.0",
+    "three": "^0.186.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "@types/three": "^0.186.0",
+    "concurrently": "^10.0.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
