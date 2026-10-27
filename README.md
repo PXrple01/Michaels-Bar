@@ -124,6 +124,33 @@ Claude erzählt, der Server rechnet – wie bei den Proben. Dafür hat der Spiel
 - Der Spielstand (Lebenspunkte, Kampf, Aufträge) ist im Solo-Modus mitsigniert, in der Gruppe liegt er auf dem Server.
   Abenteuer von vor Etappe 5 werden beim nächsten Zug einmalig umgestellt.
 
+## OpenAI-kompatible Schnittstelle (für Chat-Apps und Programme)
+
+Der Spielleiter ist auch im OpenAI-Format erreichbar (`server/gm/openai.ts`) – für Chat-Apps mit „OpenAI-kompatibler“ Adresse
+oder eigene Skripte mit der OpenAI-Bibliothek.
+
+- **Einschalten:** Umgebungsvariable `OPENAI_COMPAT_KEY` anlegen (beliebiger langer Text, in Netlify als geheim markieren).
+  Ohne sie antwortet `/v1/…` mit 404. Der Schlüssel ersetzt hier den `ACCESS_CODE`.
+- **Adresse:** `https://<deine-seite>/v1` · **Schlüssel:** `Authorization: Bearer <OPENAI_COMPAT_KEY>`
+- **Endpunkte:** `GET /v1/models`, `POST /v1/chat/completions` (mit und ohne `stream`, `stream_options.include_usage`).
+- **Modelle:** `michaels-bar` (mit Spielstand) und `michaels-bar-einfach` (ohne).
+- **Würfeln:** Es gibt keinen Würfeln-Knopf – der Server würfelt verlangte Proben sofort (fair, wie sonst auch) und schreibt
+  den Wurf in die Antwort (🎲, Gegnerangriffe ⚔️).
+- **Spielstand:** Lebenspunkte, Kampf, Aufträge und Gedächtnis hängen als signierter HTML-Kommentar am Ende jeder Antwort
+  (`<!-- michaels-bar:… -->`). Die App schickt ihn mit dem Verlauf zurück; verändert jemand ihn, wird er ignoriert.
+  Zeigt eine App den Kommentar sichtbar an, das Modell `michaels-bar-einfach` nehmen (dann beginnt jeder Zug ohne Kampfstand).
+- **Figur:** Ohne Angabe spielt der Söldner „Wanderer“. Eigene Figur: Feld `character` (auf dem Charakterbogen
+  „Für Chat-Apps kopieren“). Systemnachrichten der App gehen als Hinweise an den Spielleiter (z. B. „Antworte auf Englisch“).
+- **Startimpuls:** ergibt sich fest aus der ersten Nachricht – derselbe Anfang, derselbe Einstieg (gut für den Prompt-Cache).
+- **Grenzen:** etwa 75 000 Tokens pro Gespräch (dann neu beginnen; die automatische Zusammenfassung gibt es hier nicht),
+  höchstens 4 Proben pro Antwort. Monatsbudget und Stundenlimit gelten wie im Spiel.
+
+```bash
+curl https://<deine-seite>/v1/chat/completions \
+  -H "Authorization: Bearer $OPENAI_COMPAT_KEY" -H "content-type: application/json" \
+  -d '{"model":"michaels-bar","messages":[{"role":"user","content":"Lass uns ein Abenteuer beginnen!"}]}'
+```
+
 ## Eigene Klassen (Claude ist Gutachter, der Code ist Richter)
 
 1. Du beschreibst eine Klasse frei und/oder per Formular (Seite *Figuren → Eigene Klassen*).
@@ -171,7 +198,7 @@ web/      Webseite (Vite + TypeScript, Three.js, cannon-es)
   src/pages/    Start, Lernen, Figuren, Assistent, Bogen, Würfeltisch, Einstellungen
 data/     Regeln und Klassen (JSON)
 server/gm/ Spielleiter: narrator (Kern), world (Kampf, Aufträge), engine (Solo), party (Gruppe), review (Klassen), Budget
-netlify/  Netlify Functions: api (Regeln, Würfe) und gm (Spielleiter, Gruppen, Klassenbewertung – gestreamt)
+netlify/  Netlify Functions: api (Regeln, Würfe) und gm (Spielleiter, Gruppen, Klassenbewertung, OpenAI-Schnittstelle – gestreamt)
 scripts/  Regeldaten prüfen und für Netlify bündeln
 saves/    Lokales Wurf-Protokoll (nicht im Git)
 tests/    Vitest

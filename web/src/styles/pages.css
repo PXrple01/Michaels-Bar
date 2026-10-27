@@ -819,3 +819,11 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .tut-example svg { width: 16px; height: 16px; color: var(--purple-2); flex: none; margin-top: 2px; }
 .tutorial .modal { width: min(520px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
 #help { font-family: var(--font-head); font-weight: 700; font-size: 1.05rem; }
+
+/* Einstellungen: OpenAI-Schnittstelle */
+.api-grid { display: grid; gap: 10px; margin: 12px 0; }
+.api-grid > div { display: grid; gap: 4px; padding: 12px 14px; border-radius: 12px; background: rgba(8, 5, 15, 0.5); border: 1px solid var(--line); }
+.api-grid span { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.api-grid small { font-size: 0.82rem; color: var(--muted); }
+.api-grid code { word-break: break-all; }
+.api-grid .btn { justify-self: start; }

@@ -77,6 +77,17 @@ export function settingsPage(): Page {
               <div><span>Tabus</span><b>${campaign.taboos.join(", ") || "keine"}</b></div>
             </div>
           </section>` : ""}
+
+          <section class="card set-section" data-reveal>
+            <h2>${icon("zap")} Für Chat-Apps und Programme</h2>
+            <p>Den Spielleiter kannst du auch aus anderen Programmen ansprechen, die das OpenAI-Format verstehen – etwa Chat-Apps, in denen man eine eigene „OpenAI-kompatible“ Adresse eintragen kann, oder eigene Skripte mit der OpenAI-Bibliothek.</p>
+            <div class="api-grid">
+              <div><span>Adresse (Base URL)</span><code id="api-base">${location.origin}/v1</code><button class="btn btn-ghost btn-sm" data-copy="api-base">${icon("scroll")} Kopieren</button></div>
+              <div><span>API-Schlüssel</span><b>Der Wert von <code>OPENAI_COMPAT_KEY</code></b><small>Lege ihn in den Netlify-Umgebungsvariablen an (beliebiger langer Text). Ohne ihn ist die Schnittstelle aus.</small></div>
+              <div><span>Modell</span><b><code>michaels-bar</code></b><small>Mit Lebenspunkten, Kampf und Aufträgen. Zeigt deine App seltsamen Text wie <code>&lt;!-- michaels-bar:… --&gt;</code>, nimm <code>michaels-bar-einfach</code>.</small></div>
+            </div>
+            <p class="hint">Proben würfelt der Server dort sofort selbst – fair wie hier. Gespielt wird mit dem Söldner „Wanderer“; eine eigene Figur schickst du mit dem Feld <code>character</code> mit (auf dem Charakterbogen: „Für Chat-Apps kopieren“). Jeder Zug zählt zum selben Monatsbudget.</p>
+          </section>
         </div>`);
 
       $$<HTMLElement>("[data-theme]", root).forEach((b) => b.addEventListener("click", () => {
@@ -90,6 +101,10 @@ export function settingsPage(): Page {
         const on = t.getAttribute("aria-checked") !== "true";
         t.setAttribute("aria-checked", String(on));
         updateSettings({ [key]: on } as Partial<Settings>);
+      }));
+      $$<HTMLElement>("[data-copy]", root).forEach((b) => b.addEventListener("click", async () => {
+        const value = root.querySelector(`#${b.dataset.copy}`)?.textContent ?? "";
+        try { await navigator.clipboard.writeText(value); toast("Kopiert.", "success"); } catch { toast(value); }
       }));
       root.querySelector("#reset-perf")?.addEventListener("click", () => { updateSettings({ lowPerfDetected: false }); toast("Messung zurückgesetzt."); });
       root.querySelector("#test-sound")?.addEventListener("click", () => {

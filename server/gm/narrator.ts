@@ -142,6 +142,8 @@ export interface ConverseResult {
   /** Ergebnisse der übrigen Werkzeuge aus derselben Antwort wie die Probe – gehen mit dem Wurf zurück. */
   held: ToolResult[];
   costUsd: number;
+  /** Verbrauchte Tokens aller Aufrufe dieses Zugs (Eingabe inkl. Cache). */
+  usage: { input: number; output: number };
 }
 
 export class Narrator {
@@ -247,28 +249,36 @@ export class Narrator {
   }
 
   /** Erzählt weiter, bis Claude fertig ist oder eine Probe verlangt. Sofort-Werkzeuge werden dabei ausgeführt. */
-  async converse(messages: MessageParam[], scene: Scene, who: string, onText: (text: string) => void): Promise<ConverseResult> {
+  /**
+   * `compact: false` schaltet die automatische Zusammenfassung ab – nötig, wenn der Aufrufer nur Text speichert
+   * (OpenAI-Schnittstelle): Ohne gespeicherten Zusammenfassungs-Block würde sie bei jeder Anfrage neu laufen.
+   */
+  async converse(messages: MessageParam[], scene: Scene, who: string, onText: (text: string) => void, opts: { compact?: boolean } = {}): Promise<ConverseResult> {
+    const compact = opts.compact !== false;
     const { characters, data, world } = scene;
     const history = [...messages];
     const base = requestBase(this.model, this.o.effort ?? "low");
     let cost = 0;
+    const usage = { input: 0, output: 0 };
     for (let loop = 0; loop < MAX_LOOPS; loop++) {
       await this.o.guard.check(who);
       const msg = await this.o.llm!.stream({
         ...base,
-        betas: [...(base.betas ?? []), "compact-2026-01-12"],
+        betas: [...(base.betas ?? []), ...(compact ? ["compact-2026-01-12"] : [])],
         max_tokens: 8000,
         cache_control: CACHE_1H,
         system: [{ type: "text", text: systemPrompt(data), cache_control: CACHE_1H }],
         tools: this.tools(data, characters),
         tool_choice: { type: "auto" },
-        context_management: { edits: [{ type: "compact_20260112", trigger: { type: "input_tokens", value: COMPACT_AT }, instructions: COMPACT_INSTRUCTIONS }] },
+        ...(compact ? { context_management: { edits: [{ type: "compact_20260112" as const, trigger: { type: "input_tokens" as const, value: COMPACT_AT }, instructions: COMPACT_INSTRUCTIONS }] } } : {}),
         messages: history,
       }, onText);
       const c = costUsd(msg.usage, this.model);
       cost += c;
       await this.o.guard.record(msg.usage, this.model);
       const u = msg.usage;
+      usage.input += u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+      usage.output += u.output_tokens;
       const compacted = (u.iterations ?? []).some((i) => i.type === "compaction");
       console.log(`[Kosten] ${this.model}: Eingabe ${u.input_tokens}, Cache gelesen ${u.cache_read_input_tokens ?? 0}, Cache geschrieben ${u.cache_creation_input_tokens ?? 0}, Ausgabe ${u.output_tokens} (davon Denken ${u.output_tokens_details?.thinking_tokens ?? "?"})${compacted ? ", mit Zusammenfassung" : ""} → ${(c * 100).toFixed(2)} ct`);
 
@@ -289,14 +299,14 @@ export class Narrator {
             results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: "Unbekanntes Werkzeug." });
           }
         }
-        if (pending) return { history, pending, held: results, costUsd: cost };
+        if (pending) return { history, pending, held: results, costUsd: cost, usage };
         const told = msg.content.some((b) => b.type === "text" && /»\s*Vorschläge:/.test(b.text));
-        if (told && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost };
+        if (told && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost, usage };
         history.push({ role: "user", content: results });
         continue;
       }
       if (uses.length) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
-      return { history, pending: null, held: [], costUsd: cost };
+      return { history, pending: null, held: [], costUsd: cost, usage };
     }
     throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");
   }

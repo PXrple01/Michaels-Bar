@@ -12,10 +12,11 @@ const data = gamedata as unknown as GameData;
 export default async (req: Request, context: Context) => {
   const secret = process.env.GAME_SECRET;
   if (!secret || secret.length < 16) {
+    if (new URL(req.url).pathname.startsWith("/v1/")) return Response.json({ error: { message: "GAME_SECRET fehlt in den Netlify-Umgebungsvariablen (mindestens 16 Zeichen).", type: "api_error", code: "not_configured" } }, { status: 503 });
     return new Response(`data: ${JSON.stringify({ type: "error", code: "no_api_key", message: "GAME_SECRET fehlt in den Netlify-Umgebungsvariablen (mindestens 16 Zeichen)." })}\n\n`, { headers: { "content-type": "text/event-stream" } });
   }
   const claude = createClaude(process.env, () => data, new RollLog(new BlobRollStore()), new BlobCounterStore(), secret, new BlobPartyStore());
   return handleGmRequest(req, claude, process.env.ACCESS_CODE, context.ip ?? "unbekannt");
 };
 
-export const config: Config = { path: ["/api/campaign/*", "/api/classes/review", "/api/party/*"] };
+export const config: Config = { path: ["/api/campaign/*", "/api/classes/review", "/api/party/*", "/v1/*"] };

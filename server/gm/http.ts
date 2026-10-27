@@ -67,10 +67,45 @@ export function mountGm(app: Express, claude: () => Claude, accessCode: string |
   });
 }
 
+/** CORS für die OpenAI-Schnittstelle: Chat-Apps im Browser laufen auf anderen Adressen. */
+const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, OPTIONS" };
+
+/** OpenAI-kompatible Endpunkte (/v1/models, /v1/chat/completions) – geschützt durch OPENAI_COMPAT_KEY statt ACCESS_CODE. */
+export function mountOpenAi(app: Express, claude: () => Claude) {
+  app.all(/^\/v1\/.*/, async (req: Request, res) => {
+    res.set(CORS);
+    if (req.method === "OPTIONS") return void res.status(204).end();
+    const r = await claude().openai.handle(req.method, req.path, req.header("authorization") ?? null, req.body, req.ip ?? "local");
+    if (!("stream" in r)) return void res.status(r.status).json(r.json);
+    res.setHeader("content-type", "text/event-stream; charset=utf-8");
+    res.setHeader("cache-control", "no-cache, no-transform");
+    res.flushHeaders();
+    await r.stream((chunk) => res.write(chunk));
+    res.end();
+  });
+}
+
+async function handleOpenAiRequest(request: globalThis.Request, path: string, claude: Claude, who: string): Promise<Response> {
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  let body: unknown = null;
+  if (request.method === "POST") { try { body = await request.json(); } catch { return Response.json({ error: { message: "Ungültiges JSON.", type: "invalid_request_error", code: null } }, { status: 400, headers: CORS }); } }
+  const r = await claude.openai.handle(request.method, path, request.headers.get("authorization"), body, who);
+  if (!("stream" in r)) return Response.json(r.json, { status: r.status, headers: CORS });
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      await r.stream((chunk) => controller.enqueue(encoder.encode(chunk)));
+      controller.close();
+    },
+  });
+  return new Response(stream, { headers: { ...CORS, "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" } });
+}
+
 /** Für Netlify: beantwortet einen Web-Request mit einem gestreamten Response. */
 export async function handleGmRequest(req: Request | globalThis.Request, claude: Claude, accessCode: string | undefined, who: string): Promise<Response> {
   const request = req as globalThis.Request;
   const path = new URL(request.url).pathname;
+  if (path.startsWith("/v1/")) return handleOpenAiRequest(request, path, claude, who);
   if (path.startsWith("/api/party/")) return handlePartyRequest(request, path.split("/").pop() ?? "", claude, accessCode, who);
   const kind = (path === "/api/classes/review" ? "review" : path.split("/").pop()) as GmKind | "review";
   if (request.method !== "POST" || (kind !== "review" && !GM_KINDS.includes(kind))) return new Response("Not found", { status: 404 });

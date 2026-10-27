@@ -1,6 +1,7 @@
 // Würfelt den Startimpuls aus data/openings.json – mit kryptografischem Zufall, nicht durch Claude.
 import type { Opening } from "../../shared/campaign";
 import type { Openings } from "../../shared/schema";
+import { createHash } from "node:crypto";
 import { cryptoRandomInt, type RandomInt } from "../dice/rng";
 
 const pick = <T,>(list: T[], rng: RandomInt) => list[rng(list.length) - 1];
@@ -25,4 +26,10 @@ export function rollOpening(tables: Openings, previous: string[], rng: RandomInt
     };
   } while (++tries < 12 && recent.some((p) => p.includes(o.ort) || p.includes(o.anlass)));
   return o;
+}
+
+/** Immer gleicher „Zufall“ zu einem Text – damit derselbe Gesprächsanfang immer denselben Startimpuls ergibt. */
+export function seededRng(seed: string): RandomInt {
+  let counter = 0;
+  return (sides) => createHash("sha256").update(`${seed}\n${counter++}`).digest().readUInt32BE(0) % sides + 1;
 }

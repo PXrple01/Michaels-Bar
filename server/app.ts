@@ -4,15 +4,16 @@ import path from "node:path";
 import { handleApi } from "./api";
 import type { RollLog } from "./dice/log";
 import type { Claude } from "./gm/setup";
-import { mountGm } from "./gm/http";
+import { mountGm, mountOpenAi } from "./gm/http";
 import type { GameData } from "./rules/loader";
 
 export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string; claude?: () => Claude; accessCode?: string; secret?: string; customClassDir?: string }) {
   const app = express();
   app.disable("x-powered-by");
-  app.use(express.json({ limit: "64kb" }));
+  // Lange Abenteuer (signierter Verlauf) und OpenAI-Gespräche schicken den ganzen Verlauf mit
+  app.use(express.json({ limit: "2mb" }));
 
-  if (opts.claude) mountGm(app, opts.claude, opts.accessCode);
+  if (opts.claude) { mountGm(app, opts.claude, opts.accessCode); mountOpenAi(app, opts.claude); }
 
   app.all(/^\/api\/.*/, async (req, res) => {
     const result = await handleApi(req.method, req.path, req.body, opts);
@@ -21,7 +22,7 @@ export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDi
 
   if (opts.staticDir && existsSync(opts.staticDir)) {
     app.use(express.static(opts.staticDir));
-    app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(opts.staticDir!, "index.html")));
+    app.get(/^(?!\/(api|v1)\/).*/, (_req, res) => res.sendFile(path.join(opts.staticDir!, "index.html")));
   }
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {

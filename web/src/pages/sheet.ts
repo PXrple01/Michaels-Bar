@@ -185,6 +185,7 @@ export function sheetPage(): Page {
           <div class="sheet-foot" data-reveal>
             <a class="btn btn-ghost" href="#/figuren">${icon("arrowLeft")} Alle Figuren</a>
             <a class="btn magnetic glow-border" href="#/abenteuer">${icon("scroll")} Abenteuer beginnen</a>
+            <button class="btn btn-ghost btn-sm" id="copy-char" title="Für die OpenAI-Schnittstelle (Feld „character“)">${icon("zap")} Für Chat-Apps kopieren</button>
             <button class="btn btn-danger btn-sm" id="delete-char">${icon("trash")} Figur löschen</button>
           </div>
         </div>`);
@@ -201,6 +202,12 @@ export function sheetPage(): Page {
       }));
 
       $("#hp-fill", root).classList.toggle("low", c.hp.current / c.hp.max <= 0.3);
+
+      $("#copy-char", root).addEventListener("click", async () => {
+        const json = JSON.stringify(c);
+        try { await navigator.clipboard.writeText(json); toast("Figur kopiert – füge sie in deiner App als Feld „character“ ein.", "success", 5000); }
+        catch { toast("Kopieren nicht möglich – dein Browser erlaubt es hier nicht.", "error"); }
+      });
 
       $("#delete-char", root).addEventListener("click", async () => {
         if (!(await confirmDialog("Figur löschen?", `${c.name} wird endgültig gelöscht. Das lässt sich nicht rückgängig machen.`, "Löschen", true))) return;

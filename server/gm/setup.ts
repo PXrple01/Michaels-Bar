@@ -3,6 +3,7 @@ import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { GameMaster } from "./engine";
 import { AnthropicLlm, MODELS, type ModelId } from "./narrator";
+import { OpenAiGateway } from "./openai";
 import { ClassReviewer } from "./review";
 import { MemoryPartyStore, PartyService, type PartyStore } from "./party";
 import { UsageGuard, type CounterStore } from "./usage";
@@ -16,6 +17,8 @@ export interface GmEnv {
   GM_EFFORT?: string;
   GM_MODEL?: string;
   REVIEW_MODEL?: string;
+  /** Schlüssel für die OpenAI-kompatible Schnittstelle (/v1/…). Ohne ihn ist sie abgeschaltet. */
+  OPENAI_COMPAT_KEY?: string;
 }
 
 const pickModel = (v: string | undefined, fallback: ModelId, name = "GM_MODEL"): ModelId => {
@@ -25,7 +28,7 @@ const pickModel = (v: string | undefined, fallback: ModelId, name = "GM_MODEL"):
   return fallback;
 };
 
-export interface Claude { gm: GameMaster; reviewer: ClassReviewer; party: PartyService }
+export interface Claude { gm: GameMaster; reviewer: ClassReviewer; party: PartyService; openai: OpenAiGateway }
 
 export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, counters: CounterStore, secret: string, parties: PartyStore = new MemoryPartyStore()): Claude {
   const effort = env.GM_EFFORT === "medium" || env.GM_EFFORT === "high" ? env.GM_EFFORT : "low";
@@ -36,6 +39,7 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   return {
     gm,
     party: new PartyService({ data, narrator: gm.narrator, guard, store: parties, secret }),
+    openai: new OpenAiGateway({ data, narrator: gm.narrator, guard, secret, apiKey: env.OPENAI_COMPAT_KEY?.trim() || undefined }),
     reviewer: new ClassReviewer({ data, llm, guard, secret, effort, model: pickModel(env.REVIEW_MODEL, model, "REVIEW_MODEL") }),
   };
 }
