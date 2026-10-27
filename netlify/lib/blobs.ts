@@ -3,6 +3,7 @@ import { getStore } from "@netlify/blobs";
 import type { RollRecord } from "../../shared/dice";
 import type { RollStore } from "../../server/dice/log";
 import type { CounterStore } from "../../server/gm/usage";
+import type { Party, PartyStore } from "../../server/gm/party";
 
 export class BlobRollStore implements RollStore {
   private get store() { return getStore({ name: "rolls", consistency: "strong" }); }
@@ -29,5 +30,20 @@ export class BlobCounterStore implements CounterStore {
       if (res.modified) return next;
     }
     throw new Error("Zähler konnte nicht aktualisiert werden");
+  }
+}
+
+/** Gruppen-Spielstände; jede Änderung nur, wenn niemand dazwischen gespeichert hat (ETag). */
+export class BlobPartyStore implements PartyStore {
+  private get store() { return getStore({ name: "parties", consistency: "strong" }); }
+  async get(code: string) {
+    const r = await this.store.getWithMetadata(code, { type: "json" });
+    return r ? { party: r.data as Party, etag: r.etag ?? "" } : null;
+  }
+  async put(party: Party, etag: string | null) {
+    const res = etag === null
+      ? await this.store.setJSON(party.code, party, { onlyIfNew: true })
+      : await this.store.setJSON(party.code, party, { onlyIfMatch: etag });
+    return res.modified;
   }
 }

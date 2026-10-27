@@ -16,17 +16,17 @@ import { confirmDialog, toast } from "../lib/ui";
 
 const MODE_TEXT = { normal: "", advantage: " mit Vorteil", disadvantage: " mit Nachteil" } as const;
 
-function paragraphs(text: string): Raw {
+export function paragraphs(text: string): Raw {
   const parts = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   return html`${parts.map((p) => html`<p>${p.split("\n").map((l, i) => html`${i ? html`<br/>` : ""}${l}`)}</p>`)}`;
 }
 
 /** Wörtliche Rede („…“) hervorheben – nach dem Maskieren, also sicher. */
-function withSpeech(r: Raw): Raw {
+export function withSpeech(r: Raw): Raw {
   return raw(r.value.replace(/(„[^“]{1,400}“|&quot;[^&]{1,400}&quot;)/g, '<span class="speech">$1</span>'));
 }
 
-function rollSummary(r: RollRecord): Raw {
+export function rollSummary(r: RollRecord): Raw {
   const verdict = r.success === null ? "" : r.success ? "geschafft" : "nicht geschafft";
   return html`<div class="story-roll ${r.critical ?? ""} ${r.success === false ? "fail" : r.success ? "ok" : ""}">
     <span class="sr-total">${r.total}</span>
@@ -43,7 +43,7 @@ const OPENING_CARDS: { key: string; label: string; icon: string; get: (o: Openin
   { key: "konflikt", label: "Konflikt", icon: "zap", get: (o) => o.konflikt },
 ];
 
-function openingCards(o: Opening, animate: boolean): Raw {
+export function openingCards(o: Opening, animate: boolean): Raw {
   return html`<div class="opening-cards ${animate ? "reveal" : ""}">
     ${OPENING_CARDS.map((c, i) => html`<div class="oc" style="--i:${i}">
       <div class="oc-inner">
@@ -67,8 +67,22 @@ export function adventuresPage(): Page {
           <header class="page-head" data-reveal>
             <div class="eyebrow">Claude als Spielleiter</div>
             <h1>Abenteuer</h1>
-            <p class="lead">Wähle eine Figur – die Würfel bestimmen, wo und wie deine Geschichte beginnt. Jede Geschichte fängt anders an.</p>
+            <p class="lead">Die Würfel bestimmen, wo und wie deine Geschichte beginnt. Jede Geschichte fängt anders an.</p>
           </header>
+          <div class="mode-cards">
+            <button class="card mode-card tilt selected start-card" data-solo data-reveal="scale" style="--i:0">
+              <div class="mode-icon">${icon("user")}</div>
+              <h3>Allein spielen</h3>
+              <p>Du und der Spielleiter. Spiele in deinem Tempo – dein Spielstand liegt in diesem Browser.</p>
+              <span class="link-arrow">Figur unten wählen ${icon("arrowRight")}</span>
+            </button>
+            <a class="card mode-card tilt" href="#/gruppe" data-reveal="scale" style="--i:1">
+              <div class="mode-icon">${icon("users")}</div>
+              <h3>Mit Freunden spielen</h3>
+              <p>Bis zu 4 Personen, jede auf ihrem Gerät. Gruppe gründen, Code teilen, gemeinsam losziehen.</p>
+              <span class="link-arrow">Gruppe gründen oder beitreten ${icon("arrowRight")}</span>
+            </a>
+          </div>
           ${saves.length ? html`
             <h2 class="sec-title" data-reveal>${icon("scroll")} Weitererzählen</h2>
             <div class="char-grid">
@@ -86,7 +100,7 @@ export function adventuresPage(): Page {
                 </article>`;
               })}
             </div>` : ""}
-          <h2 class="sec-title" data-reveal style="margin-top:40px">${icon("sparkles")} Neues Abenteuer</h2>
+          <h2 class="sec-title" id="neues-abenteuer" data-reveal style="margin-top:40px">${icon("sparkles")} Neues Solo-Abenteuer</h2>
           ${chars.length ? html`
             <div class="char-grid">
               ${chars.map((c, i) => {
@@ -106,6 +120,7 @@ export function adventuresPage(): Page {
         </div>`);
       root.addEventListener("click", async (e) => {
         const t = e.target as HTMLElement;
+        if (t.closest("[data-solo]")) document.getElementById("neues-abenteuer")?.scrollIntoView({ behavior: "smooth", block: "start" });
         const start = t.closest<HTMLElement>("[data-start]");
         if (start) {
           const c = chars.find((x) => x.id === start.dataset.start)!;
@@ -147,6 +162,7 @@ export function playPage(): Page {
       let liveEl: HTMLElement | null = null;
       let lastError: Extract<GmEvent, { type: "error" }> | null = null;
       let budget: { spentUsd: number; limitUsd: number } | null = null;
+      let lastCost: number | null = null;
 
       setHTML(root, html`
         <div class="container play">
@@ -256,7 +272,7 @@ export function playPage(): Page {
         belowEl.innerHTML = html`${content}
           ${!save!.started && save!.opening && !busy ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="reroll">${icon("refresh")} Neuen Einstieg würfeln</button></div>` : ""}`.value;
         const b = $("#budget", root);
-        if (budget) { b.hidden = false; b.textContent = `Budget: ${budget.spentUsd.toFixed(2)} $ / ${budget.limitUsd.toFixed(0)} $`; }
+        if (budget) { b.hidden = false; b.textContent = `${lastCost !== null ? `Letzter Zug ${(lastCost * 100).toFixed(1)} ct · ` : ""}Budget ${budget.spentUsd.toFixed(2)} $ / ${budget.limitUsd.toFixed(0)} $`; }
         bindBelow();
         enhance(belowEl);
       }
@@ -319,6 +335,7 @@ export function playPage(): Page {
           save!.state = ev.state;
           save!.pending = ev.pending;
           budget = ev.budget;
+          lastCost = ev.turnCostUsd ?? null;
           persist();
         } else if (ev.type === "error") {
           liveEl?.remove(); liveEl = null; liveText = "";

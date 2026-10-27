@@ -14,6 +14,9 @@ export interface Opening {
 /** Die Probe, die der Spielleiter verlangt hat und die noch gewürfelt werden muss. */
 export interface PendingCheck {
   toolUseId: string;
+  /** Wer würfeln muss (in der Gruppe wichtig). */
+  characterId: string;
+  characterName: string;
   art: "attribute" | "skill" | "attack" | "damage";
   id: string;
   sg: number | null;
@@ -60,7 +63,7 @@ export type GmEvent =
   | { type: "opening"; opening: Opening; summary: string }
   | { type: "text"; text: string }
   | { type: "roll"; record: RollRecord }
-  | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo }
+  | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo; turnCostUsd?: number }
   | { type: "error"; message: string; code?: "no_api_key" | "access" | "budget" | "rate" | "state" | "refusal" | "api" };
 
 export interface StartRequest {

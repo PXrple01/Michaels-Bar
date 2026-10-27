@@ -33,7 +33,7 @@ export function homePage(): Page {
         <section class="hero container">
           <div class="hero-text">
             <div class="eyebrow">Ein Erzähl-Abenteuer im Mittelalter</div>
-            <h1 class="hero-title"><span class="ht-word" data-split>Würfel</span> <span class="ht-amp">&amp;</span> <span class="ht-word" data-split>Schicksal</span></h1>
+            <h1 class="hero-title"><span class="ht-word" data-split>Michaels</span> <span class="ht-word" data-split>Bar</span></h1>
             <p class="hero-sub" data-reveal style="--i:6">Du erschaffst eine Figur. Ein Spielleiter erzählt die Geschichte. Und die Würfel entscheiden, ob dein Plan gelingt. <strong>Keine Vorkenntnisse nötig</strong> – wir erklären dir alles unterwegs.</p>
             <div class="hero-cta" data-reveal style="--i:8">
               <a class="btn btn-lg magnetic glow-border" href="#/figur/neu">${icon("sparkles")} Figur erschaffen</a>
@@ -133,7 +133,7 @@ export function homePage(): Page {
           </ol>
         </section>
 
-        <footer class="footer container">Würfel &amp; Schicksal · Etappe 4</footer>
+        <footer class="footer container">Michaels Bar · Etappe 4</footer>
       `);
 
       root.querySelectorAll<HTMLElement>("[data-split]").forEach((el, i) => splitLetters(el, 150 + i * 380, 55));

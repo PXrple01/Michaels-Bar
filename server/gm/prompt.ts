@@ -65,13 +65,12 @@ export function characterSheetText(c: Character, data: GameData): string {
 }
 
 /** Erste Nachricht einer neuen Geschichte: Figur, gewürfelter Startimpuls, frühere Einstiege. */
-export function kickoffMessage(c: Character, data: GameData, o: Opening, previous: string[]): string {
+export function kickoffMessage(cs: Character[], data: GameData, o: Opening, previous: string[]): string {
   const prev = previous.slice(-10);
-  return `Eine neue Geschichte beginnt.
+  const party = cs.length > 1;
+  return `Eine neue Geschichte beginnt.${party ? ` Es spielt eine Gruppe aus ${cs.length} Figuren, jede wird von einer eigenen Person gespielt.` : ""}
 
-<figur>
-${characterSheetText(c, data)}
-</figur>
+${cs.map((c) => `<figur>\n${characterSheetText(c, data)}\n</figur>`).join("\n\n")}
 
 <startimpuls>
 Ort: ${o.ort}
@@ -87,5 +86,7 @@ ${prev.map((p) => `- ${p}`).join("\n")}
 </fruehere_einstiege>
 Diese Einstiege gab es schon. Wiederhole weder ihre Situation noch ihre ersten Sätze.
 ` : ""}
-Baue aus dem Startimpuls einen eigenen Einstieg mitten in der Szene. Beginne nicht mit Floskeln wie „Du sitzt in einer Taverne“ oder „Es war einmal“, sondern mit einem Moment, in dem gerade etwas passiert. Führe die Figur über ihren Hintergrund ein, ohne ihren Bogen aufzuzählen. Verlange im ersten Abschnitt noch keine Probe.`;
+Baue aus dem Startimpuls einen eigenen Einstieg mitten in der Szene. Beginne nicht mit Floskeln wie „Du sitzt in einer Taverne“ oder „Es war einmal“, sondern mit einem Moment, in dem gerade etwas passiert. ${party
+    ? "Führe alle Figuren ein und gib einen Grund, warum sie gemeinsam hier sind. Sprich in der zweiten Person Plural („ihr“) und nenne Figuren beim Namen, wenn du eine bestimmte meinst. Später kommen die Handlungen gesammelt als Liste; erzähle sie zusammen und gib jeder Figur ihren Moment. Bei Proben gibst du im Feld figur an, wer würfelt."
+    : "Führe die Figur über ihren Hintergrund ein, ohne ihren Bogen aufzuzählen."} Verlange im ersten Abschnitt noch keine Probe.`;
 }

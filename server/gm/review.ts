@@ -7,7 +7,7 @@ import { checkClass } from "../../shared/classbuilder";
 import { MAX_REVIEW_ROUNDS, type ClaudeAssessment, type ReviewEvent, type ReviewRequest } from "../../shared/classreview";
 import type { ClassDef, Rules } from "../../shared/schema";
 import type { GameData } from "../rules/loader";
-import type { LlmClient } from "./engine";
+import { CACHE_1H, requestBase, type LlmClient, type ModelId } from "./narrator";
 import { LimitError, type UsageGuard } from "./usage";
 
 const SIGILS = ["shield", "axe", "mask", "candle", "bow", "cauldron"];
@@ -148,7 +148,7 @@ export function toClassDef(raw: Record<string, unknown>, draftId: string, summar
 }
 
 export class ClassReviewer {
-  constructor(private o: { data: () => GameData; llm: LlmClient | null; guard: UsageGuard; secret: string; model?: string; effort?: "low" | "medium" | "high" }) {}
+  constructor(private o: { data: () => GameData; llm: LlmClient | null; guard: UsageGuard; secret: string; model?: ModelId; effort?: "low" | "medium" | "high" }) {}
 
   token(draftId: string, round: number) {
     return createHmac("sha256", this.o.secret).update(`review:${draftId}:${round}`).digest("base64url");
@@ -199,15 +199,13 @@ ${JSON.stringify(input.vorher).slice(0, 6000)}
 Arbeite an der vorherigen Fassung weiter und übernimm die neuen Wünsche aus Beschreibung und Formular.` : ""}`;
 
     const msg = await this.o.llm.stream({
-      model: this.o.model ?? "claude-opus-5-5",
-      max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
+      ...requestBase(this.o.model ?? "claude-opus-5-5", this.o.effort ?? "low"),
       output_config: { effort: this.o.effort ?? "low", format: { type: "json_schema", schema: reviewSchema(data.rules) } },
-      system: [{ type: "text", text: reviewSystemPrompt(data), cache_control: { type: "ephemeral" } }],
+      max_tokens: 16000,
+      system: [{ type: "text", text: reviewSystemPrompt(data), cache_control: CACHE_1H }],
       messages: [{ role: "user", content: userText }],
     }, () => {});
-    await this.o.guard.record(msg.usage);
+    await this.o.guard.record(msg.usage, this.o.model ?? "claude-opus-5-5");
     if (msg.stop_reason === "refusal") throw fail("Diese Klasse kann nicht bewertet werden. Versuch eine andere Beschreibung.");
     if (msg.stop_reason === "max_tokens") throw fail("Die Bewertung war zu lang und wurde abgeschnitten. Bitte kürzer beschreiben.");
     const text = msg.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text").map((b) => b.text).join("");

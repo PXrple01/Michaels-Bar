@@ -25,6 +25,7 @@ import { tablePage } from "./pages/table";
 import { settingsPage } from "./pages/settings";
 import { adventuresPage, playPage } from "./pages/adventure";
 import { classEditorPage, classesPage } from "./pages/classes";
+import { partyHomePage, partyPage } from "./pages/party";
 
 const NAV = [
   { id: "home", href: "#/", label: "Start", icon: "home" },
@@ -42,7 +43,7 @@ function logoMark() {
 function renderChrome() {
   const sound = settings().sound;
   $("#topbar").innerHTML = html`
-    <a class="logo" href="#/">${logoMark()}<span>Würfel <span class="amp">&amp;</span> Schicksal</span></a>
+    <a class="logo" href="#/">${logoMark()}<span>Michaels <span class="amp">Bar</span></span></a>
     <nav class="nav" aria-label="Hauptnavigation">
       ${NAV.map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.label}</span></a>`)}
     </nav>
@@ -66,6 +67,8 @@ route("/figur/:id", "chars", sheetPage);
 route("/wuerfel", "table", tablePage);
 route("/abenteuer", "adventure", adventuresPage);
 route("/klassen", "chars", classesPage);
+route("/gruppe", "adventure", partyHomePage);
+route("/gruppe/:code", "adventure", partyPage);
 route("/klassen/neu", "chars", classEditorPage);
 route("/klassen/:id/:mode", "chars", classEditorPage);
 route("/abenteuer/:id", "adventure", playPage);
