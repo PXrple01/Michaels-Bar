@@ -88,8 +88,14 @@ export function partyHomePage(): Page {
 export function partyPage(): Page {
   let timer = 0;
   let alive = true;
+  // Hängt direkt am <body>: im animierten Seitenbereich würde „position: fixed“ nicht am Bildschirm kleben.
+  const waitingEl = document.createElement("div");
+  waitingEl.className = "waiting-pill";
+  waitingEl.setAttribute("role", "status");
+  waitingEl.setAttribute("aria-live", "polite");
+  waitingEl.hidden = true;
   return {
-    leave() { alive = false; clearTimeout(timer); },
+    leave() { alive = false; clearTimeout(timer); waitingEl.remove(); },
     async render(root, params) {
       const [rawCode, query] = params.code.split("?");
       const code = rawCode.toUpperCase();
@@ -221,7 +227,7 @@ export function partyPage(): Page {
           const waiting = v.players.filter((p) => !p.acted).map((p) => p.name);
           content = html`
             ${suggestions.length ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
-            ${v.yourAction ? html`<div class="callout slim">${icon("check")}<p>Deine Handlung: „${v.yourAction}“ ${waiting.length ? html`– wartet noch auf <b>${waiting.join(", ")}</b>.` : ""} Du kannst sie bis zum Erzählen noch ändern.</p></div>` : ""}
+            ${v.yourAction ? html`<div class="callout slim">${icon("check")}<p>Deine Handlung: „${v.yourAction}“ – du kannst sie bis zum Erzählen noch ändern.</p></div>` : ""}
             <form class="composer card" id="composer">
               <textarea class="textarea" id="action" maxlength="${MAX_ACTION_LENGTH}" rows="2" placeholder="Was tut ${myChar?.name ?? "deine Figur"}?">${draft || v.yourAction || ""}</textarea>
               <button class="btn" type="submit" aria-label="Handlung festlegen">${icon("check")}</button>
@@ -229,10 +235,33 @@ export function partyPage(): Page {
             <p class="hint center">Alle legen ihre Handlung fest – dann erzählt der Spielleiter die Runde.</p>
             ${amHost && v.players.some((p) => p.acted) && waiting.length ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="now">${icon("play")} Jetzt erzählen (nicht auf ${waiting.join(", ")} warten)</button></div>` : ""}`;
         }
+        // Das Eingabefeld bleibt dasselbe Element: Sonst verlöre, wer gerade tippt, Fokus und Cursor,
+        // sobald eine andere Person ihre Handlung abgibt (die Ansicht wird dann neu gezeichnet).
+        const oldTa = belowEl.querySelector<HTMLTextAreaElement>("#action");
+        const typing = !!oldTa && document.activeElement === oldTa;
+        const sel = oldTa ? [oldTa.selectionStart, oldTa.selectionEnd] as const : null;
         belowEl.innerHTML = content.value;
+        const newTa = belowEl.querySelector<HTMLTextAreaElement>("#action");
+        if (oldTa && newTa && (typing || (draft && oldTa.value === draft))) {
+          newTa.replaceWith(oldTa);
+          if (typing) { oldTa.focus({ preventScroll: true }); oldTa.setSelectionRange(sel![0], sel![1]); }
+        }
+        renderWaiting();
         if (v.budget) { const b = $("#budget", root); b.hidden = false; b.textContent = `${v.lastTurnCostUsd !== null ? `Letzter Zug ${(v.lastTurnCostUsd * 100).toFixed(1)} ct · ` : ""}Budget ${v.budget.spentUsd.toFixed(2)} $ / ${v.budget.limitUsd.toFixed(0)} $`; }
         bindBelow();
         enhance(belowEl);
+      }
+
+      /** Oben links: auf wen die Runde noch wartet. */
+      function renderWaiting() {
+        const el = waitingEl;
+        if (!el.isConnected) document.body.append(el);
+        const v = view!;
+        const open = v.status === "playing" && !v.busy && !busyLocal && !v.pending;
+        const waiting = open ? v.players.filter((p) => !p.acted) : [];
+        el.hidden = !waiting.length;
+        if (!waiting.length) return;
+        el.innerHTML = html`<span class="wp-dot"></span><span>Warten auf</span>${waiting.map((p) => html`<b class="${p.id === me.playerId ? "me" : ""}">${p.id === me.playerId ? "dich" : p.name}</b>`)}`.value;
       }
 
       function renderOpening() {
@@ -327,8 +356,11 @@ export function partyPage(): Page {
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
         belowEl.querySelector("#now")?.addEventListener("click", () => void stream("action", { text: "", now: true }));
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
-        ta?.addEventListener("input", () => { draft = ta.value; });
-        ta?.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); belowEl.querySelector<HTMLFormElement>("#composer")!.requestSubmit(); } });
+        if (ta && !ta.dataset.bound) {
+          ta.dataset.bound = "1";
+          ta.addEventListener("input", () => { draft = ta.value; });
+          ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); belowEl.querySelector<HTMLFormElement>("#composer")!.requestSubmit(); } });
+        }
         belowEl.querySelector("#composer")?.addEventListener("submit", (e) => {
           e.preventDefault();
           const text = ta!.value.trim();

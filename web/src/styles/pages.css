@@ -749,3 +749,13 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .char-wrap:hover .char-delete, .char-delete:focus-visible { opacity: 1; }
 .char-delete:hover { color: var(--bad); background: rgba(253, 164, 175, 0.12); }
 @media (hover: none) { .char-delete { opacity: 0.9; } }
+
+/* Gruppe: oben links, auf wen die Runde noch wartet */
+.waiting-pill { position: fixed; top: calc(var(--topbar-h) + 12px); left: 16px; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; max-width: min(320px, calc(100vw - 32px)); padding: 8px 14px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line-strong); backdrop-filter: blur(14px); box-shadow: 0 8px 30px -10px rgba(139, 92, 246, 0.6); font-size: 0.85rem; color: var(--text-2); animation: pop-in 0.5s var(--ease-spring) both; }
+.waiting-pill[hidden] { display: none; }
+.waiting-pill b { color: #fff; font-weight: 600; }
+.waiting-pill b + b::before { content: "· "; color: var(--muted); font-weight: 400; }
+.waiting-pill b.me { color: var(--gold); }
+.wp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--purple-2); box-shadow: 0 0 10px var(--glow); animation: hp-pulse 1.4s ease-in-out infinite; }
+@media (max-width: 640px) { .waiting-pill { top: calc(var(--topbar-h) + 8px); left: 12px; font-size: 0.8rem; padding: 6px 12px; } }
+@media (prefers-reduced-motion: reduce) { .wp-dot { animation: none; } }
