@@ -10,6 +10,9 @@ import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
 import { worldPanel } from "../lib/worldPanel";
+import { abilityList } from "../lib/abilities";
+import { showTutorial } from "../lib/tutorial";
+import { SOLO_TUTORIAL } from "../lib/tutorials";
 import { term } from "../lib/glossary";
 import { icon, sigil } from "../lib/icons";
 import { go, type Page } from "../lib/router";
@@ -173,13 +176,16 @@ export function playPage(): Page {
             <a class="icon-btn" href="#/abenteuer" aria-label="Zurück">${icon("arrowLeft")}</a>
             <div class="ph-title"><div class="eyebrow">${character.name}</div><h1 id="play-title">${save.title}</h1></div>
             <span class="chip budget" id="budget" hidden></span>
+            <button class="icon-btn" id="help" aria-label="Einführung öffnen" title="Wie funktioniert das?">?</button>
           </header>
           <div id="world"></div>
           <div id="opening"></div>
           <div class="story" id="story" aria-live="polite"></div>
           <div id="below"></div>
+          <div id="my-abilities"></div>
         </div>`);
       const storyEl = $("#story", root);
+      $("#help", root).addEventListener("click", () => showTutorial(`solo-${save.id}`, SOLO_TUTORIAL, true));
       const belowEl = $("#below", root);
 
       const persist = () => campaignStore.save(save);
@@ -434,6 +440,9 @@ export function playPage(): Page {
       renderOpening(false);
       renderStory();
       renderBelow();
+      const myClass = dataFor(data, character).classes.find((x) => x.id === character.classId);
+      $("#my-abilities", root).innerHTML = abilityList(character.name, myClass?.abilities ?? []).value;
+      showTutorial(`solo-${save.id}`, SOLO_TUTORIAL);
       if (!save.opening) void begin(false);
       else if (query !== "neu") scrollDown();
     },

@@ -750,12 +750,72 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .char-delete:hover { color: var(--bad); background: rgba(253, 164, 175, 0.12); }
 @media (hover: none) { .char-delete { opacity: 0.9; } }
 
-/* Gruppe: oben links, auf wen die Runde noch wartet */
-.waiting-pill { position: fixed; top: calc(var(--topbar-h) + 12px); left: 16px; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; max-width: min(320px, calc(100vw - 32px)); padding: 8px 14px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line-strong); backdrop-filter: blur(14px); box-shadow: 0 8px 30px -10px rgba(139, 92, 246, 0.6); font-size: 0.85rem; color: var(--text-2); animation: pop-in 0.5s var(--ease-spring) both; }
-.waiting-pill[hidden] { display: none; }
-.waiting-pill b { color: #fff; font-weight: 600; }
-.waiting-pill b + b::before { content: "· "; color: var(--muted); font-weight: 400; }
-.waiting-pill b.me { color: var(--gold); }
+/* Gruppe: Team-Leiste oben links (Lebenspunkte, Fähigkeiten, wer noch handeln muss) */
+.team-hud { position: fixed; top: calc(var(--topbar-h) + 12px); left: 16px; z-index: 20; width: 250px; max-height: calc(100vh - var(--topbar-h) - 32px); overflow: auto; padding: 0; background: var(--surface-strong); backdrop-filter: blur(14px); box-shadow: 0 10px 40px -12px rgba(139, 92, 246, 0.55); animation: pop-in 0.5s var(--ease-spring) both; }
+.team-hud[hidden] { display: none; }
+.team-hud summary { display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; list-style: none; font-size: 0.88rem; }
+.team-hud summary::-webkit-details-marker { display: none; }
+.team-hud summary > svg { width: 16px; height: 16px; color: var(--purple-2); }
+.hud-total { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.hud-total svg { width: 14px; height: 14px; color: var(--bad); }
+.hud-wait { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; background: rgba(139, 92, 246, 0.18); font-size: 0.78rem; }
+.team-hud[open] .hud-wait { display: none; }
+.hud-waiting { display: flex; flex-wrap: wrap; gap: 4px 6px; padding: 0 14px 10px; font-size: 0.8rem; color: var(--muted); }
+.hud-waiting b { color: #fff; } .hud-waiting b + b::before { content: "· "; color: var(--muted); font-weight: 400; } .hud-waiting b.me { color: var(--gold); }
+.hud-members { display: grid; gap: 2px; padding: 0 8px 10px; }
+.hud-m { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; padding: 8px 6px; border-radius: var(--radius-sm); }
+.hud-m.me { background: rgba(139, 92, 246, 0.1); }
+.hud-m.down { opacity: 0.55; }
+.hud-sigil svg { width: 30px; height: 30px; color: var(--purple-2); }
+.hud-body { display: grid; gap: 5px; min-width: 0; }
+.hud-line { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; }
+.hud-line b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-line svg { width: 13px; height: 13px; color: var(--gold); flex: none; }
+.hud-line small { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hud-body .hp-bar { height: 6px; }
 .wp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--purple-2); box-shadow: 0 0 10px var(--glow); animation: hp-pulse 1.4s ease-in-out infinite; }
-@media (max-width: 640px) { .waiting-pill { top: calc(var(--topbar-h) + 8px); left: 12px; font-size: 0.8rem; padding: 6px 12px; } }
+@media (max-width: 1179px) { .team-hud { width: auto; max-width: min(300px, calc(100vw - 24px)); left: 12px; top: calc(var(--topbar-h) + 8px); } .team-hud[open] { width: min(300px, calc(100vw - 24px)); } }
 @media (prefers-reduced-motion: reduce) { .wp-dot { animation: none; } }
+
+/* Fähigkeiten: Symbole (Team) und Liste mit Erklärung (eigene Figur) */
+.ab-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ab-chip { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: rgba(139, 92, 246, 0.14); border: 1px solid var(--line); color: var(--purple-3); cursor: help; transition: transform 0.2s var(--ease-spring), border-color 0.2s; }
+.ab-chip:hover, .ab-chip:focus-visible { transform: translateY(-2px) scale(1.08); border-color: var(--purple-2); }
+.ab-chip svg { width: 13px; height: 13px; }
+.t-angriff { color: #fda4af; } .t-verteidigung { color: #93c5fd; } .t-heilung { color: #a7f3d0; } .t-unterstuetzung { color: var(--gold); }
+.t-kontrolle { color: #f0abfc; } .t-magie { color: var(--purple-3); } .t-wissen { color: #c7d2fe; } .t-sozial { color: #fcd34d; }
+.abilities { margin-top: 34px; display: grid; gap: 14px; }
+.ab-head h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
+.ab-head h3 svg { width: 20px; height: 20px; color: var(--purple-2); }
+.ab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.ab-grid { align-items: start; }
+.ab { display: grid; gap: 8px; padding: 12px; border-radius: var(--radius-sm); background: rgba(8, 5, 15, 0.45); border: 1px solid var(--line); animation: pop-in 0.5s var(--ease-spring) both; animation-delay: calc(var(--i) * 70ms); }
+.ab-top { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; }
+.ab-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: rgba(139, 92, 246, 0.14); }
+.ab-icon svg { width: 18px; height: 18px; }
+.ab-title { display: grid; line-height: 1.25; min-width: 0; } .ab-title small { color: var(--muted); font-size: 0.75rem; }
+.ab-uses { font-size: 0.72rem; }
+.ab-easy { margin: 0; color: var(--text-2); font-size: 0.92rem; }
+.ab-more summary { cursor: pointer; font-size: 0.78rem; color: var(--purple-2); list-style: none; }
+.ab-more summary::-webkit-details-marker { display: none; }
+.ab-more summary::before { content: "▸ "; } .ab-more[open] summary::before { content: "▾ "; }
+.ab-more p { margin: 6px 0 0; font-size: 0.84rem; color: var(--muted); }
+
+/* Abgegebene Handlung */
+.locked-action { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border-color: rgba(167, 243, 208, 0.35); }
+.locked-action > svg { width: 22px; height: 22px; color: var(--good); flex: none; margin-top: 2px; }
+.locked-action p { margin: 4px 0; color: #fff; }
+
+/* Tutorial */
+.tutorial .modal { text-align: center; display: grid; gap: 14px; }
+.tut-icon { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 8px; border-radius: 20px; background: radial-gradient(circle at 30% 30%, var(--purple), var(--purple-deep)); box-shadow: 0 10px 30px -8px var(--glow); }
+.tut-icon svg { width: 30px; height: 30px; color: #fff; }
+.tut-step h3 { margin: 6px 0; } .tut-step p { margin: 0; color: var(--text-2); }
+.tut-dots { display: flex; justify-content: center; gap: 6px; }
+.tut-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); transition: width 0.3s var(--ease-out), background 0.3s; }
+.tut-dots span.on { width: 22px; border-radius: 4px; background: var(--purple-2); }
+.tut-actions { display: flex; justify-content: space-between; gap: 10px; }
+.tut-example { display: flex; gap: 8px; align-items: flex-start; text-align: left; margin: 12px 0 0 !important; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(139, 92, 246, 0.12); border-left: 3px solid var(--purple-2); font-size: 0.9rem; color: var(--text) !important; }
+.tut-example svg { width: 16px; height: 16px; color: var(--purple-2); flex: none; margin-top: 2px; }
+.tutorial .modal { width: min(520px, 100%); max-height: calc(100vh - 32px); overflow: auto; }
+#help { font-family: var(--font-head); font-weight: 700; font-size: 1.05rem; }

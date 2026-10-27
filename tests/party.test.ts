@@ -76,6 +76,9 @@ describe("Mehrspieler", () => {
     expect(viewOf(first)?.players.find((p) => p.name === "Hagen")?.acted).toBe(true);
     expect(llm.calls).toHaveLength(1); // noch nicht erzählt
 
+    // Abgegeben ist abgegeben
+    expect((await run("action", { code: host.code, token: host.token, text: "Doch lieber rennen." })).at(-1)).toMatchObject({ type: "error", message: expect.stringMatching(/schon abgegeben/) });
+    expect(viewOf(first)?.players.find((p) => p.name === "Hagen")?.abilities.map((a) => a.name)).toContain("Schildwall");
     const second = await run("action", { code: host.code, token: guest.token, text: "Ich drücke gegen die Tür." });
     const v = viewOf(second)!;
     expect(llm.calls).toHaveLength(2);

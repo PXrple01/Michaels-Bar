@@ -119,7 +119,8 @@ export class PartyService {
       code: party.code, status: party.status, you, version: party.version,
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
-        return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions };
+        return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions,
+          abilities: (cls?.abilities ?? []).map((x) => ({ name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText })) };
       }),
       opening: party.opening,
       story: party.story,
@@ -209,8 +210,9 @@ export class PartyService {
     const updated = await this.update(party.code, (p) => {
       if (p.status !== "playing") throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
       if (p.pending) throw new PartyError(`Erst muss ${p.pending.characterName} würfeln.`);
+      // Abgegeben ist abgegeben: Eine Handlung lässt sich danach nicht mehr ändern oder zurückziehen.
+      if (text && me.id in p.actions) throw new PartyError("Deine Handlung ist schon abgegeben – sie lässt sich nicht mehr ändern.");
       if (text) p.actions[me.id] = text;
-      else if (!now) delete p.actions[me.id];
     });
     const all = updated.players.every((p) => p.id in updated.actions);
     return Object.keys(updated.actions).length > 0 && (all || now);

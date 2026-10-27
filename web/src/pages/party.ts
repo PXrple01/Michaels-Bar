@@ -16,6 +16,9 @@ import { go, type Page } from "../lib/router";
 import { toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
 import { worldPanel } from "../lib/worldPanel";
+import { abilityChips, abilityList } from "../lib/abilities";
+import { showTutorial } from "../lib/tutorial";
+import { PARTY_TUTORIAL } from "../lib/tutorials";
 
 const MODE_TEXT = { normal: "", advantage: " mit Vorteil", disadvantage: " mit Nachteil" } as const;
 const inviteLink = (code: string) => `${location.origin}${location.pathname}#/gruppe/${code}`;
@@ -89,13 +92,13 @@ export function partyPage(): Page {
   let timer = 0;
   let alive = true;
   // Hängt direkt am <body>: im animierten Seitenbereich würde „position: fixed“ nicht am Bildschirm kleben.
-  const waitingEl = document.createElement("div");
-  waitingEl.className = "waiting-pill";
-  waitingEl.setAttribute("role", "status");
-  waitingEl.setAttribute("aria-live", "polite");
-  waitingEl.hidden = true;
+  const hud = document.createElement("details");
+  hud.className = "team-hud card";
+  hud.hidden = true;
+  // Auf breiten Bildschirmen offen, auf schmalen eingeklappt (antippen zum Öffnen)
+  hud.open = matchMedia("(min-width: 1180px)").matches;
   return {
-    leave() { alive = false; clearTimeout(timer); waitingEl.remove(); },
+    leave() { alive = false; clearTimeout(timer); hud.remove(); },
     async render(root, params) {
       const [rawCode, query] = params.code.split("?");
       const code = rawCode.toUpperCase();
@@ -141,14 +144,17 @@ export function partyPage(): Page {
           <a class="icon-btn" href="#/gruppe" aria-label="Zurück">${icon("arrowLeft")}</a>
           <div class="ph-title"><div class="eyebrow">Gruppe <span class="party-code">${code}</span></div><h1 id="party-title">Gemeinsames Abenteuer</h1></div>
           <span class="chip budget" id="budget" hidden></span>
+          <button class="icon-btn" id="help" aria-label="Einführung öffnen" title="Wie funktioniert das?">?</button>
         </header>
         <div class="party-players" id="players"></div>
         <div id="world"></div>
         <div id="opening"></div>
         <div class="story" id="story" aria-live="polite"></div>
         <div id="below"></div>
+        <div id="my-abilities"></div>
       </div>`);
       const storyEl = $("#story", root), belowEl = $("#below", root);
+      $("#help", root).addEventListener("click", () => showTutorial(`gruppe-${code}`, PARTY_TUTORIAL, true));
 
       const playerName = (id: string) => view?.players.find((p) => p.id === id)?.name ?? "?";
 
@@ -226,13 +232,14 @@ export function partyPage(): Page {
           const suggestions = last?.type === "gm" ? splitSuggestions(last.text).suggestions : [];
           const waiting = v.players.filter((p) => !p.acted).map((p) => p.name);
           content = html`
-            ${suggestions.length ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
-            ${v.yourAction ? html`<div class="callout slim">${icon("check")}<p>Deine Handlung: „${v.yourAction}“ – du kannst sie bis zum Erzählen noch ändern.</p></div>` : ""}
-            <form class="composer card" id="composer">
-              <textarea class="textarea" id="action" maxlength="${MAX_ACTION_LENGTH}" rows="2" placeholder="Was tut ${myChar?.name ?? "deine Figur"}?">${draft || v.yourAction || ""}</textarea>
-              <button class="btn" type="submit" aria-label="Handlung festlegen">${icon("check")}</button>
-            </form>
-            <p class="hint center">Alle legen ihre Handlung fest – dann erzählt der Spielleiter die Runde.</p>
+            ${suggestions.length && !v.yourAction ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
+            ${v.yourAction
+              ? html`<div class="card locked-action">${icon("lock")}<div><div class="eyebrow">Deine Handlung ist abgegeben</div><p>„${v.yourAction}“</p><small class="muted">${waiting.length ? html`Der Spielleiter erzählt, sobald ${waiting.join(", ")} ${waiting.length > 1 ? "abgegeben haben" : "abgegeben hat"}.` : "Gleich geht es weiter."}</small></div></div>`
+              : html`<form class="composer card" id="composer">
+                  <textarea class="textarea" id="action" maxlength="${MAX_ACTION_LENGTH}" rows="2" placeholder="Was tut ${myChar?.name ?? "deine Figur"}?">${draft}</textarea>
+                  <button class="btn" type="submit" aria-label="Handlung abgeben">${icon("check")}</button>
+                </form>
+                <p class="hint center">Alle geben ihre Handlung ab – dann erzählt der Spielleiter die Runde. Abgegeben ist abgegeben: Danach lässt sie sich nicht mehr ändern.</p>`}
             ${amHost && v.players.some((p) => p.acted) && waiting.length ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="now">${icon("play")} Jetzt erzählen (nicht auf ${waiting.join(", ")} warten)</button></div>` : ""}`;
         }
         // Das Eingabefeld bleibt dasselbe Element: Sonst verlöre, wer gerade tippt, Fokus und Cursor,
@@ -246,22 +253,50 @@ export function partyPage(): Page {
           newTa.replaceWith(oldTa);
           if (typing) { oldTa.focus({ preventScroll: true }); oldTa.setSelectionRange(sel![0], sel![1]); }
         }
-        renderWaiting();
+        renderHud();
         if (v.budget) { const b = $("#budget", root); b.hidden = false; b.textContent = `${v.lastTurnCostUsd !== null ? `Letzter Zug ${(v.lastTurnCostUsd * 100).toFixed(1)} ct · ` : ""}Budget ${v.budget.spentUsd.toFixed(2)} $ / ${v.budget.limitUsd.toFixed(0)} $`; }
         bindBelow();
         enhance(belowEl);
       }
 
-      /** Oben links: auf wen die Runde noch wartet. */
-      function renderWaiting() {
-        const el = waitingEl;
-        if (!el.isConnected) document.body.append(el);
+      /** Oben links: das ganze Team mit Lebenspunkten und Fähigkeiten, dazu wer noch handeln muss. */
+      function renderHud() {
         const v = view!;
-        const open = v.status === "playing" && !v.busy && !busyLocal && !v.pending;
+        hud.hidden = v.status !== "playing";
+        if (hud.hidden) return;
+        if (!hud.isConnected) document.body.append(hud);
+        const open = !v.busy && !busyLocal && !v.pending;
         const waiting = open ? v.players.filter((p) => !p.acted) : [];
-        el.hidden = !waiting.length;
-        if (!waiting.length) return;
-        el.innerHTML = html`<span class="wp-dot"></span><span>Warten auf</span>${waiting.map((p) => html`<b class="${p.id === me.playerId ? "me" : ""}">${p.id === me.playerId ? "dich" : p.name}</b>`)}`.value;
+        const w = v.world;
+        const hpOf = (p: PartyView["players"][number]) => ({ hp: w?.hp[p.characterId] ?? 0, max: w?.maxHp[p.characterId] ?? 0 });
+        const total = v.players.reduce((s, p) => s + hpOf(p).hp, 0), totalMax = v.players.reduce((s, p) => s + hpOf(p).max, 0);
+        hud.innerHTML = html`
+          <summary>
+            ${icon("users")}<b>Team</b><span class="hud-total">${icon("heart")} ${total}/${totalMax}</span>
+            ${waiting.length ? html`<span class="hud-wait"><span class="wp-dot"></span>${waiting.length}</span>` : ""}
+          </summary>
+          ${waiting.length ? html`<div class="hud-waiting">Warten auf ${waiting.map((p) => html`<b class="${p.id === me.playerId ? "me" : ""}">${p.id === me.playerId ? "dich" : p.name}</b>`)}</div>` : ""}
+          <div class="hud-members">${v.players.map((p) => {
+            const { hp, max } = hpOf(p);
+            const pct = max ? Math.max(0, Math.min(100, (hp / max) * 100)) : 0;
+            return html`<div class="hud-m ${p.id === me.playerId ? "me" : ""} ${hp <= 0 ? "down" : ""}">
+              <span class="hud-sigil">${sigil(p.sigil)}</span>
+              <div class="hud-body">
+                <div class="hud-line"><b>${p.name}</b>${p.host ? icon("crown") : ""}<small>${hp}/${max}</small></div>
+                <span class="hp-bar ${pct <= 0 ? "down" : pct < 34 ? "low" : pct < 67 ? "mid" : ""}"><span style="width:${pct}%"></span></span>
+                ${abilityChips(p.abilities)}
+              </div>
+            </div>`;
+          })}</div>`.value;
+      }
+
+      /** Unten: die eigenen Fähigkeiten mit Erklärung. */
+      function renderAbilities() {
+        const el = $("#my-abilities", root);
+        const mine = view?.players.find((p) => p.id === me.playerId);
+        if (!mine || el.dataset.done) return;
+        el.dataset.done = "1";
+        el.innerHTML = abilityList(mine.name, mine.abilities).value;
       }
 
       function renderOpening() {
@@ -288,6 +323,8 @@ export function partyPage(): Page {
         view = v;
         if (!changed && !firstLoad) return;
         renderPlayers();
+        renderAbilities();
+        if (v.status === "playing") showTutorial(`gruppe-${code}`, PARTY_TUTORIAL);
         $("#world", root).innerHTML = worldPanel(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), myChar?.id).value;
         renderOpening();
         renderStory();
