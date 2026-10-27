@@ -64,7 +64,19 @@
       "uses": "einmal_pro_rast",
       "level": 1,
       "text": "Als Bonusaktion heilst du dich um 1W10 + Stufe Trefferpunkte.",
-      "beginnerText": "Du beißt die Zähne zusammen und kämpfst weiter – du heilst dich selbst."
+      "beginnerText": "Du beißt die Zähne zusammen und kämpfst weiter – du heilst dich selbst.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": "1W10+1",
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "schmutziger_trick",
@@ -73,7 +85,19 @@
       "uses": "einmal_pro_kampf",
       "level": 1,
       "text": "Statt anzugreifen wirfst du Sand, trittst oder stößt: Ein Gegner hat Nachteil auf seinen nächsten Angriff.",
-      "beginnerText": "Sand in die Augen! Der Gegner trifft beim nächsten Mal schlechter."
+      "beginnerText": "Sand in die Augen! Der Gegner trifft beim nächsten Mal schlechter.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": true,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "kriegserfahrung",
@@ -82,7 +106,19 @@
       "uses": "passiv",
       "level": 1,
       "text": "Du erkennst Waffen, Wappen und Truppenstärken. Vorteil auf Proben, um eine Kampflage einzuschätzen.",
-      "beginnerText": "Du hast schon viel gesehen und durchschaust Schlachten schnell."
+      "beginnerText": "Du hast schon viel gesehen und durchschaust Schlachten schnell.",
+      "scope": "eng",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": true,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     }
   ]
 }

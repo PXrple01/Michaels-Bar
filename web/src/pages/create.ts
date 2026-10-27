@@ -3,6 +3,7 @@ import { formatModifier } from "../../../shared/dice";
 import type { CharacterInput, ClassDef, Rules } from "../../../shared/schema";
 import { countUp, enhance } from "../fx/effects";
 import { api, ApiError, loadGameData, type GameData } from "../lib/api";
+import { allClasses, classStore } from "../lib/customClasses";
 import { $, $$, html, setHTML, type Raw } from "../lib/dom";
 import { term } from "../lib/glossary";
 import { icon, sigil } from "../lib/icons";
@@ -19,7 +20,7 @@ const SUGGEST = {
 const STEP_TITLES = ["Herkunft", "Klasse", "Attribute", "Fertigkeiten", "Persönlichkeit", "Fertig"];
 const DRAFT_KEY = "wus.draft.v1";
 
-interface Draft { step: number; c: Required<Omit<CharacterInput, "personality" | "appearance">> & { personality: { trait: string; ideal: string; bond: string; flaw: string }; appearance: string } }
+interface Draft { step: number; c: Required<Omit<CharacterInput, "personality" | "appearance" | "customClass">> & { personality: { trait: string; ideal: string; bond: string; flaw: string }; appearance: string } }
 
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const DIFF = ["", "Einsteigerfreundlich", "Etwas Übung", "Für Erfahrene"];
@@ -31,7 +32,8 @@ export function createPage(): Page {
   let direction = 1;
 
   const save = () => { try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* egal */ } };
-  const cls = () => data.classes.find((c) => c.id === d.c.classId);
+  const classes = () => allClasses(data);
+  const cls = () => classes().find((c) => c.id === d.c.classId);
 
   function freshDraft(rules: Rules): Draft {
     return {
@@ -102,25 +104,32 @@ export function createPage(): Page {
   }
 
   function stepKlasse(): Raw {
-    const { classes, campaign, rules } = data;
+    const { campaign, rules } = data;
+    const list = classes();
     const sel = cls();
     return html`
       <h2>Was kannst du?</h2>
       <p class="lead">Deine ${term("klasse")} bestimmt, wie du Probleme löst: mit dem Schwert, mit Worten oder mit Kräutern.</p>
       <div class="class-grid">
-        ${[...classes].sort((a, b) => a.difficulty - b.difficulty || a.name.localeCompare(b.name, "de")).map((c, i) => {
+        ${[...list].sort((a, b) => Number(!!a.custom) - Number(!!b.custom) || a.difficulty - b.difficulty || a.name.localeCompare(b.name, "de")).map((c, i) => {
           const allowed = magicAllowed(c, campaign.magic_level);
           return html`
             <button class="card class-card tilt ${d.c.classId === c.id ? "selected" : ""} ${allowed ? "" : "locked"}" data-action="class" data-id="${c.id}" ${allowed ? "" : "disabled"} style="--i:${i}">
               <div class="class-sigil">${sigil(c.sigil, "draw")}</div>
               <h3>${c.name}</h3>
               <div class="class-role">${c.role}</div>
+              ${c.custom ? html`<span class="chip gold">${icon("wand")} Eigene Klasse</span>` : ""}
               <p class="tagline">„${c.tagline}“</p>
               <div class="diff" title="${DIFF[c.difficulty]}">${[1, 2, 3].map((n) => html`<i class="${n <= c.difficulty ? "on" : ""}"></i>`)}<span>${DIFF[c.difficulty]}</span></div>
               ${allowed ? "" : html`<div class="lock-note">${icon("lock")} Braucht mehr Magie in der Welt</div>`}
               <span class="check-badge">${icon("check")}</span>
             </button>`;
         })}
+        <a class="card class-card new-card tilt" href="#/klassen/neu">
+          <div class="new-plus">${icon("plus")}</div>
+          <h3>Eigene Klasse bauen</h3>
+          <p class="tagline">Beschreibe sie – Claude bewertet, das Regelprogramm prüft.</p>
+        </a>
       </div>
       ${sel ? html`
         <div class="card class-detail glow-border" id="class-detail">
@@ -402,11 +411,12 @@ export function createPage(): Page {
           case "back": if (d.step > 0) { direction = -1; d.step--; save(); render(); } break;
           case "next": if (!blocker(d.step)) { direction = 1; d.step++; save(); render(); } break;
           case "create": {
-            const probs = characterProblems(d.c, data.rules, data.classes as ClassDef[], data.campaign.magic_level);
+            const probs = characterProblems(d.c, data.rules, classes() as ClassDef[], data.campaign.magic_level);
             if (probs.length) { toast(probs[0], "error"); break; }
             (a as HTMLButtonElement).disabled = true;
             try {
-              const created = await api.createCharacter(d.c);
+              const own = classStore.get(d.c.classId);
+              const created = await api.createCharacter(own ? { ...d.c, customClass: own } : d.c);
               try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* egal */ }
               toast(`${created.name} ist bereit für das Abenteuer!`, "success");
               go(`/figur/${created.id}?neu`);

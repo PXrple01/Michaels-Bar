@@ -3,16 +3,16 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { handleApi } from "./api";
 import type { RollLog } from "./dice/log";
-import type { GameMaster } from "./gm/engine";
+import type { Claude } from "./gm/setup";
 import { mountGm } from "./gm/http";
 import type { GameData } from "./rules/loader";
 
-export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string; gm?: () => GameMaster; accessCode?: string }) {
+export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string; claude?: () => Claude; accessCode?: string; secret?: string; customClassDir?: string }) {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "64kb" }));
 
-  if (opts.gm) mountGm(app, opts.gm, opts.accessCode);
+  if (opts.claude) mountGm(app, opts.claude, opts.accessCode);
 
   app.all(/^\/api\/.*/, async (req, res) => {
     const result = await handleApi(req.method, req.path, req.body, opts);

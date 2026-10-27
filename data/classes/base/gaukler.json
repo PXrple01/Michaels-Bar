@@ -64,7 +64,19 @@
       "uses": "einmal_pro_kampf",
       "level": 1,
       "text": "Mit einem Kunststück oder Spott lenkst du einen Gegner ab: Der nächste Angriff eines Verbündeten gegen ihn hat Vorteil.",
-      "beginnerText": "Du ziehst alle Blicke auf dich – deine Freunde nutzen die Lücke."
+      "beginnerText": "Du ziehst alle Blicke auf dich – deine Freunde nutzen die Lücke.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": true,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "mutmacher",
@@ -73,7 +85,19 @@
       "uses": "einmal_pro_rast",
       "level": 1,
       "text": "Bis zu drei Verbündete, die dich hören, erhalten einen Bonuswürfel (1W6), den sie einmal zu einer Probe addieren dürfen.",
-      "beginnerText": "Ein mitreißendes Lied: Deine Gefährten bekommen einen Extra-Würfel für eine Probe."
+      "beginnerText": "Ein mitreißendes Lied: Deine Gefährten bekommen einen Extra-Würfel für eine Probe.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": "1W6",
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "flinke_zunge",
@@ -82,7 +106,19 @@
       "uses": "passiv",
       "level": 1,
       "text": "Wenn du bei Überreden oder Täuschen eine 1 bis 4 würfelst, darfst du stattdessen eine 5 nehmen.",
-      "beginnerText": "Selbst wenn es schiefgeht, redest du dich nie ganz um Kopf und Kragen."
+      "beginnerText": "Selbst wenn es schiefgeht, redest du dich nie ganz um Kopf und Kragen.",
+      "scope": "eng",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 1,
+        "advantage": false,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     }
   ]
 }

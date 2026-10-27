@@ -30,7 +30,7 @@ export function charactersPage(): Page {
               <p>Ein Assistent führt dich in sechs kurzen Schritten.</p>
             </a>
             ${list.map((c, i) => {
-              const cls = classes.find((x) => x.id === c.classId);
+              const cls = classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
               const stand = rules.stands.find((s) => s.id === c.stand);
               const hpPct = Math.round((c.hp.current / c.hp.max) * 100);
               return html`
@@ -43,7 +43,8 @@ export function charactersPage(): Page {
                 </a>`;
             })}
           </div>
-          <p class="hint center" style="margin-top:28px">Deine Figuren werden in diesem Browser gespeichert – auf einem anderen Gerät siehst du sie nicht.</p>
+          <div class="center" style="margin-top:28px"><a class="btn btn-ghost" href="#/klassen">${icon("wand")} Eigene Klassen bauen</a></div>
+          <p class="hint center" style="margin-top:18px">Deine Figuren werden in diesem Browser gespeichert – auf einem anderen Gerät siehst du sie nicht.</p>
         </div>`);
       enhance(root);
     },

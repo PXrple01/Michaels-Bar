@@ -63,7 +63,19 @@
       "uses": "einmal_pro_rast",
       "level": 1,
       "text": "Mit einer Aktion versorgst du eine Person in Reichweite: Sie heilt 1W8 + Weisheitsbonus Trefferpunkte.",
-      "beginnerText": "Du verbindest Wunden fachkundig – ein Gefährte bekommt Trefferpunkte zurück."
+      "beginnerText": "Du verbindest Wunden fachkundig – ein Gefährte bekommt Trefferpunkte zurück.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": "1W8+2",
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "gebet_zuversicht",
@@ -72,7 +84,19 @@
       "uses": "einmal_pro_tag",
       "level": 1,
       "text": "Ein Verbündeter, der dein Gebet hört, erhält Vorteil auf eine Probe seiner Wahl in der nächsten Stunde.",
-      "beginnerText": "Dein Gebet gibt einem Freund Kraft: Er darf bei einer Probe zweimal würfeln."
+      "beginnerText": "Dein Gebet gibt einem Freund Kraft: Er darf bei einer Probe zweimal würfeln.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": true,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "schriftkundig",
@@ -81,7 +105,19 @@
       "uses": "passiv",
       "level": 1,
       "text": "Du liest und schreibst Latein und die Landessprache. Vorteil auf Gelehrsamkeit bei Urkunden und Chroniken.",
-      "beginnerText": "Du kannst lesen – das können die wenigsten! Alte Schriften verraten dir viel."
+      "beginnerText": "Du kannst lesen – das können die wenigsten! Alte Schriften verraten dir viel.",
+      "scope": "eng",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": true,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     }
   ]
 }

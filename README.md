@@ -1,7 +1,7 @@
 # Würfel & Schicksal
 
 Ein Erzähl-Rollenspiel im mittelalterlichen Europa – im Browser, lokal auf deinem Rechner.
-Stand: **Etappe 1 bis 3** (Regeln, Würfel-Engine, Charakterbogen, fairer 3D-Würfel, Claude als Spielleiter).
+Stand: **Etappe 1 bis 4** (Regeln, Würfel-Engine, Charakterbogen, fairer 3D-Würfel, Claude als Spielleiter, eigene Klassen).
 
 ## Starten
 
@@ -86,6 +86,19 @@ Netlify Blobs (Wurf-Protokoll, Budgetzähler) ist automatisch dabei.
 - **Kosten:** Monatsbudget als harte Grenze, Limit pro Stunde, optionaler Zugangscode, Prompt-Caching für Systemprompt und Verlauf.
   Bei einer Sicherheitsablehnung springt automatisch ein Ersatzmodell ein (`fallbacks: "default"`).
 
+## Eigene Klassen (Claude ist Gutachter, der Code ist Richter)
+
+1. Du beschreibst eine Klasse frei und/oder per Formular (Seite *Figuren → Eigene Klassen*).
+2. Claude antwortet im festen JSON-Schema (Structured Outputs): Spielwerte, Fähigkeiten mit Regeltext und messbarer Wirkung,
+   Stärkeeinschätzung, Probleme, Vorschläge und – falls nötig – einen Gegenvorschlag.
+3. `shared/classbuilder.ts` prüft hart gegen `rules.json → classBuilder`: Punktebudget (Stufe 1: 18 Punkte), Trefferwürfel,
+   Schadens-/Rüstungs-/Angriffsgrenzen, Fähigkeitstypen, verbotene Effekte. Zu große Werte werden gekürzt, Unzulässiges
+   wird abgelehnt – egal, was Claude sagt. Dieselbe Prüfung müssen auch die Grundklassen bestehen.
+4. Bis zu 5 Bewertungsrunden pro Entwurf (serverseitig erzwungen).
+5. Erst nach deiner Bestätigung signiert der Server die Klasse. Lokal wird sie zusätzlich in `data/classes/custom/` gespeichert,
+   online im Browser. Figuren tragen eine signierte Kopie ihrer Klasse – Fälschungen werden abgelehnt.
+6. Klassen lassen sich bearbeiten, kopieren, löschen sowie als Datei exportieren und importieren.
+
 ## Fairness der Würfel
 
 1. Der **Server** würfelt mit `crypto.getRandomValues` und Rejection Sampling (keine Modulo-Verzerrung).
@@ -104,7 +117,7 @@ Die Tests prüfen das für jede Seite jeder Würfelart (`tests/dice3d.test.ts`).
 | `data/rules.json` | Attribute, Punktekauf, Stufen, Schwierigkeitsgrade, Fertigkeiten, Stände, Währung, Gegenstände, Grenzen für eigene Klassen |
 | `data/campaign.json` | Welt: `magic_level` (`none`/`low`/`medium`/`high`), Ton, Schwierigkeit, Tabus |
 | `data/classes/base/*.json` | Die sechs Grundklassen |
-| `data/classes/custom/` | Eigene Klassen (ab Etappe 4) |
+| `data/classes/custom/` | Eigene Klassen (lokal gespeichert, werden beim Start geprüft) |
 | `data/openings.json` | Startimpuls-Tabellen (Orte, Zeiten, Anlässe, Personen, Konflikte, Details) |
 
 Beim Start prüft der Server alle Dateien gegen ein Schema und auf Widersprüche (z. B. unbekannte Gegenstände, ungültige
@@ -128,6 +141,5 @@ tests/    Vitest
 
 ## Nächste Etappen
 
-4. Klassen-Editor mit Claude-Bewertung und Code-Validierung
 5. Kampfsystem, Gedächtnis, Quests
 6. Oberfläche, Speichern/Laden, Kostenlimit

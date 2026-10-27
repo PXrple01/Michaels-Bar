@@ -64,7 +64,19 @@
       "uses": "einmal_pro_rast",
       "level": 1,
       "text": "Während einer kurzen Rast braust du einen Trank. Wer ihn trinkt, heilt 2W4 + Verstandsbonus Trefferpunkte oder wird von einer Vergiftung befreit.",
-      "beginnerText": "Aus Kräutern und Wurzeln mischst du einen Heiltrank."
+      "beginnerText": "Aus Kräutern und Wurzeln mischst du einen Heiltrank.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": "2W4+2",
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "boeser_blick",
@@ -73,7 +85,19 @@
       "uses": "einmal_pro_kampf",
       "level": 1,
       "text": "Ein Wesen in Sichtweite muss eine Weisheitsprobe (SG 8 + Können-Bonus + Verstandsbonus) bestehen, sonst hat es eine Runde lang Nachteil auf alle Würfe.",
-      "beginnerText": "Du starrst jemanden an und murmelst etwas – plötzlich geht ihm alles schief."
+      "beginnerText": "Du starrst jemanden an und murmelst etwas – plötzlich geht ihm alles schief.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": true,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": true
     },
     {
       "id": "giftkunde",
@@ -82,7 +106,19 @@
       "uses": "passiv",
       "level": 1,
       "text": "Du erkennst Gifte und Krankheiten automatisch, wenn du sie riechen oder untersuchen kannst.",
-      "beginnerText": "Ein Schnuppern genügt: Du weißt, ob im Becher Gift ist."
+      "beginnerText": "Ein Schnuppern genügt: Du weißt, ob im Becher Gift ist.",
+      "scope": "eng",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     }
   ]
 }

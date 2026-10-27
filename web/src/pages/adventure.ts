@@ -6,6 +6,7 @@ import { rollWithOverlay } from "../dice3d/roller";
 import { enhance } from "../fx/effects";
 import { api, loadGameData, type GameData } from "../lib/api";
 import { campaignStore } from "../lib/campaigns";
+import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
 import { term } from "../lib/glossary";
@@ -73,7 +74,7 @@ export function adventuresPage(): Page {
             <div class="char-grid">
               ${saves.map((s, i) => {
                 const c = chars.find((x) => x.id === s.characterId);
-                const cls = data.classes.find((x) => x.id === c?.classId);
+                const cls = data.classes.find((x) => x.id === c?.classId) ?? c?.customClass?.cls;
                 return html`<article class="card adv-card tilt" data-reveal="scale" style="--i:${i}">
                   <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
                   <h3>${s.title}</h3>
@@ -89,7 +90,7 @@ export function adventuresPage(): Page {
           ${chars.length ? html`
             <div class="char-grid">
               ${chars.map((c, i) => {
-                const cls = data.classes.find((x) => x.id === c.classId);
+                const cls = data.classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
                 return html`<button class="card char-card tilt start-card" data-start="${c.id}" data-reveal="scale" style="--i:${i}">
                   <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
                   <h3>${c.name}</h3>
@@ -222,7 +223,8 @@ export function playPage(): Page {
       }
 
       function pendingCard(p: PendingCheck): Raw {
-        const spec = characterRoll(character, data.rules, data.classes, p.art, p.id);
+        const d = dataFor(data, character);
+        const spec = characterRoll(character, d.rules, d.classes, p.art, p.id);
         const mod = spec.parts.reduce((s, x) => s + x.value, 0);
         return html`<div class="pending card glow-border">
           <div class="pd-die">${icon("dice")}</div>

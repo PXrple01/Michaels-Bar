@@ -66,7 +66,19 @@
       "uses": "einmal_pro_kampf",
       "level": 1,
       "text": "Als Reaktion erhält ein Verbündeter neben dir +2 Rüstung bis zum Beginn deines nächsten Zuges.",
-      "beginnerText": "Du springst mit dem Schild vor einen Freund. Gegner treffen ihn schwerer."
+      "beginnerText": "Du springst mit dem Schild vor einen Freund. Gegner treffen ihn schwerer.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": false,
+        "armorBonus": 2,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "ritterlicher_schlag",
@@ -75,7 +87,19 @@
       "uses": "einmal_pro_rast",
       "level": 1,
       "text": "Ein Nahkampftreffer verursacht zusätzlich 1W8 Schaden.",
-      "beginnerText": "Ein besonders wuchtiger Hieb – einmal, bis du dich ausruhst."
+      "beginnerText": "Ein besonders wuchtiger Hieb – einmal, bis du dich ausruhst.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": "1W8",
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": false,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "eid",
@@ -84,7 +108,19 @@
       "uses": "passiv",
       "level": 1,
       "text": "Vorteil auf Proben gegen Furcht und Einschüchterung.",
-      "beginnerText": "Dein Eid macht dich mutig: Angst hat es schwer bei dir."
+      "beginnerText": "Dein Eid macht dich mutig: Angst hat es schwer bei dir.",
+      "scope": "eng",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": true,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     }
   ]
 }

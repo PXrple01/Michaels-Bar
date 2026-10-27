@@ -2,6 +2,7 @@
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { AnthropicLlm, GameMaster } from "./engine";
+import { ClassReviewer } from "./review";
 import { UsageGuard, type CounterStore } from "./usage";
 
 export interface GmEnv {
@@ -13,14 +14,14 @@ export interface GmEnv {
   GM_EFFORT?: string;
 }
 
-export function createGameMaster(env: GmEnv, data: () => GameData, rolls: RollLog, counters: CounterStore, secret: string): GameMaster {
+export interface Claude { gm: GameMaster; reviewer: ClassReviewer }
+
+export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, counters: CounterStore, secret: string): Claude {
   const effort = env.GM_EFFORT === "medium" || env.GM_EFFORT === "high" ? env.GM_EFFORT : "low";
-  return new GameMaster({
-    data,
-    llm: env.ANTHROPIC_API_KEY ? new AnthropicLlm(env.ANTHROPIC_API_KEY) : null,
-    rolls,
-    guard: new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD ?? 10) || 10, Number(env.TURNS_PER_HOUR ?? 60) || 60),
-    secret,
-    effort,
-  });
+  const llm = env.ANTHROPIC_API_KEY ? new AnthropicLlm(env.ANTHROPIC_API_KEY) : null;
+  const guard = new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD ?? 10) || 10, Number(env.TURNS_PER_HOUR ?? 60) || 60);
+  return {
+    gm: new GameMaster({ data, llm, rolls, guard, secret, effort }),
+    reviewer: new ClassReviewer({ data, llm, guard, secret, effort }),
+  };
 }

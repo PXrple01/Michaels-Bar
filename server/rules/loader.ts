@@ -3,6 +3,7 @@ import path from "node:path";
 import type { z } from "zod";
 import { campaignSchema, classSchema, openingsSchema, rulesSchema, type Campaign, type ClassDef, type Openings, type Rules } from "../../shared/schema";
 import { attributeProblems } from "../../shared/character";
+import { checkClass } from "../../shared/classbuilder";
 
 export class RulesError extends Error {}
 
@@ -61,6 +62,11 @@ export function crossCheck(rules: Rules, classes: ClassDef[]): string[] {
       if (!rules.classBuilder.abilityUses.includes(ab.uses)) errs.push(`${p}: Fähigkeit ${ab.id} hat unbekannte Nutzung ${ab.uses}`);
     }
   }
+  // Auch die Grundklassen müssen das Punktebudget einhalten – dieselbe Prüfung wie für eigene Klassen.
+  for (const c of classes) {
+    const res = checkClass(c, rules, "high");
+    for (const e of res.errors) errs.push(`Klasse ${c.id}: ${e}`);
+  }
   return errs;
 }
 
@@ -77,8 +83,15 @@ export async function loadGameData(dataDir: string): Promise<GameData> {
       classes.push({ ...c, custom: sub === "custom" });
     }
   }
-  if (classes.length === 0) throw new RulesError("Keine Klassen gefunden (data/classes/base)");
-  const errs = crossCheck(rules, classes);
+  const base = classes.filter((c) => !c.custom);
+  if (base.length === 0) throw new RulesError("Keine Klassen gefunden (data/classes/base)");
+  const errs = crossCheck(rules, base);
   if (errs.length) throw new RulesError(`Regeldaten widersprechen sich:\n${errs.map((e) => `  • ${e}`).join("\n")}`);
-  return { rules, campaign, classes, openings };
+  // Eigene Klassen, die (z. B. nach Regeländerungen) nicht mehr gültig sind, werden übersprungen statt den Start zu blockieren.
+  const custom = classes.filter((c) => c.custom).filter((c) => {
+    const res = checkClass(c, rules, campaign.magic_level);
+    if (!res.ok) console.warn(`⚠ Eigene Klasse ${c.id} übersprungen: ${res.errors.join(" ")}`);
+    return res.ok && !base.some((b) => b.id === c.id);
+  });
+  return { rules, campaign, classes: [...base, ...custom], openings };
 }

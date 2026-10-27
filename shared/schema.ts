@@ -55,12 +55,35 @@ export const rulesSchema = z.object({
     maxTrainedSkills: z.number().int(), maxAbilitiesAtLevel1: z.number().int(),
     abilityTypes: z.array(z.string()).min(1), abilityUses: z.array(z.string()).min(1),
     forbiddenEffects: z.array(z.string()),
+    costs: z.object({
+      hitDie: z.record(z.string(), z.number()),
+      perTrainedSkill: z.number(),
+      armor: z.record(z.string(), z.number()),
+      abilityBase: z.number(),
+      extraDamagePerAverage: z.number(), healPerAverage: z.number(), bonusDiePerAverage: z.number(),
+      flatBonus: z.number(), advantage: z.number(), imposeDisadvantage: z.number(), armorBonus: z.number(), attackBonus: z.number(),
+      usesMultiplier: z.record(z.string(), z.number()),
+      scopeMultiplier: z.object({ eng: z.number(), breit: z.number() }),
+    }),
+    explanation: z.string(),
   }),
 });
 
+const diceOrNull = z.string().regex(/^\d+W\d+([+-]\d+)?$/).nullable();
+
+/** Messbare Wirkung einer Fähigkeit – danach berechnet der Code die Punktkosten. */
+export const mechanicsSchema = z.object({
+  extraDamage: diceOrNull, heal: diceOrNull, bonusDie: diceOrNull,
+  flatBonus: z.number().int().min(0), advantage: z.boolean(), imposeDisadvantage: z.boolean(),
+  armorBonus: z.number().int().min(0), attackBonus: z.number().int().min(0),
+});
+
 export const abilitySchema = z.object({
-  id, name: z.string(), type: z.string(), uses: z.string(), level: z.number().int().min(1),
-  text: z.string(), beginnerText: z.string(),
+  id, name: z.string().min(1).max(60), type: z.string(), uses: z.string(), level: z.number().int().min(1),
+  text: z.string().min(1).max(600), beginnerText: z.string().min(1).max(300),
+  scope: z.enum(["eng", "breit"]).default("breit"),
+  mechanics: mechanicsSchema.optional(),
+  magic: z.boolean().default(false),
 });
 
 export const classSchema = z.object({
@@ -95,6 +118,8 @@ export const characterInputSchema = z.object({
     flaw: z.string().max(200).default(""),
   }).default({ trait: "", ideal: "", bond: "", flaw: "" }),
   appearance: z.string().max(400).default(""),
+  /** Signierte Kopie einer eigenen Klasse – nur bei selbst gebauten Klassen. */
+  customClass: z.object({ cls: classSchema, sig: z.string() }).optional(),
 });
 
 export const characterSchema = characterInputSchema.extend({
@@ -120,6 +145,7 @@ export type Attribute = z.infer<typeof attributeSchema>;
 export type Item = z.infer<typeof itemSchema>;
 export type ClassDef = z.infer<typeof classSchema>;
 export type Ability = z.infer<typeof abilitySchema>;
+export type Mechanics = z.infer<typeof mechanicsSchema>;
 export type Campaign = z.infer<typeof campaignSchema>;
 export type CharacterInput = z.input<typeof characterInputSchema>;
 export type Character = z.infer<typeof characterSchema>;

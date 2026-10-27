@@ -20,7 +20,7 @@ const STAGES = [
   { n: 1, title: "Regeln, Würfel-Engine, Charakterbogen", done: true },
   { n: 2, title: "3D-Würfel mit fairer Ergebnislogik", done: true },
   { n: 3, title: "Claude als Spielleiter, Startimpulse", done: true },
-  { n: 4, title: "Eigene Klassen mit Claude-Gutachten", done: false },
+  { n: 4, title: "Eigene Klassen mit Claude-Gutachten", done: true },
   { n: 5, title: "Kampf, Gedächtnis, Quests", done: false },
   { n: 6, title: "Speichern, Kostenlimit, Feinschliff", done: false },
 ];
@@ -133,7 +133,7 @@ export function homePage(): Page {
           </ol>
         </section>
 
-        <footer class="footer container">Würfel &amp; Schicksal · Etappe 3</footer>
+        <footer class="footer container">Würfel &amp; Schicksal · Etappe 4</footer>
       `);
 
       root.querySelectorAll<HTMLElement>("[data-split]").forEach((el, i) => splitLetters(el, 150 + i * 380, 55));

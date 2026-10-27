@@ -24,6 +24,7 @@ import { sheetPage } from "./pages/sheet";
 import { tablePage } from "./pages/table";
 import { settingsPage } from "./pages/settings";
 import { adventuresPage, playPage } from "./pages/adventure";
+import { classEditorPage, classesPage } from "./pages/classes";
 
 const NAV = [
   { id: "home", href: "#/", label: "Start", icon: "home" },
@@ -64,6 +65,9 @@ route("/figur/neu", "chars", createPage);
 route("/figur/:id", "chars", sheetPage);
 route("/wuerfel", "table", tablePage);
 route("/abenteuer", "adventure", adventuresPage);
+route("/klassen", "chars", classesPage);
+route("/klassen/neu", "chars", classEditorPage);
+route("/klassen/:id/:mode", "chars", classEditorPage);
 route("/abenteuer/:id", "adventure", playPage);
 route("/einstellungen", "settings", settingsPage);
 

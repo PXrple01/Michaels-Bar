@@ -1,11 +1,16 @@
 // API-Logik ohne Framework: dieselbe Funktion bedient Express (lokal) und Netlify (Web-Request).
 import { characterRoll, type CharacterRollType } from "../shared/character";
 import { NotationError, type CheckRequest, type FreeRollRequest, type RollMode } from "../shared/dice";
-import { buildCharacter, ValidationError, verifyCharacter } from "./characters";
+import { mkdir, writeFile } from "node:fs/promises";
+import nodePath from "node:path";
+import { checkClass } from "../shared/classbuilder";
+import { classSchema } from "../shared/schema";
+import { buildCharacter, resolveCharacter, ValidationError } from "./characters";
+import { signClass, verifySignedClass } from "./classes";
 import type { RollLog } from "./dice/log";
 import type { GameData } from "./rules/loader";
 
-export interface ApiDeps { data: () => GameData; rolls: RollLog; accessCode?: string }
+export interface ApiDeps { data: () => GameData; rolls: RollLog; accessCode?: string; secret?: string; customClassDir?: string }
 export interface ApiResult { status: number; body: unknown }
 
 const MODES: RollMode[] = ["normal", "advantage", "disadvantage"];
@@ -35,7 +40,7 @@ async function route(method: string, path: string, body: unknown, deps: ApiDeps)
       return { status: 200, body: { accessRequired: !!deps.accessCode } };
     // Neue Figur: Der Server rechnet sie aus, gespeichert wird sie im Browser.
     case "POST /api/characters":
-      return { status: 201, body: buildCharacter(body, deps.data()) };
+      return { status: 201, body: buildCharacter(body, deps.data(), deps.secret) };
     // Freier Wurf am Würfeltisch. Das Ergebnis entsteht ausschließlich hier.
     case "POST /api/rolls": {
       const b = (body ?? {}) as Partial<FreeRollRequest>;
@@ -53,8 +58,7 @@ async function route(method: string, path: string, body: unknown, deps: ApiDeps)
     // Probe für eine Figur: Der Server prüft die Figur und rechnet den Bonus selbst.
     case "POST /api/rolls/check": {
       const b = (body ?? {}) as Partial<CheckRequest>;
-      const data = deps.data();
-      const c = verifyCharacter(b.character, data);
+      const { c, data } = resolveCharacter(b.character, deps.data(), deps.secret);
       const type = b.check?.type as CharacterRollType | undefined;
       if (!type || !["attribute", "skill", "attack", "damage"].includes(type)) throw new ValidationError(["Unbekannte Probenart"]);
       let spec;
@@ -73,6 +77,28 @@ async function route(method: string, path: string, body: unknown, deps: ApiDeps)
         dc: spec.d20 ? parseDc(b.dc) : null,
       });
       return { status: record.repeated ? 200 : 201, body: record };
+    }
+    // Klasse speichern: nur, wenn die harte Regelprüfung besteht. Danach signiert der Server sie.
+    case "POST /api/classes/confirm": {
+      if (!deps.secret) throw new ValidationError(["Eigene Klassen brauchen GAME_SECRET auf dem Server."]);
+      const parsed = classSchema.safeParse((body as { cls?: unknown } | null)?.cls);
+      if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`));
+      if (!/^eigen_[a-z0-9_]{1,60}$/.test(parsed.data.id)) throw new ValidationError(["Ungültige Klassen-ID"]);
+      const data = deps.data();
+      if (data.classes.some((c) => c.id === parsed.data.id && !c.custom)) throw new ValidationError(["Grundklassen lassen sich nicht überschreiben."]);
+      const check = checkClass({ ...parsed.data, custom: true }, data.rules, data.campaign.magic_level);
+      if (!check.ok) return { status: 422, body: { error: "Die Klasse erfüllt die Regeln nicht.", problems: check.errors, check } };
+      const signed = signClass(deps.secret, check.cls);
+      if (deps.customClassDir) {
+        await mkdir(deps.customClassDir, { recursive: true });
+        await writeFile(nodePath.join(deps.customClassDir, `${check.cls.id}.json`), JSON.stringify(check.cls, null, 2), "utf8");
+      }
+      return { status: 201, body: signed };
+    }
+    // Importierte Klassen-Datei prüfen
+    case "POST /api/classes/verify": {
+      const res = verifySignedClass(deps.secret, (body as { signed?: unknown } | null)?.signed, deps.data());
+      return "error" in res ? { status: 422, body: { error: res.error } } : { status: 200, body: { ok: true, cls: res.cls } };
     }
     default:
       return { status: 404, body: { error: "Unbekannter Endpunkt" } };

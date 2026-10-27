@@ -4,6 +4,7 @@ import type { Character, Money } from "../../../shared/schema";
 import { rollWithOverlay } from "../dice3d/roller";
 import { countUp, enhance } from "../fx/effects";
 import { api, loadGameData, type GameData } from "../lib/api";
+import { dataFor } from "../lib/customClasses";
 import { $, $$, html, setHTML, uuid } from "../lib/dom";
 import { term } from "../lib/glossary";
 import { icon, sigil } from "../lib/icons";
@@ -31,7 +32,7 @@ export function sheetPage(): Page {
         setHTML(root, html`<div class="container empty"><h2>Figur nicht gefunden</h2><p>${(e as Error).message}</p><a class="btn" href="#/figuren">Zur Übersicht</a></div>`);
         return;
       }
-      const { rules, classes } = data;
+      const { rules, classes } = dataFor(data, c);
       const cls = classes.find((x) => x.id === c.classId)!;
       const stand = rules.stands.find((s) => s.id === c.stand)!;
       const trained = trainedSkills(c, rules, classes);

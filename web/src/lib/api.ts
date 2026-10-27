@@ -1,5 +1,6 @@
 import type { CheckRequest, FreeRollRequest, RollRecord } from "../../../shared/dice";
 import type { Campaign, Character, CharacterInput, ClassDef, Rules } from "../../../shared/schema";
+import type { SignedClass } from "../../../shared/classreview";
 import { characterStore, rollHistory } from "./store";
 
 export class ApiError extends Error {
@@ -51,5 +52,7 @@ export const api = {
     const { characterId, ...rest } = r;
     return logged(request<RollRecord>("POST", "/api/rolls/check", { ...rest, character: characterStore.get(characterId) }));
   },
+  confirmClass: (cls: ClassDef) => request<SignedClass>("POST", "/api/classes/confirm", { cls }),
+  verifyClass: (signed: unknown) => request<{ ok: true; cls: ClassDef }>("POST", "/api/classes/verify", { signed }),
   rolls: async (limit = 25) => rollHistory.list().slice(0, limit),
 };

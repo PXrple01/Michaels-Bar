@@ -65,7 +65,19 @@
       "uses": "einmal_pro_kampf",
       "level": 1,
       "text": "Du nimmst dir Zeit zum Zielen: Dein nächster Fernkampfangriff hat Vorteil und verursacht +1W6 Schaden.",
-      "beginnerText": "Ruhig atmen, zielen, loslassen – ein besonders sicherer und harter Schuss."
+      "beginnerText": "Ruhig atmen, zielen, loslassen – ein besonders sicherer und harter Schuss.",
+      "scope": "breit",
+      "mechanics": {
+        "extraDamage": "1W6",
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": true,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "faehrtenleser",
@@ -74,7 +86,19 @@
       "uses": "passiv",
       "level": 1,
       "text": "Vorteil auf Überleben, um Spuren zu folgen. Du erkennst, wie viele Wesen wann vorbeikamen.",
-      "beginnerText": "Ein abgeknickter Zweig, ein Fußabdruck – du liest den Wald wie ein Buch."
+      "beginnerText": "Ein abgeknickter Zweig, ein Fußabdruck – du liest den Wald wie ein Buch.",
+      "scope": "eng",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": true,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     },
     {
       "id": "lautlos",
@@ -83,7 +107,19 @@
       "uses": "passiv",
       "level": 1,
       "text": "In Wald und Wildnis hast du Vorteil auf Heimlichkeit.",
-      "beginnerText": "Im Wald hört dich niemand kommen."
+      "beginnerText": "Im Wald hört dich niemand kommen.",
+      "scope": "eng",
+      "mechanics": {
+        "extraDamage": null,
+        "heal": null,
+        "bonusDie": null,
+        "flatBonus": 0,
+        "advantage": true,
+        "imposeDisadvantage": false,
+        "armorBonus": 0,
+        "attackBonus": 0
+      },
+      "magic": false
     }
   ]
 }

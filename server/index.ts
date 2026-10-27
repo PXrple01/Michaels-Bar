@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "./app";
-import { createGameMaster } from "./gm/setup";
+import { createClaude } from "./gm/setup";
 import { MemoryCounterStore } from "./gm/usage";
 import { MemoryRollStore, RollLog } from "./dice/log";
 import { loadGameData, RulesError, type GameData } from "./rules/loader";
@@ -38,13 +38,16 @@ try {
 }
 
 const rolls = new RollLog(new MemoryRollStore(path.join(root, "saves", "rolls.log")));
-const gm = createGameMaster(process.env, () => data, rolls, new MemoryCounterStore(), localSecret());
+const secret = localSecret();
+const claude = createClaude(process.env, () => data, rolls, new MemoryCounterStore(), secret);
 const app = createApp({
   data: () => data,
   rolls,
   staticDir: path.join(root, "dist", "web"),
-  gm: () => gm,
+  claude: () => claude,
   accessCode: process.env.ACCESS_CODE,
+  secret,
+  customClassDir: path.join(root, "data", "classes", "custom"),
 });
 
 app.listen(PORT, HOST, () => {

@@ -6,7 +6,7 @@ import { MAX_ACTION_LENGTH, type GmEvent, type PendingCheck, type RollRequest, t
 import { characterRoll } from "../../shared/character";
 import { formatModifier, type RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import { ValidationError, verifyCharacter } from "../characters";
+import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { openingSummary, rollOpening } from "./openings";
@@ -89,12 +89,11 @@ export class GameMaster {
   }
 
   /** Liest die offene Probe aus der letzten Spielleiter-Nachricht (Teil des signierten Verlaufs). */
-  pendingFrom(messages: MessageParam[], c: Character): PendingCheck | null {
+  pendingFrom(messages: MessageParam[], c: Character, data: GameData): PendingCheck | null {
     const last = messages[messages.length - 1];
     if (!last || last.role !== "assistant" || typeof last.content === "string") return null;
     const block = last.content.find((b): b is Anthropic.Beta.BetaToolUseBlockParam => b.type === "tool_use" && b.name === TOOL_NAME);
     if (!block) return null;
-    const data = this.o.data();
     const parsed = this.toolInput(data).safeParse(block.input);
     if (!parsed.success) return null;
     const v = parsed.data;
@@ -106,8 +105,8 @@ export class GameMaster {
     if (!this.o.llm) throw new GmError("Kein API-Schlüssel hinterlegt. Trage ANTHROPIC_API_KEY ein (lokal in .env, online in den Netlify-Umgebungsvariablen).", "no_api_key");
   }
 
-  private character(raw: unknown): Character {
-    try { return verifyCharacter(raw, this.o.data()); } catch (e) {
+  private character(raw: unknown): { c: Character; data: GameData } {
+    try { return resolveCharacter(raw, this.o.data(), this.o.secret); } catch (e) {
       throw new GmError(e instanceof ValidationError ? `Figur ungültig: ${e.problems.join(", ")}` : "Figur ungültig", "state");
     }
   }
@@ -135,30 +134,28 @@ export class GameMaster {
   }
 
   private async start(req: StartRequest, who: string, emit: (ev: GmEvent) => void) {
-    const c = this.character(req?.character);
-    const data = this.o.data();
+    const { c, data } = this.character(req?.character);
     const previous = Array.isArray(req.previousOpenings) ? req.previousOpenings.filter((p) => typeof p === "string").map((p) => p.slice(0, 400)).slice(-10) : [];
     const opening = rollOpening(data.openings, previous);
     emit({ type: "opening", opening, summary: openingSummary(opening) });
-    await this.converse([{ role: "user", content: kickoffMessage(c, data, opening, previous) }], c, who, emit);
+    await this.converse([{ role: "user", content: kickoffMessage(c, data, opening, previous) }], c, data, who, emit);
   }
 
   private async turn(req: TurnRequest, who: string, emit: (ev: GmEvent) => void) {
-    const c = this.character(req?.character);
+    const { c, data } = this.character(req?.character);
     const messages = this.verified(req.state, c);
-    if (this.pendingFrom(messages, c)) throw new GmError("Erst muss die verlangte Probe gewürfelt werden.", "state");
+    if (this.pendingFrom(messages, c, data)) throw new GmError("Erst muss die verlangte Probe gewürfelt werden.", "state");
     const action = typeof req.action === "string" ? req.action.trim() : "";
     if (!action) throw new GmError("Was tust du? Schreib es in das Feld.", "state");
     if (action.length > MAX_ACTION_LENGTH) throw new GmError(`Bitte kürzer fassen (höchstens ${MAX_ACTION_LENGTH} Zeichen).`, "state");
-    await this.converse([...messages, { role: "user", content: action }], c, who, emit);
+    await this.converse([...messages, { role: "user", content: action }], c, data, who, emit);
   }
 
   private async roll(req: RollRequest, who: string, emit: (ev: GmEvent) => void) {
-    const c = this.character(req?.character);
+    const { c, data } = this.character(req?.character);
     const messages = this.verified(req.state, c);
-    const pending = this.pendingFrom(messages, c);
+    const pending = this.pendingFrom(messages, c, data);
     if (!pending) throw new GmError("Gerade ist keine Probe offen.", "state");
-    const data = this.o.data();
     const spec = characterRoll(c, data.rules, data.classes, pending.art, pending.id);
     // Die Wurf-ID hängt an der Probe: Wer erneut sendet, bekommt denselben Wurf – kein Neuwürfeln.
     const record = await this.o.rolls.roll({
@@ -172,11 +169,10 @@ export class GameMaster {
     });
     emit({ type: "roll", record });
     const result: Anthropic.Beta.BetaToolResultBlockParam = { type: "tool_result", tool_use_id: pending.toolUseId, content: describeRoll(record) };
-    await this.converse([...messages, { role: "user", content: [result] }], c, who, emit);
+    await this.converse([...messages, { role: "user", content: [result] }], c, data, who, emit);
   }
 
-  private async converse(messages: MessageParam[], c: Character, who: string, emit: (ev: GmEvent) => void) {
-    const data = this.o.data();
+  private async converse(messages: MessageParam[], c: Character, data: GameData, who: string, emit: (ev: GmEvent) => void) {
     const history = [...messages];
     for (let loop = 0; loop < MAX_LOOPS; loop++) {
       await this.o.guard.check(who);
@@ -200,8 +196,8 @@ export class GameMaster {
       history.push({ role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] });
       const toolUse = msg.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
       if (toolUse && msg.stop_reason === "tool_use") {
-        if (this.pendingFrom(history, c)) {
-          emit({ type: "done", state: signState(this.o.secret, history, characterHash(c)), pending: this.pendingFrom(history, c), budget: await this.o.guard.info() });
+        if (this.pendingFrom(history, c, data)) {
+          emit({ type: "done", state: signState(this.o.secret, history, characterHash(c)), pending: this.pendingFrom(history, c, data), budget: await this.o.guard.info() });
           return;
         }
         // Ungültige Anfrage: Claude bekommt einen Fehler zurück und versucht es neu.
