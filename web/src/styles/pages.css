@@ -884,3 +884,7 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .ab-chip.upgraded { border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 214, 138, 0.45); }
 @media (max-width: 640px) { .upgrade-card.due { grid-template-columns: auto 1fr; } .upgrade-card.due .btn { grid-column: 1 / -1; justify-self: stretch; } }
 @media (prefers-reduced-motion: reduce) { .upgrade-card.due .up-icon, .upgrade-card.forging .up-icon svg { animation: none; } }
+.up-path { display: grid; gap: 10px; padding: 12px; border-radius: var(--radius); border: 1px dashed var(--line-strong); }
+.up-path.recommended { border-style: solid; border-color: rgba(245, 214, 138, 0.45); background: rgba(245, 214, 138, 0.04); }
+.up-path-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.up-path-head .chip svg { width: 12px; height: 12px; }

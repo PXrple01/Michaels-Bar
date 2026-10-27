@@ -138,15 +138,44 @@ describe("Verbesserungen im Solo-Spiel", () => {
     expect(effectiveAbilities(data.classes.find((c) => c.id === "kraeuterhexe")!.abilities, prog).find((a) => a.id === "giftkunde")!.name).toBe("Giftblut");
     expect(worldSummary(chosen.state.world!, [hexe])).toContain("„Giftblut“ (verbesserte Fassung von „Giftkunde“");
     expect((await run("upgrade", { character: hexe, state: chosen.state })).type).toBe("error"); // Stufe 2 erst im Finale
-    // Im Finale wird die zweite Fähigkeit verbessert – nie dieselbe noch einmal
+    // Im Finale ist die zweite Fähigkeit geplant – ohne Empfehlung gibt es nur sie
     const fin = structuredClone(chosen.state.world!);
     fin.arc!.current = 5;
     fin.xp[hexe.id] = 600;
-    const llm2 = setup([json({ auswahl: { erste: "giftkunde", zweite: "giftkunde" }, optionen: [{ ...options[1], name: "Fluchblick", text: "Wie Böser Blick; das Opfer verliert zusätzlich 1W4 TP.", extraDamage: "1W4", imposeDisadvantage: true }] })]);
+    const fluch = { ...options[1], name: "Fluchblick", text: "Wie Böser Blick; das Opfer verliert zusätzlich 1W4 TP.", extraDamage: "1W4", imposeDisadvantage: true };
+    const fluch2 = { ...fluch, name: "Lähmender Blick", text: "Wie Böser Blick; zusätzlich +1 auf deinen nächsten Wurf gegen das Opfer.", extraDamage: "", flatBonus: 1 };
+    const llm2 = setup([json({ auswahl: { erste: "giftkunde", zweite: "giftkunde" }, optionen: [fluch, fluch2], empfehlung: "geplant", optionenZweiteStufe: [] })]);
     const up2 = (await llm2.run("upgrade", { character: hexe, state: stateFor(fin) })) as Extract<GmEvent, { type: "upgrade" }>;
     expect(up2.offer!.tier).toBe(2);
     expect(up2.offer!.abilityId).toBe("boeser_blick");
-    expect(String(llm2.llm.calls[0].messages[0].content)).toContain("keine zweite Stufe");
+    expect(up2.offer!.recommended).toBeUndefined();
+    expect(up2.offer!.options.every((o) => o.abilityId === "boeser_blick")).toBe(true);
+
+    // Empfiehlt Claude die schon verbesserte Fähigkeit, entscheidet der Spieler zwischen beiden Wegen
+    const venom = { ...options[0], name: "Giftdorn", text: "Giftblut; zusätzlich einmal pro Kampf: Wer dich trifft, hat Nachteil auf seinen nächsten Angriff.", imposeDisadvantage: true };
+    const venom2 = { ...options[0], name: "Schlangenblut", text: "Giftblut; der Giftschaden steigt auf 1W6.", extraDamage: "1W6" };
+    const llm3 = setup([json({ auswahl: { erste: "boeser_blick", zweite: "x" }, optionen: [fluch, fluch2], empfehlung: "bereits_verbessert", optionenZweiteStufe: [venom, venom2] })]);
+    const up3 = (await llm3.run("upgrade", { character: hexe, state: stateFor(fin) })) as Extract<GmEvent, { type: "upgrade" }>;
+    expect(up3.offer!.recommended).toBe("giftkunde");
+    expect(up3.offer!.options.map((o) => `${o.abilityId}:${o.secondStage ? 2 : 1}`)).toEqual(["boeser_blick:1", "boeser_blick:1", "giftkunde:2", "giftkunde:2"]);
+    // Die zweite Stufe wird am schon verbesserten Stand gemessen (Giftblut, nicht Giftkunde)
+    expect(up3.offer!.options[2].basedOn).toBe("Giftblut");
+    for (const o of up3.offer!.options) { expect(o.points).toBeGreaterThanOrEqual(0.5); expect(o.points).toBeLessThanOrEqual(3); }
+    const picked = (await llm3.run("choose", { character: hexe, state: up3.state, option: 3 })) as Extract<GmEvent, { type: "upgrade" }>;
+    const p2 = picked.state.world!.progress![hexe.id];
+    const eff = effectiveAbilities(hexeClass.abilities, p2);
+    expect(eff.find((a) => a.id === "giftkunde")!.name).toBe("Schlangenblut"); // zweite Stufe gilt
+    expect(eff.find((a) => a.id === "boeser_blick")!.upgraded).toBeUndefined(); // die andere bleibt, wie sie ist
+    expect(worldSummary(picked.state.world!, [hexe])).toContain("zweite Stufe");
+    expect(worldSummary(picked.state.world!, [hexe])).not.toContain("„Giftblut“ (verbesserte Fassung"); // nur noch die zweite Stufe gilt
+    expect(upgradeDue(picked.state.world!, hexe.id)).toBeNull(); // danach ist Schluss
+
+    // Ungültige Empfehlung (zu stark): es bleibt beim geplanten Weg
+    const huge = { ...venom, name: "Gottgift", extraDamage: "2W12", advantage: true, attackBonus: 2 };
+    const llm4 = setup([json({ auswahl: { erste: "x", zweite: "x" }, optionen: [fluch, fluch2], empfehlung: "bereits_verbessert", optionenZweiteStufe: [huge, huge] }), json({ auswahl: { erste: "x", zweite: "x" }, optionen: [], empfehlung: "bereits_verbessert", optionenZweiteStufe: [huge] })]);
+    const up4 = (await llm4.run("upgrade", { character: hexe, state: stateFor(fin) })) as Extract<GmEvent, { type: "upgrade" }>;
+    expect(up4.offer!.recommended).toBeUndefined();
+    expect(up4.offer!.options.map((o) => o.name)).toEqual(["Fluchblick", "Lähmender Blick"]);
 
     const forged = { ...chosen.state, world: { ...chosen.state.world!, progress: { [hexe.id]: { ...prog, chosen: [] } } } };
     expect((await run("turn", { character: hexe, state: forged, action: "x" })).type).toBe("error"); // Signatur

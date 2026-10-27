@@ -29,9 +29,16 @@ export interface AbilityUpgrade {
   situational: boolean;
   /** Zusätzliche Stärke in Punkten (nur zur Anzeige und Prüfung). */
   points: number;
+  /** Zweite Stufe einer schon verbesserten Fähigkeit (nur im Finale, nur wenn Claude es empfiehlt und der Spieler es wählt). */
+  secondStage?: boolean;
 }
 
-export interface UpgradeOffer { tier: UpgradeTier; abilityId: string; options: AbilityUpgrade[] }
+/**
+ * Angebot zur Wahl. `abilityId` ist die geplante Fähigkeit. Empfiehlt Claude im Finale stattdessen, die schon verbesserte
+ * Fähigkeit weiterzuentwickeln, steht sie in `recommended` und ihre Optionen (secondStage) stehen zusätzlich in `options` –
+ * der Spieler entscheidet.
+ */
+export interface UpgradeOffer { tier: UpgradeTier; abilityId: string; options: AbilityUpgrade[]; recommended?: string }
 
 export interface Progression {
   /** Die zwei verbesserbaren Fähigkeiten – erst bei der ersten Freischaltung festgelegt (vorher geheim). */
@@ -45,7 +52,8 @@ export const emptyProgression = (): Progression => ({ abilities: null, chosen: [
 /** Fähigkeiten einer Figur nach ihren gewählten Verbesserungen. */
 export function effectiveAbilities<A extends Pick<Ability, "id" | "name" | "type" | "uses" | "text" | "beginnerText">>(abilities: A[], prog: Progression | undefined): (A & { upgraded?: AbilityUpgrade })[] {
   return abilities.map((a) => {
-    const up = prog?.chosen.find((u) => u.abilityId === a.id);
+    // Die letzte Verbesserung einer Fähigkeit gilt (eine zweite Stufe enthält die erste)
+    const up = prog?.chosen.filter((u) => u.abilityId === a.id).at(-1);
     return up ? { ...a, name: up.name, text: up.text, beginnerText: up.beginnerText, uses: up.uses, scope: up.scope, mechanics: up.mechanics, upgraded: up } : a;
   });
 }
@@ -145,7 +153,8 @@ export function fallbackUpgrade(original: Ability, tier: UpgradeTier, rules: Rul
 
 /** Kurzfassung für Claude im <spielstand>. */
 export function upgradesSummary(w: WorldState, characters: { id: string; name: string }[]): string {
-  const parts = characters.flatMap((c) => (w.progress?.[c.id]?.chosen ?? []).map((u) => `${c.name}: „${u.name}“ (verbesserte Fassung von „${u.basedOn}“, ${u.uses}) – ${u.text}`));
+  const current = (list: AbilityUpgrade[]) => list.filter((u, i) => !list.slice(i + 1).some((x) => x.abilityId === u.abilityId));
+  const parts = characters.flatMap((c) => current(w.progress?.[c.id]?.chosen ?? []).map((u) => `${c.name}: „${u.name}“ (verbesserte Fassung von „${u.basedOn}“${u.secondStage ? ", zweite Stufe" : ""}, ${u.uses}) – ${u.text}`));
   return parts.length ? `Verbesserte Fähigkeiten (gelten ab sofort): ${parts.join(" | ")}` : "";
 }
 

@@ -152,6 +152,9 @@ Zweimal pro Kampagne entwickelt sich eine Fähigkeit weiter (`shared/upgrades.ts
   Kapitel des Akts – auch mit weniger Erfahrung.
 - **Welche:** Bei der ersten Freischaltung wählt Claude die zwei Fähigkeiten, die sich am besten weiterentwickeln lassen;
   in der Mitte wird die erste verbessert, im Finale die zweite. Vorher erfährt der Spieler nicht, welche es sind.
+- **Empfehlung im Finale:** Passt es deutlich besser, dass sich die schon verbesserte Fähigkeit ein zweites Mal entwickelt,
+  darf Claude das empfehlen. Dann entscheidet der Spieler: zwei Optionen für die zweite Stufe (gemessen am schon
+  verbesserten Stand, gleicher Punkte-Rahmen) oder zwei für die geplante Fähigkeit. Ohne Empfehlung gibt es keine zweite Stufe.
 - **Wie:** Erst beim Freischalten erfindet Claude zwei Verbesserungen derselben Fähigkeit – passend zur Figur; eine darf zur
   aktuellen Lage passen (z. B. liegt im Kampf ein Gefährte am Boden: Gefallene wieder auf die Beine bringen). Beide müssen
   auch später immer nützlich sein. Der Spieler wählt eine; die Wahl gilt für den Rest der Kampagne.
