@@ -183,6 +183,7 @@ export function sheetPage(): Page {
 
           <div class="sheet-foot" data-reveal>
             <a class="btn btn-ghost" href="#/figuren">${icon("arrowLeft")} Alle Figuren</a>
+            <a class="btn magnetic glow-border" href="#/abenteuer">${icon("scroll")} Abenteuer beginnen</a>
             <button class="btn btn-danger btn-sm" id="delete-char">${icon("trash")} Figur löschen</button>
           </div>
         </div>`);

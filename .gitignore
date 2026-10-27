@@ -4,3 +4,5 @@ saves/characters/*.json
 saves/rolls.log
 scratch/
 server/generated/
+.env
+saves/.game-secret

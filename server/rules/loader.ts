@@ -1,12 +1,12 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { z } from "zod";
-import { campaignSchema, classSchema, rulesSchema, type Campaign, type ClassDef, type Rules } from "../../shared/schema";
+import { campaignSchema, classSchema, openingsSchema, rulesSchema, type Campaign, type ClassDef, type Openings, type Rules } from "../../shared/schema";
 import { attributeProblems } from "../../shared/character";
 
 export class RulesError extends Error {}
 
-export interface GameData { rules: Rules; campaign: Campaign; classes: ClassDef[] }
+export interface GameData { rules: Rules; campaign: Campaign; classes: ClassDef[]; openings: Openings }
 
 async function readJson<T>(file: string, schema: z.ZodType<T>): Promise<T> {
   let raw: unknown;
@@ -67,6 +67,7 @@ export function crossCheck(rules: Rules, classes: ClassDef[]): string[] {
 export async function loadGameData(dataDir: string): Promise<GameData> {
   const rules = await readJson(path.join(dataDir, "rules.json"), rulesSchema);
   const campaign = await readJson(path.join(dataDir, "campaign.json"), campaignSchema);
+  const openings = await readJson(path.join(dataDir, "openings.json"), openingsSchema);
   const classes: ClassDef[] = [];
   for (const sub of ["base", "custom"]) {
     const dir = path.join(dataDir, "classes", sub);
@@ -79,5 +80,5 @@ export async function loadGameData(dataDir: string): Promise<GameData> {
   if (classes.length === 0) throw new RulesError("Keine Klassen gefunden (data/classes/base)");
   const errs = crossCheck(rules, classes);
   if (errs.length) throw new RulesError(`Regeldaten widersprechen sich:\n${errs.map((e) => `  • ${e}`).join("\n")}`);
-  return { rules, campaign, classes };
+  return { rules, campaign, classes, openings };
 }

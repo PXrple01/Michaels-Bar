@@ -5,6 +5,8 @@ import { characterRoll, type CharacterRollType } from "../shared/character";
 import { NotationError, type CheckRequest, type FreeRollRequest, type RollMode } from "../shared/dice";
 import { buildCharacter, ValidationError, verifyCharacter } from "./characters";
 import type { RollLog } from "./dice/log";
+import type { GameMaster } from "./gm/engine";
+import { mountGm } from "./gm/http";
 import type { GameData } from "./rules/loader";
 
 const MODES: RollMode[] = ["normal", "advantage", "disadvantage"];
@@ -21,7 +23,7 @@ function parseDc(dc: unknown): number | null {
   return dc;
 }
 
-export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string }) {
+export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string; gm?: () => GameMaster; accessCode?: string }) {
   const app = express();
   app.disable("x-powered-by");
   // Auf Netlify kommen Anfragen je nach Weiterleitung mit dem Funktionspfad an.
@@ -37,6 +39,10 @@ export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDi
     const { rules, campaign, classes } = opts.data();
     res.json({ rules, campaign, classes });
   });
+
+  app.get("/api/config", (_req, res) => { res.json({ accessRequired: !!opts.accessCode }); });
+
+  if (opts.gm) mountGm(app, opts.gm, opts.accessCode);
 
   // Neue Figur: Der Server rechnet sie aus, gespeichert wird sie im Browser.
   app.post("/api/characters", (req, res) => { res.status(201).json(buildCharacter(req.body, opts.data())); });

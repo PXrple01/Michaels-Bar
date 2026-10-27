@@ -108,7 +108,14 @@ export const characterSchema = characterInputSchema.extend({
   updatedAt: z.string(),
 });
 
+const table = z.array(z.string().min(1)).min(3);
+export const openingsSchema = z.object({
+  orte: table, zeiten: table, anlaesse: table, npc_namen: table, npc_rollen: table,
+  npc_eigenschaften: table, konflikte: table, details: table,
+});
+
 export type Rules = z.infer<typeof rulesSchema>;
+export type Openings = z.infer<typeof openingsSchema>;
 export type Attribute = z.infer<typeof attributeSchema>;
 export type Item = z.infer<typeof itemSchema>;
 export type ClassDef = z.infer<typeof classSchema>;

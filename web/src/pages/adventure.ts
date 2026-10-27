@@ -1,0 +1,405 @@
+import { splitSuggestions, MAX_ACTION_LENGTH, type CampaignSave, type GmEvent, type Opening, type PendingCheck } from "../../../shared/campaign";
+import { characterRoll } from "../../../shared/character";
+import { formatModifier, type RollRecord } from "../../../shared/dice";
+import type { Character } from "../../../shared/schema";
+import { rollWithOverlay } from "../dice3d/roller";
+import { enhance } from "../fx/effects";
+import { api, loadGameData, type GameData } from "../lib/api";
+import { campaignStore } from "../lib/campaigns";
+import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
+import { setAccessCode, streamGm } from "../lib/gm";
+import { term } from "../lib/glossary";
+import { icon, sigil } from "../lib/icons";
+import { go, type Page } from "../lib/router";
+import { confirmDialog, toast } from "../lib/ui";
+
+const MODE_TEXT = { normal: "", advantage: " mit Vorteil", disadvantage: " mit Nachteil" } as const;
+
+function paragraphs(text: string): Raw {
+  const parts = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  return html`${parts.map((p) => html`<p>${p.split("\n").map((l, i) => html`${i ? html`<br/>` : ""}${l}`)}</p>`)}`;
+}
+
+/** Wörtliche Rede („…“) hervorheben – nach dem Maskieren, also sicher. */
+function withSpeech(r: Raw): Raw {
+  return raw(r.value.replace(/(„[^“]{1,400}“|&quot;[^&]{1,400}&quot;)/g, '<span class="speech">$1</span>'));
+}
+
+function rollSummary(r: RollRecord): Raw {
+  const verdict = r.success === null ? "" : r.success ? "geschafft" : "nicht geschafft";
+  return html`<div class="story-roll ${r.critical ?? ""} ${r.success === false ? "fail" : r.success ? "ok" : ""}">
+    <span class="sr-total">${r.total}</span>
+    <span class="sr-text"><b>${r.label.replace(/^[^:]+:\s*/, "")}</b><span>gewürfelt ${r.values.join(" / ")}${r.modifier ? ` ${formatModifier(r.modifier)}` : ""}${r.dc !== null ? ` · SG ${r.dc}` : ""}${verdict ? ` · ${verdict}` : ""}${r.critical === "hit" ? " · kritisch!" : r.critical === "fumble" ? " · Patzer!" : ""}</span></span>
+    ${icon("dice")}
+  </div>`;
+}
+
+const OPENING_CARDS: { key: string; label: string; icon: string; get: (o: Opening) => string }[] = [
+  { key: "ort", label: "Ort", icon: "map", get: (o) => o.ort },
+  { key: "zeit", label: "Zeit & Wetter", icon: "sparkles", get: (o) => o.zeit },
+  { key: "anlass", label: "Anlass", icon: "scroll", get: (o) => o.anlass },
+  { key: "npc", label: "Begegnung", icon: "user", get: (o) => `${o.npc.name}, ${o.npc.rolle} – ${o.npc.eigenschaft}` },
+  { key: "konflikt", label: "Konflikt", icon: "zap", get: (o) => o.konflikt },
+];
+
+function openingCards(o: Opening, animate: boolean): Raw {
+  return html`<div class="opening-cards ${animate ? "reveal" : ""}">
+    ${OPENING_CARDS.map((c, i) => html`<div class="oc" style="--i:${i}">
+      <div class="oc-inner">
+        <div class="oc-back">${icon("dice")}</div>
+        <div class="oc-front"><span class="oc-label">${icon(c.icon)} ${c.label}</span><span class="oc-text">${c.get(o)}</span></div>
+      </div>
+    </div>`)}
+  </div>`;
+}
+
+/* ───────────── Übersicht: Figur wählen, Abenteuer fortsetzen ───────────── */
+
+export function adventuresPage(): Page {
+  return {
+    async render(root) {
+      setHTML(root, html`<div class="container"><div class="spinner"></div></div>`);
+      const [chars, data] = await Promise.all([api.characters(), loadGameData()]);
+      const saves = campaignStore.list();
+      setHTML(root, html`
+        <div class="container adventures">
+          <header class="page-head" data-reveal>
+            <div class="eyebrow">Claude als Spielleiter</div>
+            <h1>Abenteuer</h1>
+            <p class="lead">Wähle eine Figur – die Würfel bestimmen, wo und wie deine Geschichte beginnt. Jede Geschichte fängt anders an.</p>
+          </header>
+          ${saves.length ? html`
+            <h2 class="sec-title" data-reveal>${icon("scroll")} Weitererzählen</h2>
+            <div class="char-grid">
+              ${saves.map((s, i) => {
+                const c = chars.find((x) => x.id === s.characterId);
+                const cls = data.classes.find((x) => x.id === c?.classId);
+                return html`<article class="card adv-card tilt" data-reveal="scale" style="--i:${i}">
+                  <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
+                  <h3>${s.title}</h3>
+                  <p class="muted">${c?.name ?? "Figur fehlt"} · ${s.story.filter((e) => e.type === "player").length} Züge</p>
+                  <div class="adv-actions">
+                    ${c ? html`<a class="btn btn-sm" href="#/abenteuer/${s.id}">${icon("play")} Weiter</a>` : ""}
+                    <button class="btn btn-ghost btn-sm" data-delete="${s.id}" aria-label="Abenteuer löschen">${icon("trash")}</button>
+                  </div>
+                </article>`;
+              })}
+            </div>` : ""}
+          <h2 class="sec-title" data-reveal style="margin-top:40px">${icon("sparkles")} Neues Abenteuer</h2>
+          ${chars.length ? html`
+            <div class="char-grid">
+              ${chars.map((c, i) => {
+                const cls = data.classes.find((x) => x.id === c.classId);
+                return html`<button class="card char-card tilt start-card" data-start="${c.id}" data-reveal="scale" style="--i:${i}">
+                  <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
+                  <h3>${c.name}</h3>
+                  <p class="muted">${cls?.name ?? c.classId}</p>
+                  <span class="link-arrow">Mit ${c.name} losziehen ${icon("arrowRight")}</span>
+                </button>`;
+              })}
+            </div>` : html`
+            <div class="card empty" data-reveal>
+              <p>Für ein Abenteuer brauchst du zuerst eine Figur.</p>
+              <a class="btn magnetic" href="#/figur/neu">${icon("sparkles")} Figur erschaffen</a>
+            </div>`}
+        </div>`);
+      root.addEventListener("click", async (e) => {
+        const t = e.target as HTMLElement;
+        const start = t.closest<HTMLElement>("[data-start]");
+        if (start) {
+          const c = chars.find((x) => x.id === start.dataset.start)!;
+          const save: CampaignSave = {
+            id: uuid(), characterId: c.id, title: "Eine neue Chronik", opening: null as unknown as Opening, openingSummary: "",
+            state: { messages: [], characterHash: "", sig: "" }, pending: null, story: [], started: false,
+            createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+          };
+          campaignStore.save(save);
+          go(`/abenteuer/${save.id}?neu`);
+        }
+        const del = t.closest<HTMLElement>("[data-delete]");
+        if (del && (await confirmDialog("Abenteuer löschen?", "Die Geschichte wird endgültig gelöscht. Die Figur bleibt erhalten.", "Löschen", true))) {
+          campaignStore.remove(del.dataset.delete!);
+          go("/abenteuer");
+        }
+      });
+      enhance(root);
+    },
+  };
+}
+
+/* ───────────── Spielansicht ───────────── */
+
+export function playPage(): Page {
+  let alive = true;
+  return {
+    leave() { alive = false; },
+    async render(root, params) {
+      const [id, query] = params.id.split("?");
+      const save = campaignStore.get(id);
+      if (!save) { setHTML(root, html`<div class="container empty"><h2>Abenteuer nicht gefunden</h2><a class="btn" href="#/abenteuer">Zur Übersicht</a></div>`); return; }
+      let character: Character, data: GameData;
+      try { [character, data] = await Promise.all([api.character(save.characterId), loadGameData()]); }
+      catch (e) { setHTML(root, html`<div class="container empty"><h2>Figur fehlt</h2><p>${(e as Error).message}</p></div>`); return; }
+
+      let busy = false;
+      let liveText = "";
+      let liveEl: HTMLElement | null = null;
+      let lastError: Extract<GmEvent, { type: "error" }> | null = null;
+      let budget: { spentUsd: number; limitUsd: number } | null = null;
+
+      setHTML(root, html`
+        <div class="container play">
+          <header class="play-head">
+            <a class="icon-btn" href="#/abenteuer" aria-label="Zurück">${icon("arrowLeft")}</a>
+            <div class="ph-title"><div class="eyebrow">${character.name}</div><h1 id="play-title">${save.title}</h1></div>
+            <span class="chip budget" id="budget" hidden></span>
+          </header>
+          <div id="opening"></div>
+          <div class="story" id="story" aria-live="polite"></div>
+          <div id="below"></div>
+        </div>`);
+      const storyEl = $("#story", root);
+      const belowEl = $("#below", root);
+
+      const persist = () => campaignStore.save(save);
+
+      function renderOpening(animate: boolean) {
+        const el = $("#opening", root);
+        if (!save!.opening) { el.innerHTML = ""; return; }
+        el.innerHTML = html`<details class="opening card" ${animate || !save!.started ? "open" : ""}>
+          <summary>${icon("dice")} Startimpuls – vom Zufall gewürfelt</summary>
+          ${openingCards(save!.opening, animate)}
+        </details>`.value;
+      }
+
+      function storyEntry(e: CampaignSave["story"][number], first: boolean): Raw {
+        if (e.type === "player") return html`<div class="story-player"><span>${e.text}</span></div>`;
+        if (e.type === "roll") return rollSummary(e.record);
+        return html`<div class="story-gm ${first ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}</div>`;
+      }
+
+      function renderStory() {
+        let firstGm = true;
+        storyEl.innerHTML = save!.story.map((e) => {
+          const r = storyEntry(e, e.type === "gm" && firstGm);
+          if (e.type === "gm") firstGm = false;
+          return r.value;
+        }).join("");
+      }
+
+      function appendEntry(e: CampaignSave["story"][number]) {
+        const isFirstGm = e.type === "gm" && !save!.story.slice(0, -1).some((x) => x.type === "gm");
+        storyEl.append(fragment(storyEntry(e, isFirstGm)));
+      }
+
+      function startLive() {
+        liveText = "";
+        liveEl = fragment(html`<div class="story-gm live ${save!.story.some((x) => x.type === "gm") ? "" : "first"}"><span class="quill">${icon("feather")}</span></div>`);
+        storyEl.append(liveEl);
+        scrollDown();
+      }
+      function pushLive(text: string) {
+        if (!liveEl) startLive();
+        liveText += text;
+        const visible = liveText.split("»")[0];
+        liveEl!.innerHTML = withSpeech(paragraphs(visible)).value + `<span class="quill">${icon("feather").value}</span>`;
+        scrollDown(true);
+      }
+      function endLive() {
+        liveEl?.remove();
+        liveEl = null;
+        if (liveText.trim()) {
+          const entry = { type: "gm" as const, text: liveText.trim() };
+          save!.story.push(entry);
+          appendEntry(entry);
+        }
+        liveText = "";
+      }
+
+      function scrollDown(soft = false) {
+        const nearBottom = innerHeight + scrollY > document.body.scrollHeight - 400;
+        if (!soft || nearBottom) window.scrollTo({ top: document.body.scrollHeight, behavior: soft ? "auto" : "smooth" });
+      }
+
+      function pendingCard(p: PendingCheck): Raw {
+        const spec = characterRoll(character, data.rules, data.classes, p.art, p.id);
+        const mod = spec.parts.reduce((s, x) => s + x.value, 0);
+        return html`<div class="pending card glow-border">
+          <div class="pd-die">${icon("dice")}</div>
+          <div class="pd-text">
+            <div class="eyebrow">Der Spielleiter verlangt eine ${term("probe")}</div>
+            <h3>${p.label}${MODE_TEXT[p.modus]}${p.sg !== null ? html` · ${term("sg", "SG")} ${p.sg}` : ""}</h3>
+            <p>${p.grund}</p>
+            <p class="hint">Du würfelst ${spec.notation}${p.modus !== "normal" ? ` (zwei Würfel, ${p.modus === "advantage" ? "der höhere" : "der niedrigere"} zählt)` : ""} ${spec.parts.map((x) => `${formatModifier(x.value)} ${x.label}`).join(" ")}${p.sg !== null ? ` – du brauchst insgesamt ${p.sg} (also mindestens ${Math.max(2, Math.min(20, p.sg - mod))} auf dem Würfel).` : "."}</p>
+          </div>
+          <button class="btn btn-lg magnetic" id="roll-now">${icon("dice")} Würfeln</button>
+        </div>`;
+      }
+
+      function renderBelow() {
+        const last = [...save!.story].reverse().find((e) => e.type === "gm");
+        const suggestions = last && last.type === "gm" && !save!.pending ? splitSuggestions(last.text).suggestions : [];
+        let content: Raw;
+        if (lastError) content = errorCard(lastError);
+        else if (busy) content = html`<div class="thinking">${icon("feather")} Der Spielleiter erzählt …</div>`;
+        else if (!save!.opening) content = html``;
+        else if (save!.pending) content = pendingCard(save!.pending);
+        else content = html`
+          ${suggestions.length ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
+          <form class="composer card" id="composer">
+            <textarea class="textarea" id="action" maxlength="${MAX_ACTION_LENGTH}" rows="2" placeholder="Was tust du? Beschreibe es in eigenen Worten …"></textarea>
+            <button class="btn" type="submit" aria-label="Handlung senden">${icon("arrowRight")}</button>
+          </form>
+          <p class="hint center">Enter sendet, Umschalt+Enter macht eine neue Zeile. Du kannst alles versuchen – nicht nur die Ideen.</p>`;
+        belowEl.innerHTML = html`${content}
+          ${!save!.started && save!.opening && !busy ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="reroll">${icon("refresh")} Neuen Einstieg würfeln</button></div>` : ""}`.value;
+        const b = $("#budget", root);
+        if (budget) { b.hidden = false; b.textContent = `Budget: ${budget.spentUsd.toFixed(2)} $ / ${budget.limitUsd.toFixed(0)} $`; }
+        bindBelow();
+        enhance(belowEl);
+      }
+
+      function errorCard(err: Extract<GmEvent, { type: "error" }>): Raw {
+        if (err.code === "no_api_key") {
+          return html`<div class="card setup-card">
+            <h3>${icon("info")} Der Spielleiter ist noch nicht eingerichtet</h3>
+            <p>${err.message}</p>
+            <ol>
+              <li><b>Lokal:</b> Kopiere <code>.env.example</code> nach <code>.env</code>, trage deinen Schlüssel bei <code>ANTHROPIC_API_KEY</code> ein und starte <code>npm run dev</code> neu.</li>
+              <li><b>Netlify:</b> Unter <em>Site configuration → Environment variables</em> <code>ANTHROPIC_API_KEY</code>, <code>GAME_SECRET</code> und <code>ACCESS_CODE</code> anlegen und neu veröffentlichen.</li>
+            </ol>
+            <button class="btn btn-ghost btn-sm" id="retry">${icon("refresh")} Erneut versuchen</button>
+          </div>`;
+        }
+        if (err.code === "access") {
+          return html`<form class="card setup-card" id="access-form">
+            <h3>${icon("lock")} Zugangscode</h3>
+            <p>Diese Seite ist geschützt, damit die Kosten im Rahmen bleiben. Bitte gib den Zugangscode ein.</p>
+            <div class="input-row"><input class="input" id="access-code" type="password" autocomplete="current-password" placeholder="Zugangscode" /><button class="btn" type="submit">Weiter</button></div>
+          </form>`;
+        }
+        return html`<div class="card setup-card error">
+          <h3>${icon("info")} ${err.code === "budget" ? "Budget erreicht" : err.code === "rate" ? "Kurze Pause" : "Das hat nicht geklappt"}</h3>
+          <p>${err.message}</p>
+          ${err.code === "budget" ? "" : html`<button class="btn btn-ghost btn-sm" id="retry">${icon("refresh")} Erneut versuchen</button>`}
+        </div>`;
+      }
+
+      let retry: (() => void) | null = null;
+
+      function bindBelow() {
+        belowEl.querySelector("#composer")?.addEventListener("submit", (e) => { e.preventDefault(); void sendAction(); });
+        const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
+        ta?.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendAction(); } });
+        ta?.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = `${Math.min(220, ta.scrollHeight)}px`; });
+        belowEl.querySelectorAll<HTMLElement>("[data-suggest]").forEach((b) => b.addEventListener("click", () => {
+          const t = belowEl.querySelector<HTMLTextAreaElement>("#action")!;
+          t.value = b.dataset.suggest!;
+          t.focus();
+        }));
+        belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
+        belowEl.querySelector("#reroll")?.addEventListener("click", () => void begin(true));
+        belowEl.querySelector("#retry")?.addEventListener("click", () => { lastError = null; retry ? retry() : renderBelow(); });
+        belowEl.querySelector("#access-form")?.addEventListener("submit", (e) => {
+          e.preventDefault();
+          setAccessCode(belowEl.querySelector<HTMLInputElement>("#access-code")!.value.trim());
+          lastError = null;
+          retry ? retry() : renderBelow();
+        });
+      }
+
+      /** Gemeinsame Ereignisbehandlung für alle Anfragen. */
+      function handle(ev: GmEvent) {
+        if (!alive) return;
+        if (ev.type === "text") pushLive(ev.text);
+        else if (ev.type === "done") {
+          endLive();
+          save!.state = ev.state;
+          save!.pending = ev.pending;
+          budget = ev.budget;
+          persist();
+        } else if (ev.type === "error") {
+          liveEl?.remove(); liveEl = null; liveText = "";
+          lastError = ev;
+        }
+      }
+
+      async function begin(reroll: boolean) {
+        if (busy) return;
+        if (reroll && !(await confirmDialog("Neuen Einstieg würfeln?", "Der jetzige Anfang wird verworfen und ein neuer gewürfelt.", "Neu würfeln"))) return;
+        busy = true; lastError = null;
+        save!.story = []; save!.pending = null; save!.opening = null as unknown as Opening;
+        renderStory(); renderOpening(false); renderBelow();
+        retry = () => void begin(false);
+        await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings() }, (ev) => {
+          if (ev.type === "opening") {
+            save!.opening = ev.opening;
+            save!.openingSummary = ev.summary;
+            save!.title = ev.opening.ort.charAt(0).toUpperCase() + ev.opening.ort.slice(1);
+            $("#play-title", root).textContent = save!.title;
+            campaignStore.rememberOpening(ev.summary);
+            renderOpening(true);
+          } else handle(ev);
+        });
+        busy = false;
+        if (!lastError) retry = null;
+        renderBelow();
+      }
+
+      async function sendAction(text?: string) {
+        const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
+        const action = (text ?? ta?.value ?? "").trim();
+        if (!action || busy) return;
+        busy = true; lastError = null;
+        const entry = { type: "player" as const, text: action };
+        save!.story.push(entry); appendEntry(entry);
+        renderBelow(); scrollDown();
+        const before = save!.state;
+        retry = () => { save!.story.pop(); renderStory(); void sendAction(action); };
+        await streamGm("turn", { character, state: before, action }, handle);
+        busy = false;
+        if (!lastError) { save!.started = true; retry = null; persist(); }
+        renderBelow();
+      }
+
+      async function doRoll() {
+        if (busy || !save!.pending) return;
+        busy = true; lastError = null;
+        const p = save!.pending;
+        let resolveRoll!: (r: RollRecord) => void, rejectRoll!: (e: Error) => void;
+        const rollP = new Promise<RollRecord>((res, rej) => { resolveRoll = res; rejectRoll = rej; });
+        // Während das Würfel-Overlay offen ist, wird die Erzählung zurückgehalten und danach gezeigt.
+        const queued: GmEvent[] = [];
+        let overlayOpen = true;
+        const overlay = rollWithOverlay(`${p.label}${MODE_TEXT[p.modus]}${p.sg !== null ? ` · SG ${p.sg}` : ""}`, () => rollP);
+        renderBelow();
+        retry = () => void doRoll();
+        const streaming = streamGm("roll", { character, state: save!.state }, (ev) => {
+          if (ev.type === "roll") {
+            const entry = { type: "roll" as const, record: ev.record };
+            save!.story.push(entry); appendEntry(entry); persist();
+            resolveRoll(ev.record);
+          } else {
+            if (ev.type === "error") rejectRoll(new Error(ev.message));
+            if (overlayOpen) queued.push(ev); else handle(ev);
+          }
+        });
+        await overlay;
+        overlayOpen = false;
+        queued.splice(0).forEach(handle);
+        await streaming;
+        busy = false;
+        if (!lastError) { save!.started = true; retry = null; }
+        renderBelow();
+        scrollDown();
+      }
+
+      renderOpening(false);
+      renderStory();
+      renderBelow();
+      if (!save.opening) void begin(false);
+      else if (query !== "neu") scrollDown();
+    },
+  };
+}
+

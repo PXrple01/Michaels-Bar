@@ -34,10 +34,13 @@ main { position: relative; z-index: 1; min-height: calc(100dvh - var(--topbar-h)
 
 /* ── Untere Leiste (Handy) ── */
 .tabbar { display: none; }
+.mobile-only { display: none !important; }
 @media (max-width: 820px) {
   :root { --topbar-h: 58px; --tabbar-h: 68px; }
   .nav { display: none; }
-  .topbar { justify-content: space-between; }
+  .topbar { justify-content: space-between; gap: 10px; }
+  .topbar .logo { margin-right: auto; }
+  .mobile-only { display: grid !important; }
   .tabbar {
     display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom));
     height: 62px; z-index: 60; border-radius: 22px; padding: 6px;

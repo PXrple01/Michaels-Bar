@@ -19,7 +19,7 @@ const DICE_INFO = [
 const STAGES = [
   { n: 1, title: "Regeln, Würfel-Engine, Charakterbogen", done: true },
   { n: 2, title: "3D-Würfel mit fairer Ergebnislogik", done: true },
-  { n: 3, title: "Claude als Spielleiter, Startimpulse", done: false },
+  { n: 3, title: "Claude als Spielleiter, Startimpulse", done: true },
   { n: 4, title: "Eigene Klassen mit Claude-Gutachten", done: false },
   { n: 5, title: "Kampf, Gedächtnis, Quests", done: false },
   { n: 6, title: "Speichern, Kostenlimit, Feinschliff", done: false },
@@ -63,7 +63,7 @@ export function homePage(): Page {
             ${[
               { i: "user", t: "Figur erschaffen", d: "Wähle Herkunft und Klasse, verteile deine Stärken. Ein Assistent führt dich Schritt für Schritt.", href: "#/figur/neu", cta: "Los geht's" },
               { i: "dice", t: "Würfeln verstehen", d: "Probier den 3D-Würfel aus und lerne, was eine Probe ist. Spielerisch, in fünf Minuten.", href: "#/lernen", cta: "Anleitung" },
-              { i: "scroll", t: "Abenteuer erleben", d: "Bald erzählt Claude als Spielleiter deine Geschichte – jedes Mal mit einem anderen Anfang.", href: "", cta: "Bald verfügbar" },
+              { i: "scroll", t: "Abenteuer erleben", d: "Claude erzählt als Spielleiter deine Geschichte – jedes Mal mit einem anderen, ausgewürfelten Anfang.", href: "#/abenteuer", cta: "Abenteuer starten" },
             ].map((s, i) => html`
               <article class="card tilt step-card" data-reveal style="--i:${i}">
                 <div class="step-num">${i + 1}</div>
@@ -133,7 +133,7 @@ export function homePage(): Page {
           </ol>
         </section>
 
-        <footer class="footer container">Würfel &amp; Schicksal · Etappe 2</footer>
+        <footer class="footer container">Würfel &amp; Schicksal · Etappe 3</footer>
       `);
 
       root.querySelectorAll<HTMLElement>("[data-split]").forEach((el, i) => splitLetters(el, 150 + i * 380, 55));

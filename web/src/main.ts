@@ -23,11 +23,13 @@ import { createPage } from "./pages/create";
 import { sheetPage } from "./pages/sheet";
 import { tablePage } from "./pages/table";
 import { settingsPage } from "./pages/settings";
+import { adventuresPage, playPage } from "./pages/adventure";
 
 const NAV = [
   { id: "home", href: "#/", label: "Start", icon: "home" },
   { id: "learn", href: "#/lernen", label: "Lernen", icon: "book" },
   { id: "chars", href: "#/figuren", label: "Figuren", icon: "users" },
+  { id: "adventure", href: "#/abenteuer", label: "Abenteuer", icon: "scroll" },
   { id: "table", href: "#/wuerfel", label: "Würfeltisch", icon: "dice" },
   { id: "settings", href: "#/einstellungen", label: "Einstellungen", icon: "settings" },
 ];
@@ -43,8 +45,9 @@ function renderChrome() {
     <nav class="nav" aria-label="Hauptnavigation">
       ${NAV.map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.label}</span></a>`)}
     </nav>
+    <a class="icon-btn mobile-only" href="#/einstellungen" aria-label="Einstellungen" data-nav="settings">${icon("settings")}</a>
     <button class="icon-btn" id="sound-btn" aria-label="${sound ? "Ton ausschalten" : "Ton einschalten"}" title="Würfelgeräusche">${icon(sound ? "sound" : "mute")}</button>`.value;
-  $("#tabbar").innerHTML = html`${NAV.map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.id === "table" ? "Würfel" : n.id === "settings" ? "Optionen" : n.label}</span></a>`)}`.value;
+  $("#tabbar").innerHTML = html`${NAV.filter((n) => n.id !== "settings").map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.id === "table" ? "Würfel" : n.id === "settings" ? "Optionen" : n.label}</span></a>`)}`.value;
   $("#sound-btn").addEventListener("click", () => updateSettings({ sound: !settings().sound }));
 }
 
@@ -60,6 +63,8 @@ route("/figuren", "chars", charactersPage);
 route("/figur/neu", "chars", createPage);
 route("/figur/:id", "chars", sheetPage);
 route("/wuerfel", "table", tablePage);
+route("/abenteuer", "adventure", adventuresPage);
+route("/abenteuer/:id", "adventure", playPage);
 route("/einstellungen", "settings", settingsPage);
 
 renderChrome();
