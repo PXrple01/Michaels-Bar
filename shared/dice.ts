@@ -95,7 +95,8 @@ export interface RollRecord {
 
 export interface CheckRequest {
   requestId: string;
-  characterId: string;
+  /** Die komplette Figur aus dem Browser – der Server prüft sie gegen die Regeln. */
+  character: unknown;
   check: { type: "attribute" | "skill" | "attack" | "damage"; id: string };
   mode?: RollMode;
   dc?: number;

@@ -3,3 +3,4 @@ dist/
 saves/characters/*.json
 saves/rolls.log
 scratch/
+server/generated/

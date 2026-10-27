@@ -43,6 +43,7 @@ export function charactersPage(): Page {
                 </a>`;
             })}
           </div>
+          <p class="hint center" style="margin-top:28px">Deine Figuren werden in diesem Browser gespeichert – auf einem anderen Gerät siehst du sie nicht.</p>
         </div>`);
       enhance(root);
     },

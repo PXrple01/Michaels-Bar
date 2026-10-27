@@ -2,6 +2,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { attributeCost, attributeProblems, characterProblems, characterRoll, maxHpAtLevel, modifier, pointsSpent, armorValue } from "../shared/character";
 import { crossCheck, loadGameData } from "../server/rules/loader";
+import { buildCharacter, verifyCharacter } from "../server/characters";
 import type { Character } from "../shared/schema";
 
 const data = await loadGameData(path.resolve(__dirname, "../data"));
@@ -73,5 +74,23 @@ describe("Attribute und Werte", () => {
     expect(characterRoll(c, rules, classes, "skill", "heimlichkeit").parts.map((p) => p.value)).toEqual([0]);
     expect(characterRoll(c, rules, classes, "attack", "x")).toMatchObject({ notation: "1W20", d20: true });
     expect(characterRoll(c, rules, classes, "damage", "x")).toMatchObject({ notation: "1W8", d20: false });
+  });
+});
+
+describe("Figuren aus dem Browser", () => {
+  const input = { name: "Hagen", stand: "bauer", classId: "ritter", attributes: classes.find((c) => c.id === "ritter")!.recommendedAttributes, chosenSkills: ["reiten", "wahrnehmung"] };
+
+  it("werden vom Server berechnet und danach als gültig erkannt", () => {
+    const c = buildCharacter(input, data);
+    expect(c.hp.max).toBe(12);
+    expect(verifyCharacter(c, data).id).toBe(c.id);
+  });
+
+  it("manipulierte Werte werden abgelehnt", () => {
+    const c = buildCharacter(input, data);
+    expect(() => verifyCharacter({ ...c, attributes: { ...c.attributes, staerke: 30 } }, data)).toThrow();
+    expect(() => verifyCharacter({ ...c, level: 10 }, data)).toThrow();
+    expect(() => verifyCharacter({ ...c, chosenSkills: ["heimlichkeit", "reiten"] }, data)).toThrow();
+    expect(() => verifyCharacter(null, data)).toThrow();
   });
 });

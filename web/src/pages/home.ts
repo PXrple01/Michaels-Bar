@@ -133,7 +133,7 @@ export function homePage(): Page {
           </ol>
         </section>
 
-        <footer class="footer container">Würfel &amp; Schicksal · läuft lokal auf deinem Rechner · Etappe 2</footer>
+        <footer class="footer container">Würfel &amp; Schicksal · Etappe 2</footer>
       `);
 
       root.querySelectorAll<HTMLElement>("[data-split]").forEach((el, i) => splitLetters(el, 150 + i * 380, 55));

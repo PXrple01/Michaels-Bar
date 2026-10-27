@@ -1,5 +1,6 @@
 import type { CheckRequest, FreeRollRequest, RollRecord } from "../../../shared/dice";
 import type { Campaign, Character, CharacterInput, ClassDef, Rules } from "../../../shared/schema";
+import { characterStore, rollHistory } from "./store";
 
 export class ApiError extends Error {
   constructor(message: string, public problems: string[] = [], public status = 0) { super(message); }
@@ -14,7 +15,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError("Server nicht erreichbar. Läuft „npm run dev“?");
+    throw new ApiError("Server nicht erreichbar. Bitte Verbindung prüfen.");
   }
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
@@ -30,13 +31,33 @@ export function loadGameData(): Promise<GameData> {
   return gameData;
 }
 
+const logged = (p: Promise<RollRecord>) => p.then((r) => { rollHistory.add(r); return r; });
+
 export const api = {
-  characters: () => request<Character[]>("GET", "/api/characters"),
-  character: (id: string) => request<Character>("GET", `/api/characters/${encodeURIComponent(id)}`),
-  createCharacter: (c: CharacterInput) => request<Character>("POST", "/api/characters", c),
-  patchCharacter: (id: string, patch: { hpCurrent?: number }) => request<Character>("PATCH", `/api/characters/${encodeURIComponent(id)}`, patch),
-  deleteCharacter: (id: string) => request<void>("DELETE", `/api/characters/${encodeURIComponent(id)}`),
-  roll: (r: FreeRollRequest) => request<RollRecord>("POST", "/api/rolls", r),
-  check: (r: CheckRequest) => request<RollRecord>("POST", "/api/rolls/check", r),
-  rolls: (limit = 30) => request<RollRecord[]>("GET", `/api/rolls?limit=${limit}`),
+  characters: async () => characterStore.list(),
+  character: async (id: string) => {
+    const c = characterStore.get(id);
+    if (!c) throw new ApiError("Figur nicht gefunden (gespeichert wird nur in diesem Browser)", [], 404);
+    return c;
+  },
+  createCharacter: async (input: CharacterInput) => {
+    const c = await request<Character>("POST", "/api/characters", input);
+    characterStore.save(c);
+    return c;
+  },
+  patchCharacter: async (id: string, patch: { hpCurrent?: number }) => {
+    const c = characterStore.get(id);
+    if (!c) throw new ApiError("Figur nicht gefunden");
+    if (patch.hpCurrent !== undefined) c.hp.current = Math.max(0, Math.min(c.hp.max, Math.round(patch.hpCurrent)));
+    c.updatedAt = new Date().toISOString();
+    characterStore.save(c);
+    return c;
+  },
+  deleteCharacter: async (id: string) => characterStore.remove(id),
+  roll: (r: FreeRollRequest) => logged(request<RollRecord>("POST", "/api/rolls", r)),
+  check: (r: Omit<CheckRequest, "character"> & { characterId: string }) => {
+    const { characterId, ...rest } = r;
+    return logged(request<RollRecord>("POST", "/api/rolls/check", { ...rest, character: characterStore.get(characterId) }));
+  },
+  rolls: async (limit = 25) => rollHistory.list().slice(0, limit),
 };

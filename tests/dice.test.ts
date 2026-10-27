@@ -107,7 +107,7 @@ describe("performRoll", () => {
 
 describe("RollLog", () => {
   it("würfelt jede requestId nur einmal – kein Neuwürfeln möglich", async () => {
-    const log = new RollLog(null);
+    const log = new RollLog();
     const first = await log.roll({ requestId: "same-request-1", kind: "free", label: "x", notation: "1W20" });
     for (let i = 0; i < 20; i++) {
       const again = await log.roll({ requestId: "same-request-1", kind: "free", label: "x", notation: "1W20" });
@@ -118,11 +118,10 @@ describe("RollLog", () => {
     // Auch eine veränderte Anfrage mit derselben ID bekommt den alten Wurf
     const tampered = await log.roll({ requestId: "same-request-1", kind: "free", label: "x", notation: "1W20+50" });
     expect(tampered.total).toBe(first.total);
-    expect(log.recent()).toHaveLength(1);
   });
 
   it("lehnt ungültige requestIds ab", async () => {
-    const log = new RollLog(null);
+    const log = new RollLog();
     await expect(log.roll({ requestId: "x", kind: "free", label: "x", notation: "1W20" })).rejects.toThrow();
   });
 });

@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { characterRoll, type CharacterRollType } from "../shared/character";
 import { NotationError, type CheckRequest, type FreeRollRequest, type RollMode } from "../shared/dice";
-import { CharacterStore, ValidationError } from "./characters";
+import { buildCharacter, ValidationError, verifyCharacter } from "./characters";
 import type { RollLog } from "./dice/log";
 import type { GameData } from "./rules/loader";
 
@@ -21,8 +21,14 @@ function parseDc(dc: unknown): number | null {
   return dc;
 }
 
-export function createApp(opts: { data: () => GameData; characters: CharacterStore; rolls: RollLog; staticDir?: string }) {
+export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string }) {
   const app = express();
+  app.disable("x-powered-by");
+  // Auf Netlify kommen Anfragen je nach Weiterleitung mit dem Funktionspfad an.
+  app.use((req, _res, next) => {
+    if (req.url.startsWith("/.netlify/functions/api")) req.url = "/api" + req.url.slice("/.netlify/functions/api".length);
+    next();
+  });
   app.use(express.json({ limit: "64kb" }));
 
   app.get("/api/health", (_req, res) => { res.json({ ok: true }); });
@@ -32,25 +38,8 @@ export function createApp(opts: { data: () => GameData; characters: CharacterSto
     res.json({ rules, campaign, classes });
   });
 
-  app.get("/api/characters", async (_req, res) => { res.json(await opts.characters.list()); });
-
-  app.get("/api/characters/:id", async (req, res) => {
-    const c = await opts.characters.get(req.params.id);
-    if (!c) return void res.status(404).json({ error: "Figur nicht gefunden" });
-    res.json(c);
-  });
-
-  app.post("/api/characters", async (req, res) => { res.status(201).json(await opts.characters.create(req.body)); });
-
-  app.patch("/api/characters/:id", async (req, res) => {
-    const c = await opts.characters.patch(req.params.id, req.body ?? {});
-    if (!c) return void res.status(404).json({ error: "Figur nicht gefunden" });
-    res.json(c);
-  });
-
-  app.delete("/api/characters/:id", async (req, res) => {
-    res.status((await opts.characters.remove(req.params.id)) ? 204 : 404).end();
-  });
+  // Neue Figur: Der Server rechnet sie aus, gespeichert wird sie im Browser.
+  app.post("/api/characters", (req, res) => { res.status(201).json(buildCharacter(req.body, opts.data())); });
 
   // Freier Wurf am Würfeltisch. Das Ergebnis entsteht ausschließlich hier.
   app.post("/api/rolls", async (req, res) => {
@@ -70,8 +59,7 @@ export function createApp(opts: { data: () => GameData; characters: CharacterSto
   // Probe für eine Figur: Der Modifikator wird aus der gespeicherten Figur berechnet, nicht vom Browser übernommen.
   app.post("/api/rolls/check", async (req, res) => {
     const body = (req.body ?? {}) as Partial<CheckRequest>;
-    const c = await opts.characters.get(String(body.characterId ?? ""));
-    if (!c) return void res.status(404).json({ error: "Figur nicht gefunden" });
+    const c = verifyCharacter(body.character, opts.data());
     const type = body.check?.type as CharacterRollType | undefined;
     if (!type || !["attribute", "skill", "attack", "damage"].includes(type)) throw new ValidationError(["Unbekannte Probenart"]);
     const { rules, classes } = opts.data();
@@ -91,11 +79,6 @@ export function createApp(opts: { data: () => GameData; characters: CharacterSto
       dc: spec.d20 ? parseDc(body.dc) : null,
     });
     res.status(record.repeated ? 200 : 201).json(record);
-  });
-
-  app.get("/api/rolls", (req, res) => {
-    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
-    res.json(opts.rolls.recent(limit));
   });
 
   if (opts.staticDir && existsSync(opts.staticDir)) {

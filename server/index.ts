@@ -1,8 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "./app";
-import { CharacterStore } from "./characters";
-import { RollLog } from "./dice/log";
+import { MemoryRollStore, RollLog } from "./dice/log";
 import { loadGameData, RulesError, type GameData } from "./rules/loader";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -23,8 +22,7 @@ try {
 
 const app = createApp({
   data: () => data,
-  characters: new CharacterStore(path.join(root, "saves", "characters"), () => data),
-  rolls: new RollLog(path.join(root, "saves", "rolls.log")),
+  rolls: new RollLog(new MemoryRollStore(path.join(root, "saves", "rolls.log"))),
   staticDir: path.join(root, "dist", "web"),
 });
 
