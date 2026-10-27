@@ -7,6 +7,7 @@ import { classStore } from "../lib/customClasses";
 import { $, $$, html, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamSse } from "../lib/gm";
 import { term } from "../lib/glossary";
+import { modsChips } from "../lib/attrMods";
 import { icon, sigil } from "../lib/icons";
 import { go, type Page } from "../lib/router";
 import { confirmDialog, toast } from "../lib/ui";
@@ -28,6 +29,7 @@ function download(name: string, content: string) {
 function classPreview(cls: ClassDef, data: GameData, costs?: { label: string; points: number }[]): Raw {
   const skill = (id: string) => data.rules.skills.find((s) => s.id === id)?.name ?? id;
   const costOf = (name: string) => costs?.find((c) => c.label === `Fähigkeit „${name}“`)?.points;
+  const modsPoints = costs?.find((c) => c.label.startsWith("Grundwerte"))?.points;
   return html`<div class="class-preview">
     <div class="cp-head">
       <div class="cp-sigil">${sigil(cls.sigil, "draw")}</div>
@@ -37,6 +39,7 @@ function classPreview(cls: ClassDef, data: GameData, costs?: { label: string; po
     <div class="cd-stats">
       <div><span>${term("trefferwuerfel")}</span><b>W${cls.hitDie}</b></div>
       <div><span>Rüstung</span><b>${cls.armor.join(", ") || "keine"}</b></div>
+      <div><span>Grundwerte${modsPoints !== undefined ? ` (${modsPoints} P)` : ""}</span><b>${modsChips(cls.attributeMods, data.rules)}</b></div>
       <div><span>Geübt</span><b>${cls.trainedSkills.map(skill).join(", ") || "—"}</b></div>
       <div><span>Zur Wahl (${cls.skillChoices.count})</span><b>${cls.skillChoices.from.map(skill).join(", ") || "—"}</b></div>
     </div>

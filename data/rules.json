@@ -85,7 +85,7 @@
     "refundPerPointBelowBase": 1,
     "maxLoweredAttributes": 2,
     "modifierFormula": "floor((wert - 10) / 2)",
-    "explanation": "Jedes Attribut startet bei 10 (Durchschnitt). Du hast 12 Punkte zum Verteilen. Bis 13 kostet jeder Punkt 1, darüber 2. Senkst du ein Attribut unter 10, bekommst du pro Punkt 1 zurück (höchstens zwei Attribute, nicht unter 6)."
+    "explanation": "Jedes Attribut startet bei 10 (Durchschnitt). Du hast 12 Punkte zum Verteilen. Bis 13 kostet jeder Punkt 1, darüber 2. Senkst du ein Attribut unter 10, bekommst du pro Punkt 1 zurück (höchstens zwei Attribute, nicht unter 6). Danach kommen die Grundwerte deiner Klasse dazu (z. B. Söldner: Stärke +2)."
   },
   "levels": {
     "min": 1,
@@ -799,8 +799,17 @@
       "scopeMultiplier": {
         "eng": 0.5,
         "breit": 1
-      }
+      },
+      "attributeBonus": 1,
+      "attributePenaltyRefund": 0.5
     },
-    "explanation": "Jede Klasse hat auf Stufe 1 ein Budget von 18 Punkten. Trefferwürfel, geübte Fertigkeiten, Rüstung und Fähigkeiten kosten Punkte. Die Kosten einer Fähigkeit ergeben sich aus ihren Effekten (Zusatzschaden, Heilung, Boni, Vorteil …), multipliziert mit ihrer Häufigkeit und Reichweite."
+    "explanation": "Jede Klasse hat auf Stufe 1 ein Budget von 18 Punkten. Trefferwürfel, geübte Fertigkeiten, Rüstung und Fähigkeiten kosten Punkte. Die Kosten einer Fähigkeit ergeben sich aus ihren Effekten (Zusatzschaden, Heilung, Boni, Vorteil …), multipliziert mit ihrer Häufigkeit und Reichweite. Grundwerte der Klasse: Jedes +1 auf ein Startattribut kostet 1 Punkt, jedes −1 gibt 0,5 Punkte zurück (je Attribut −2 bis +2, in Summe höchstens +3).",
+    "attributeMods": {
+      "min": -2,
+      "max": 2,
+      "maxBonusTotal": 3,
+      "finalMin": 6,
+      "finalMax": 18
+    }
   }
 }

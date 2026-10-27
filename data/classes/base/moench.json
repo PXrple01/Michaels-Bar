@@ -20,6 +20,12 @@
     "weisheit": 15,
     "ausstrahlung": 11
   },
+  "attributeMods": {
+    "weisheit": 2,
+    "verstand": 1,
+    "staerke": -1,
+    "geschick": -1
+  },
   "trainedSkills": [
     "heilkunde",
     "gelehrsamkeit"

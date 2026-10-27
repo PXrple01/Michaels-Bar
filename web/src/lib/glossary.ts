@@ -13,7 +13,7 @@ export const GLOSSARY: Record<string, Term> = {
   probe: { title: "Probe", short: "Wenn etwas schiefgehen kann, wird gewürfelt: W20 + Bonus. Erreichst du den Schwierigkeitsgrad, klappt es." },
   sg: { title: "Schwierigkeitsgrad (SG)", short: "Die Zahl, die du bei einer Probe erreichen musst. 10 ist leicht, 13 mittel, 16 schwer, 19 sehr schwer." },
   bonus: { title: "Bonus (Modifikator)", short: "Eine Zahl, die zum Würfelergebnis addiert wird. Sie kommt von deinen Attributen und deinem Können. Kann auch negativ sein." },
-  attribut: { title: "Attribut", short: "Sechs Grundwerte beschreiben deine Figur: Stärke, Geschick, Konstitution, Verstand, Weisheit, Ausstrahlung. 10 ist Durchschnitt." },
+  attribut: { title: "Attribut", short: "Sechs Grundwerte beschreiben deine Figur: Stärke, Geschick, Konstitution, Verstand, Weisheit, Ausstrahlung. 10 ist Durchschnitt. Deine Klasse verschiebt einige davon – ein Söldner ist stärker, aber weniger gebildet." },
   fertigkeit: { title: "Fertigkeit", short: "Etwas, das man lernen kann, z. B. Schleichen oder Heilkunde. Bist du darin geübt, bekommst du den Können-Bonus dazu." },
   koennen: { title: "Können-Bonus", short: "Bekommst du bei Fertigkeiten, in denen du geübt bist, und bei Angriffen mit deiner Waffe. Auf Stufe 1 ist er +2." },
   vorteil: { title: "Vorteil", short: "Die Lage ist günstig: Wirf zwei W20 und nimm das höhere Ergebnis." },

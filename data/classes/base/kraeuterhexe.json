@@ -20,6 +20,11 @@
     "weisheit": 13,
     "ausstrahlung": 12
   },
+  "attributeMods": {
+    "verstand": 2,
+    "weisheit": 1,
+    "staerke": -2
+  },
   "trainedSkills": [
     "heilkunde",
     "glaube_sagen"

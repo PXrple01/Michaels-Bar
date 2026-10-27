@@ -6,6 +6,7 @@ import { api, ApiError, loadGameData, type GameData } from "../lib/api";
 import { allClasses, classStore } from "../lib/customClasses";
 import { $, $$, html, setHTML, type Raw } from "../lib/dom";
 import { term } from "../lib/glossary";
+import { modsChips } from "../lib/attrMods";
 import { icon, sigil } from "../lib/icons";
 import { go, type Page } from "../lib/router";
 import { toast } from "../lib/ui";
@@ -20,7 +21,7 @@ const SUGGEST = {
 const STEP_TITLES = ["Herkunft", "Klasse", "Attribute", "Fertigkeiten", "Persönlichkeit", "Fertig"];
 const DRAFT_KEY = "wus.draft.v1";
 
-interface Draft { step: number; c: Required<Omit<CharacterInput, "personality" | "appearance" | "customClass">> & { personality: { trait: string; ideal: string; bond: string; flaw: string }; appearance: string } }
+interface Draft { step: number; c: Required<Omit<CharacterInput, "personality" | "appearance" | "customClass" | "statsVersion">> & { personality: { trait: string; ideal: string; bond: string; flaw: string }; appearance: string } }
 
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const DIFF = ["", "Einsteigerfreundlich", "Etwas Übung", "Für Erfahrene"];
@@ -144,6 +145,7 @@ export function createPage(): Page {
           <div class="cd-stats">
             <div><span>${term("trefferwuerfel")}</span><b>W${sel.hitDie}</b></div>
             <div><span>Wichtig</span><b>${sel.primaryAttributes.map((a) => rules.attributes.find((x) => x.id === a)?.name).join(" & ")}</b></div>
+            <div><span>Grundwerte</span><b>${modsChips(sel.attributeMods, rules)}</b></div>
             <div><span>Rüstung</span><b>${sel.armor.join(", ")}</b></div>
             <div><span>Waffe</span><b>${findItem(rules, sel.equippedWeapon)?.name}</b></div>
           </div>
@@ -166,7 +168,7 @@ export function createPage(): Page {
     const c = cls();
     return html`
       <h2>Wie bist du?</h2>
-      <p class="lead">Verteile ${r.pointBudget} Punkte auf deine sechs ${term("attribut", "Attribute")}. Jedes startet bei 10 (Durchschnitt). Höhere Werte geben einen ${term("bonus")} auf Würfe.</p>
+      <p class="lead">Verteile ${r.pointBudget} Punkte auf deine sechs ${term("attribut", "Attribute")}. Jedes startet bei 10 (Durchschnitt). Danach kommen die Grundwerte deiner Klasse dazu${c && Object.keys(c.attributeMods ?? {}).length ? html` – bei ${c.name}: ${modsChips(c.attributeMods, rules)}` : ""}. Höhere Werte geben einen ${term("bonus")} auf Würfe.</p>
       <div class="pool card glow-border">
         <div class="pool-gems">${Array.from({ length: r.pointBudget }, (_, i) => html`<i class="${i < left ? "on" : ""}" style="--i:${i}"></i>`)}</div>
         <div class="pool-text"><b id="pool-left">${left}</b> von ${r.pointBudget} Punkten übrig</div>
@@ -179,6 +181,8 @@ export function createPage(): Page {
       <div class="attr-rows">
         ${rules.attributes.map((a, i) => {
           const v = d.c.attributes[a.id];
+          const mod = c?.attributeMods?.[a.id] ?? 0;
+          const fin = v + mod;
           const important = c?.primaryAttributes.includes(a.id);
           const nextCost = attributeCost(v + 1, rules) - attributeCost(v, rules);
           return html`
@@ -190,9 +194,9 @@ export function createPage(): Page {
               </div>
               <div class="ar-ctrl">
                 <button class="round-btn" data-action="dec" data-id="${a.id}" aria-label="${a.name} senken" ${canDec(a.id) ? "" : "disabled"}>${icon("minus")}</button>
-                <div class="ar-val"><b>${v}</b><span class="ar-bar"><i style="width:${((v - r.min) / (r.max - r.min)) * 100}%"></i></span></div>
+                <div class="ar-val"><b>${fin}</b>${mod ? html`<small class="ar-mod-note ${mod > 0 ? "pos" : "neg"}" title="${v} gekauft, ${mod > 0 ? "+" : "−"}${Math.abs(mod)} durch ${c!.name}">${v} ${mod > 0 ? "+" : "−"} ${Math.abs(mod)}</small>` : ""}<span class="ar-bar"><i style="width:${Math.max(0, Math.min(100, ((fin - r.min) / (r.max + 2 - r.min)) * 100))}%"></i></span></div>
                 <button class="round-btn" data-action="inc" data-id="${a.id}" aria-label="${a.name} erhöhen" ${canInc(a.id) ? "" : "disabled"} title="Nächster Punkt kostet ${nextCost}">${icon("plus")}</button>
-                <div class="ar-mod ${modifier(v) > 0 ? "pos" : modifier(v) < 0 ? "neg" : ""}" title="Bonus auf Würfe">${formatModifier(modifier(v))}</div>
+                <div class="ar-mod ${modifier(fin) > 0 ? "pos" : modifier(fin) < 0 ? "neg" : ""}" title="Bonus auf Würfe">${formatModifier(modifier(fin))}</div>
               </div>
             </div>`;
         })}
@@ -288,7 +292,7 @@ export function createPage(): Page {
           <div class="sum-hp"><span>${term("tp", "TP")}</span><b>${hp}</b></div>
         </div>
         <div class="sum-attrs">
-          ${rules.attributes.map((a) => html`<div><span>${a.short}</span><b>${d.c.attributes[a.id]}</b><em>${formatModifier(modifier(d.c.attributes[a.id]))}</em></div>`)}
+          ${rules.attributes.map((a) => { const v = d.c.attributes[a.id] + (c.attributeMods?.[a.id] ?? 0); return html`<div><span>${a.short}</span><b>${v}</b><em>${formatModifier(modifier(v))}</em></div>`; })}
         </div>
         <div class="sum-cols">
           <div><h4>Fertigkeiten</h4><p>${[...new Set([...c.trainedSkills, stand.skill, ...d.c.chosenSkills])].map((id) => rules.skills.find((s) => s.id === id)?.name).join(", ")}</p></div>

@@ -888,3 +888,11 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .up-path.recommended { border-style: solid; border-color: rgba(245, 214, 138, 0.45); background: rgba(245, 214, 138, 0.04); }
 .up-path-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .up-path-head .chip svg { width: 12px; height: 12px; }
+
+/* Grundwerte der Klassen */
+.mod-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.mod-chip { padding: 1px 7px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.02em; border: 1px solid var(--line); }
+.mod-chip.pos { color: var(--good); border-color: rgba(167, 243, 208, 0.35); background: rgba(167, 243, 208, 0.08); }
+.mod-chip.neg { color: var(--bad); border-color: rgba(253, 164, 175, 0.35); background: rgba(253, 164, 175, 0.08); }
+.ar-mod-note { display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.02em; }
+.ar-mod-note.pos { color: var(--good); } .ar-mod-note.neg { color: var(--bad); }

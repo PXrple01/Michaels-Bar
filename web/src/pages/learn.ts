@@ -58,7 +58,7 @@ export function learnPage(): Page {
 
               <section class="chapter" id="attribute" data-reveal>
                 <h2><span class="ch-num">2</span>Deine Figur: sechs Attribute</h2>
-                <p>Jede Figur hat sechs ${term("attribut", "Attribute")}. 10 ist Durchschnitt. Aus jedem Wert ergibt sich ein ${term("bonus")}, der zu Würfen addiert wird.</p>
+                <p>Jede Figur hat sechs ${term("attribut", "Attribute")}. 10 ist Durchschnitt; deine Klasse hebt einige an und senkt andere. Aus jedem Wert ergibt sich ein ${term("bonus")}, der zu Würfen addiert wird.</p>
                 <div class="attr-cards">
                   ${rules.attributes.map((a, i) => html`<div class="attr-card card tilt" data-reveal="scale" style="--i:${i}">
                     <div class="attr-icon">${icon(a.icon)}</div>

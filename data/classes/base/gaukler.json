@@ -20,6 +20,12 @@
     "weisheit": 11,
     "ausstrahlung": 15
   },
+  "attributeMods": {
+    "ausstrahlung": 2,
+    "geschick": 1,
+    "staerke": -1,
+    "konstitution": -1
+  },
   "trainedSkills": [
     "auftreten"
   ],

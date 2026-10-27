@@ -20,6 +20,12 @@
     "weisheit": 10,
     "ausstrahlung": 10
   },
+  "attributeMods": {
+    "staerke": 2,
+    "konstitution": 1,
+    "verstand": -1,
+    "weisheit": -1
+  },
   "trainedSkills": [
     "zaehigkeit"
   ],

@@ -58,9 +58,25 @@ export function classCost(cls: ClassDef, rules: Rules, level = 1): ClassCost {
   const heaviest = body.reduce((m, a) => Math.max(m, c.armor[a] ?? 0), 0);
   const armorPts = heaviest + (cls.armor.includes("schild") ? c.armor.schild : 0);
   items.push({ label: `Rüstung: ${cls.armor.join(", ") || "keine"}`, points: armorPts });
+  const mods = attributeModsCost(cls.attributeMods ?? {}, rules);
+  if (mods.label) items.push({ label: `Grundwerte: ${mods.label}`, points: mods.points });
   for (const a of cls.abilities) items.push({ label: `Fähigkeit „${a.name}“`, points: abilityCost(a, rules) });
   const total = round1(items.reduce((s, i) => s + i.points, 0));
   return { total, budget: rules.classBuilder.pointBudgetPerLevel[level - 1], items };
+}
+
+/** Kosten der Grundwerte: +1 kostet, −1 gibt etwas zurück. */
+export function attributeModsCost(mods: Record<string, number>, rules: Rules): { points: number; label: string } {
+  const c = rules.classBuilder.costs;
+  let plus = 0, minus = 0;
+  const parts: string[] = [];
+  for (const a of rules.attributes) {
+    const m = mods[a.id] ?? 0;
+    if (!m) continue;
+    if (m > 0) plus += m; else minus -= m;
+    parts.push(`${a.short ?? a.name} ${m > 0 ? "+" : "−"}${Math.abs(m)}`);
+  }
+  return { points: round1(plus * c.attributeBonus - minus * c.attributePenaltyRefund), label: parts.join(", ") };
 }
 
 /** Würfelausdruck auf die erlaubten Grenzen kürzen. */
@@ -150,6 +166,25 @@ export function checkClass(input: ClassDef, rules: Rules, campaignMagic: MagicLe
     cls.recommendedAttributes = defaultAttributes(cls, rules);
     adjustments.push("Empfohlene Attribute passten nicht zum Punktekauf und wurden neu verteilt.");
   }
+
+  // Grundwerte der Klasse: je Attribut −2 bis +2, in Summe höchstens +3
+  const lim = cb.attributeMods;
+  const mods: Record<string, number> = {};
+  for (const [k, v] of Object.entries(cls.attributeMods ?? {})) {
+    if (!attrs.has(k)) { adjustments.push(`Unbekanntes Attribut „${k}“ bei den Grundwerten entfernt`); continue; }
+    const r = Math.max(lim.min, Math.min(lim.max, Math.round(Number(v) || 0)));
+    if (r !== v) adjustments.push(`Grundwert ${k}: ${v} → ${r} gekürzt (erlaubt ${lim.min} bis +${lim.max})`);
+    if (r) mods[k] = r;
+  }
+  let bonus = Object.values(mods).filter((v) => v > 0).reduce((a, b) => a + b, 0);
+  while (bonus > lim.maxBonusTotal) {
+    const top = Object.entries(mods).sort((a, b) => b[1] - a[1])[0];
+    mods[top[0]]--;
+    if (!mods[top[0]]) delete mods[top[0]];
+    bonus--;
+    adjustments.push(`Grundwert ${top[0]} um 1 gesenkt (Grundwerte in Summe höchstens +${lim.maxBonusTotal})`);
+  }
+  cls.attributeMods = mods;
 
   // Ausrüstung
   cls.startingEquipment = cls.startingEquipment.filter((id) => {

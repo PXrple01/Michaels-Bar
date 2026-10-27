@@ -20,6 +20,12 @@
     "weisheit": 10,
     "ausstrahlung": 11
   },
+  "attributeMods": {
+    "staerke": 1,
+    "ausstrahlung": 1,
+    "geschick": -2,
+    "verstand": -1
+  },
   "trainedSkills": [
     "athletik"
   ],

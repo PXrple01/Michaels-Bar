@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { addMoney, characterProblems, maxHpAtLevel } from "../shared/character";
+import { addMoney, characterProblems, maxHpAtLevel, withClassMods } from "../shared/character";
 import { characterInputSchema, characterSchema, type Character, type CharacterInput } from "../shared/schema";
 import { dataWithClass, verifySignedClass } from "./classes";
 import type { GameData } from "./rules/loader";
@@ -29,13 +29,16 @@ function withCustomClass(customClass: unknown, classId: string, data: GameData, 
 export function buildCharacter(raw: unknown, baseData: GameData, secret?: string): Character {
   const parsed = characterInputSchema.safeParse(raw);
   if (!parsed.success) throw new ValidationError(issues(parsed.error));
-  const input = parsed.data;
-  const data = withCustomClass(input.customClass, input.classId, baseData, secret);
+  const sent = parsed.data;
+  const data = withCustomClass(sent.customClass, sent.classId, baseData, secret);
   const { rules, classes, campaign } = data;
+  // Der Browser schickt die gekauften Werte; der Server rechnet die Grundwerte der Klasse dazu.
+  const klass = classes.find((c) => c.id === sent.classId);
+  const input = { ...sent, attributes: withClassMods(sent.attributes, klass?.attributeMods, rules), statsVersion: 2 as const };
   const problems = characterProblems(input as CharacterInput, rules, classes, campaign.magic_level);
   if (problems.length) throw new ValidationError(problems);
 
-  const cls = classes.find((c) => c.id === input.classId)!;
+  const cls = klass!;
   const stand = rules.stands.find((s) => s.id === input.stand)!;
   const hp = maxHpAtLevel(cls, input.attributes.konstitution, 1);
   const now = new Date().toISOString();

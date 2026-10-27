@@ -144,6 +144,17 @@ Jede Kampagne ist lang wie eine typische DnD-Kampagne – aber sie hat ein Ende 
 - **Anzeige:** Im Spielstand stehen die drei Akte mit je einem Punkt pro Kapitel (kommende Kapitel ohne Titel – keine Spoiler)
   und das laufende Kapitel.
 
+## Grundwerte der Klassen
+
+Nicht jede Figur startet mit 10 in allem: Jede Klasse hat Grundwerte (`attributeMods`), die nach dem Punktekauf auf die
+Attribute kommen – z. B. Söldner Stärke +2, Konstitution +1, Verstand −1, Weisheit −1.
+
+- Der Punktekauf bleibt: 12 Punkte ab 10. Die Endwerte dürfen dadurch bis 18 steigen (bzw. bis 6 sinken).
+- Je Attribut −2 bis +2, Zuschläge in Summe höchstens +3 (`rules.json → classBuilder.attributeMods`).
+- Im Klassen-Editor zählen sie zum Budget: +1 kostet 1 Punkt, −1 gibt 0,5 zurück. Claude schlägt sie im Gutachten mit vor,
+  der Code kürzt auf die Grenzen.
+- Figuren von vor den Grundwerten behalten ihre Werte (`statsVersion` fehlt) und bleiben gültig.
+
 ## Verbesserte Fähigkeiten
 
 Zweimal pro Kampagne entwickelt sich eine Fähigkeit weiter (`shared/upgrades.ts`, Claude-Teil in `server/gm/upgrades.ts`).

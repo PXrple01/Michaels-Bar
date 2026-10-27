@@ -94,3 +94,39 @@ describe("Figuren aus dem Browser", () => {
     expect(() => verifyCharacter(null, data)).toThrow();
   });
 });
+
+describe("Grundwerte der Klassen", () => {
+  const ritter = data.classes.find((c) => c.id === "ritter")!;
+  const soeldner = data.classes.find((c) => c.id === "soeldner")!;
+  const make = (classId: string, attrs: Record<string, number>, skills: string[]) => buildCharacter({ name: "Test", stand: "bauer", classId, attributes: attrs, chosenSkills: skills }, data);
+
+  it("jede Grundklasse hat eigene Grundwerte mit Stärken und Schwächen", () => {
+    for (const c of data.classes) {
+      const values = Object.values(c.attributeMods);
+      expect(values.some((v) => v > 0), c.id).toBe(true);
+      expect(values.some((v) => v < 0), c.id).toBe(true);
+    }
+    expect(soeldner.attributeMods).toMatchObject({ staerke: 2, verstand: -1, weisheit: -1 }); // stark, aber nicht der Klügste
+  });
+
+  it("der Punktekauf bleibt gleich, die Grundwerte kommen obendrauf", () => {
+    const c = make("soeldner", soeldner.recommendedAttributes, soeldner.skillChoices.from.slice(0, soeldner.skillChoices.count));
+    expect(c.statsVersion).toBe(2);
+    expect(c.attributes.staerke).toBe(soeldner.recommendedAttributes.staerke + 2);
+    expect(c.attributes.weisheit).toBe(soeldner.recommendedAttributes.weisheit - 1);
+    expect(verifyCharacter(c, data).id).toBe(c.id);
+  });
+
+  it("veränderte Endwerte fallen auf; alte Figuren (ohne Grundwerte) bleiben gültig", () => {
+    const c = make("ritter", ritter.recommendedAttributes, ["reiten", "wahrnehmung"]);
+    expect(() => verifyCharacter({ ...c, attributes: { ...c.attributes, staerke: c.attributes.staerke + 2 } }, data)).toThrow(/Punkte/);
+    const legacy = { ...c, statsVersion: undefined, attributes: { ...ritter.recommendedAttributes } };
+    expect(verifyCharacter(legacy, data).attributes.staerke).toBe(ritter.recommendedAttributes.staerke);
+  });
+
+  it("Endwerte dürfen über die Kaufgrenze steigen, aber nicht über 18", () => {
+    const attrs = { ...soeldner.recommendedAttributes, staerke: 16, geschick: 10, konstitution: 10 };
+    const c = make("soeldner", attrs, soeldner.skillChoices.from.slice(0, soeldner.skillChoices.count));
+    expect(c.attributes.staerke).toBe(18);
+  });
+});

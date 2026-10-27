@@ -55,6 +55,8 @@ export const rulesSchema = z.object({
     maxTrainedSkills: z.number().int(), maxAbilitiesAtLevel1: z.number().int(),
     abilityTypes: z.array(z.string()).min(1), abilityUses: z.array(z.string()).min(1),
     forbiddenEffects: z.array(z.string()),
+    /** Grundwerte der Klassen: Zu- und Abschläge auf die Startattribute. */
+    attributeMods: z.object({ min: z.number().int(), max: z.number().int(), maxBonusTotal: z.number().int(), finalMin: z.number().int(), finalMax: z.number().int() }),
     costs: z.object({
       hitDie: z.record(z.string(), z.number()),
       perTrainedSkill: z.number(),
@@ -62,6 +64,7 @@ export const rulesSchema = z.object({
       abilityBase: z.number(),
       extraDamagePerAverage: z.number(), healPerAverage: z.number(), bonusDiePerAverage: z.number(),
       flatBonus: z.number(), advantage: z.number(), imposeDisadvantage: z.number(), armorBonus: z.number(), attackBonus: z.number(),
+      attributeBonus: z.number(), attributePenaltyRefund: z.number(),
       usesMultiplier: z.record(z.string(), z.number()),
       scopeMultiplier: z.object({ eng: z.number(), breit: z.number() }),
     }),
@@ -91,6 +94,8 @@ export const classSchema = z.object({
   difficulty: z.number().int().min(1).max(3), beginnerTip: z.string(),
   hitDie: z.number().int(), primaryAttributes: z.array(id).min(1),
   recommendedAttributes: z.record(z.string(), z.number().int()),
+  /** Grundwerte der Klasse: kommen nach dem Punktekauf auf die Attribute (z. B. Stärke +2, Weisheit −1). */
+  attributeMods: z.record(z.string(), z.number().int()).default({}),
   trainedSkills: z.array(id), skillChoices: z.object({ count: z.number().int().min(0), from: z.array(id) }),
   armor: z.array(z.enum(["leicht", "mittel", "schwer", "schild"])),
   startingEquipment: z.array(id), equippedWeapon: id, equippedArmor: id.nullable(), equippedShield: id.nullable(),
@@ -110,6 +115,8 @@ export const characterInputSchema = z.object({
   stand: id,
   classId: id,
   attributes: z.record(z.string(), z.number().int()),
+  /** 2 = `attributes` enthalten die Grundwerte der Klasse (Figuren von davor: ohne). */
+  statsVersion: z.literal(2).optional(),
   chosenSkills: z.array(id),
   personality: z.object({
     trait: z.string().max(200).default(""),

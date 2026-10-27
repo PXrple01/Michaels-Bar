@@ -19,6 +19,17 @@ export function pointsSpent(attrs: Record<string, number>, rules: Rules): number
   return rules.attributes.reduce((s, a) => s + attributeCost(attrs[a.id] ?? rules.attributeRules.base, rules), 0);
 }
 
+/** Grundwerte einer Klasse auf gekaufte Attribute anwenden (fehlende Einträge = 0). */
+export function withClassMods(bought: Record<string, number>, mods: Record<string, number> | undefined, rules: Rules): Record<string, number> {
+  return Object.fromEntries(rules.attributes.map((a) => [a.id, (bought[a.id] ?? rules.attributeRules.base) + (mods?.[a.id] ?? 0)]));
+}
+
+/** Gekaufte Werte einer Figur: bei neuen Figuren die Attribute ohne die Grundwerte der Klasse. */
+export function boughtAttributes(c: Pick<CharacterInput, "attributes" | "statsVersion">, cls: Pick<ClassDef, "attributeMods"> | undefined, rules: Rules): Record<string, number> {
+  if (c.statsVersion !== 2) return c.attributes;
+  return Object.fromEntries(rules.attributes.map((a) => [a.id, (c.attributes[a.id] ?? rules.attributeRules.base) - (cls?.attributeMods?.[a.id] ?? 0)]));
+}
+
 export function attributeProblems(attrs: Record<string, number>, rules: Rules): string[] {
   const r = rules.attributeRules;
   const problems: string[] = [];
@@ -52,7 +63,15 @@ export function characterProblems(input: CharacterInput, rules: Rules, classes: 
   else if (!magicAllowed(cls, campaignMagic)) problems.push(`${cls.name} braucht mehr Magie in der Welt (campaign.json → magic_level)`);
   const stand = rules.stands.find((s) => s.id === input.stand);
   if (!stand) problems.push("Unbekannter Stand");
-  problems.push(...attributeProblems(input.attributes, rules));
+  // Punktekauf prüfen (ohne die Grundwerte der Klasse), danach die Endwerte gegen die harten Grenzen
+  problems.push(...attributeProblems(boughtAttributes(input, cls, rules), rules));
+  if (input.statsVersion === 2) {
+    const lim = rules.classBuilder.attributeMods;
+    for (const a of rules.attributes) {
+      const v = input.attributes[a.id];
+      if (v !== undefined && (v < lim.finalMin || v > lim.finalMax)) problems.push(`${a.name} muss mit den Grundwerten der Klasse zwischen ${lim.finalMin} und ${lim.finalMax} liegen`);
+    }
+  }
   if (cls) {
     const chosen = input.chosenSkills ?? [];
     if (new Set(chosen).size !== chosen.length) problems.push("Fertigkeit doppelt gewählt");

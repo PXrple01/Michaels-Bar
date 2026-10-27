@@ -88,7 +88,7 @@ describe("Spielleiter", () => {
     const rollEvs = await run("roll", { character, state: first.state });
     const roll = rollEvs.find((e) => e.type === "roll") as Extract<GmEvent, { type: "roll" }>;
     expect(roll.record.dc).toBe(13);
-    expect(roll.record.modifierParts.map((p) => p.value)).toEqual([2, 2]); // Stärke + Können
+    expect(roll.record.modifierParts.map((p) => p.value)).toEqual([3, 2]); // Stärke 15 + 1 (Grundwert Ritter) = 16 → +3, Können +2
     // Claude bekommt genau das Server-Ergebnis zurück
     const lastMsg = llm.calls[1].messages.at(-1)!;
     const result = (lastMsg.content as Anthropic.Beta.BetaToolResultBlockParam[])[0];

@@ -34,6 +34,7 @@ export function reviewSchema(rules: Rules) {
       hitDie: { type: "integer", description: `Trefferwürfel: ${cb.hitDie.allowed.join(", ")}` },
       primaryAttributes: ids("Attribut"),
       recommendedAttributes: obj(Object.fromEntries(rules.attributes.map((a) => [a.id, { type: "integer" }]))),
+      attributeMods: obj(Object.fromEntries(rules.attributes.map((a) => [a.id, { type: "integer", description: `Grundwert der Klasse für ${a.name}: ${cb.attributeMods.min} bis +${cb.attributeMods.max}, 0 = unverändert` }]))),
       trainedSkills: ids("Fertigkeit"),
       skillChoices: obj({ count: { type: "integer" }, from: ids("Fertigkeit") }),
       armor: { type: "array", items: { type: "string", enum: ["leicht", "mittel", "schwer", "schild"] } },
@@ -84,6 +85,7 @@ export function reviewSystemPrompt(data: GameData): string {
   Rüstung kostet nur die schwerste Kategorie plus Schild.
 - Grenzen: Trefferwürfel ${cb.hitDie.allowed.map((d) => `W${d}`).join("/")}; höchstens ${cb.maxTrainedSkills} geübte Fertigkeiten (fest + zur Wahl); höchstens ${cb.maxAbilitiesAtLevel1} Fähigkeiten; Schadenswürfel höchstens ${cb.maxDamageDiceCount}W${cb.maxDamageDie}, fester Bonus höchstens +${cb.maxFlatDamageBonus}; Rüstungsbonus ${cb.armorBonus.min}–${cb.armorBonus.max}; Angriffsbonus ${cb.attackBonus.min}–${cb.attackBonus.max}.
 - Verboten: unbegrenzte oder spielbrechende Effekte (unendlicher Schaden, Unverwundbarkeit, Sofort-Sieg, Regeln ändern, Wiederbelebung). Schaden, Heilung, Vorteil oder Nachteil dürfen nicht „beliebig oft“ einsetzbar sein.
+- Grundwerte der Klasse (attributeMods): Zu- und Abschläge auf die Startattribute, die zur Klasse passen – ein starker, aber einfältiger Krieger bekommt z. B. Stärke +2 und Verstand −1, Weisheit −1. Je Attribut ${cb.attributeMods.min} bis +${cb.attributeMods.max}, Zuschläge in Summe höchstens +${cb.attributeMods.maxBonusTotal}. Jedes +1 kostet ${cb.costs.attributeBonus} Punkt, jedes −1 gibt ${cb.costs.attributePenaltyRefund} Punkte zurück – die Grundwerte zählen also zum Punktebudget. Schwächen gehören zu einer glaubwürdigen Klasse: Gib nicht nur Zuschläge.
 - Startattribute nach Punktekauf: Basis 10, ${rules.attributeRules.pointBudget} Punkte, bis 13 kostet ein Punkt 1, darüber 2, Werte ${rules.attributeRules.min}–${rules.attributeRules.max}, höchstens zwei Attribute unter 10.
 - Welt: Magie „${campaign.magic_level}“. Magische Fähigkeiten markierst du mit magic = true.
 - Attribute (IDs): ${rules.attributes.map((a) => `${a.id} (${a.name})`).join(", ")}.
@@ -144,6 +146,7 @@ export function toClassDef(raw: Record<string, unknown>, draftId: string, summar
     hitDie: Number(k.hitDie) || 8,
     primaryAttributes: only(k.primaryAttributes, attrs),
     recommendedAttributes: k.recommendedAttributes ?? {},
+    attributeMods: Object.fromEntries(Object.entries((k.attributeMods ?? {}) as Record<string, unknown>).map(([a, v]) => [a, Math.round(Number(v) || 0)]).filter(([a, v]) => attrs.has(a as string) && v !== 0)),
     trainedSkills: only(k.trainedSkills, skills),
     skillChoices: { count: Number(k.skillChoices?.count) || 0, from: only(k.skillChoices?.from, skills) },
     armor: Array.isArray(k.armor) ? k.armor : [],

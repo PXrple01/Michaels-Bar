@@ -20,6 +20,12 @@
     "weisheit": 14,
     "ausstrahlung": 9
   },
+  "attributeMods": {
+    "geschick": 2,
+    "weisheit": 1,
+    "ausstrahlung": -1,
+    "verstand": -1
+  },
   "trainedSkills": [
     "ueberleben",
     "wahrnehmung"

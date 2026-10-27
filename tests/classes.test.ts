@@ -22,6 +22,7 @@ function baseCustom(): ClassDef {
     description: "Kennt Schleichwege und Verstecke.", role: "Trickser", difficulty: 2, beginnerTip: "Für Heimlichkeit.",
     hitDie: 8, primaryAttributes: ["geschick", "ausstrahlung"],
     recommendedAttributes: { staerke: 10, geschick: 15, konstitution: 10, verstand: 10, weisheit: 10, ausstrahlung: 14 },
+    attributeMods: { geschick: 1, staerke: -1 },
     trainedSkills: ["heimlichkeit"], skillChoices: { count: 2, from: ["taeuschen", "ueberreden", "fingerfertigkeit"] },
     armor: ["leicht"], startingEquipment: ["kurzschwert", "lederwams", "rucksack"], equippedWeapon: "kurzschwert", equippedArmor: "lederwams", equippedShield: null,
     startingMoney: { gulden: 0, groschen: 10, pfennig: 0 }, requiresMagic: "none", custom: true,
@@ -194,5 +195,28 @@ describe("Speichern, Signieren, Spielen", () => {
     const tampered = { ...c, customClass: { ...signed, cls: { ...signed.cls, hitDie: 12 } } };
     expect((await handleApi("POST", "/api/rolls/check", { requestId: "custom-roll-2", character: tampered, check: { type: "skill", id: "heimlichkeit" } }, deps)).status).toBe(400);
     expect(() => buildCharacter(input, data, undefined)).toThrow();
+  });
+});
+
+describe("Grundwerte eigener Klassen", () => {
+  it("kosten Punkte im Budget: +1 kostet 1, −1 gibt 0,5 zurück", () => {
+    const base = { ...baseCustom(), attributeMods: {} };
+    const strongDumb = { ...baseCustom(), attributeMods: { staerke: 2, verstand: -1, weisheit: -1 } };
+    expect(classCost(strongDumb, rules).total - classCost(base, rules).total).toBeCloseTo(1);
+    expect(classCost(strongDumb, rules).items.find((i) => i.label.startsWith("Grundwerte"))?.label).toContain("STÄ +2");
+  });
+
+  it("werden auf die Grenzen gekürzt (je −2 bis +2, Zuschläge in Summe höchstens +3)", () => {
+    const r = checkClass({ ...baseCustom(), attributeMods: { staerke: 5, konstitution: 2, geschick: 1, verstand: -4, magie: 3 } }, rules, "high");
+    expect(r.cls.attributeMods.staerke).toBeLessThanOrEqual(2);
+    expect(r.cls.attributeMods.verstand).toBe(-2);
+    expect(r.cls.attributeMods).not.toHaveProperty("magie");
+    expect(Object.values(r.cls.attributeMods).filter((v) => v > 0).reduce((a, b) => a + b, 0)).toBe(3);
+    expect(r.adjustments.join(" ")).toMatch(/Grundwert/);
+  });
+
+  it("Claude schlägt sie im Gutachten mit vor", () => {
+    const schema = reviewSchema(rules) as unknown as { properties: { klasse: { properties: Record<string, unknown> } } };
+    expect(schema.properties.klasse.properties).toHaveProperty("attributeMods");
   });
 });
