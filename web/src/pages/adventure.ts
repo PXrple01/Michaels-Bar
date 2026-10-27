@@ -9,6 +9,7 @@ import { campaignStore } from "../lib/campaigns";
 import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
+import { worldPanel } from "../lib/worldPanel";
 import { term } from "../lib/glossary";
 import { icon, sigil } from "../lib/icons";
 import { go, type Page } from "../lib/router";
@@ -26,12 +27,12 @@ export function withSpeech(r: Raw): Raw {
   return raw(r.value.replace(/(„[^“]{1,400}“|&quot;[^&]{1,400}&quot;)/g, '<span class="speech">$1</span>'));
 }
 
-export function rollSummary(r: RollRecord): Raw {
-  const verdict = r.success === null ? "" : r.success ? "geschafft" : "nicht geschafft";
-  return html`<div class="story-roll ${r.critical ?? ""} ${r.success === false ? "fail" : r.success ? "ok" : ""}">
+export function rollSummary(r: RollRecord, auto = false): Raw {
+  const verdict = r.success === null ? "" : auto ? (r.success ? "Treffer" : "daneben") : r.success ? "geschafft" : "nicht geschafft";
+  return html`<div class="story-roll ${auto ? "auto" : ""} ${r.critical ?? ""} ${r.success === false ? "fail" : r.success ? "ok" : ""}">
     <span class="sr-total">${r.total}</span>
     <span class="sr-text"><b>${r.label.replace(/^[^:]+:\s*/, "")}</b><span>gewürfelt ${r.values.join(" / ")}${r.modifier ? ` ${formatModifier(r.modifier)}` : ""}${r.dc !== null ? ` · SG ${r.dc}` : ""}${verdict ? ` · ${verdict}` : ""}${r.critical === "hit" ? " · kritisch!" : r.critical === "fumble" ? " · Patzer!" : ""}</span></span>
-    ${icon("dice")}
+    ${icon(auto ? "sword" : "dice")}
   </div>`;
 }
 
@@ -163,6 +164,8 @@ export function playPage(): Page {
       let lastError: Extract<GmEvent, { type: "error" }> | null = null;
       let budget: { spentUsd: number; limitUsd: number } | null = null;
       let lastCost: number | null = null;
+      /** Länge der Geschichte vor dem laufenden Zug – bei Fehlern wird bis hierher zurückgesetzt. */
+      let turnMark = 0;
 
       setHTML(root, html`
         <div class="container play">
@@ -171,6 +174,7 @@ export function playPage(): Page {
             <div class="ph-title"><div class="eyebrow">${character.name}</div><h1 id="play-title">${save.title}</h1></div>
             <span class="chip budget" id="budget" hidden></span>
           </header>
+          <div id="world"></div>
           <div id="opening"></div>
           <div class="story" id="story" aria-live="polite"></div>
           <div id="below"></div>
@@ -179,6 +183,7 @@ export function playPage(): Page {
       const belowEl = $("#below", root);
 
       const persist = () => campaignStore.save(save);
+      const renderWorld = () => { $("#world", root).innerHTML = worldPanel(save!.state.world, [character]).value; };
 
       function renderOpening(animate: boolean) {
         const el = $("#opening", root);
@@ -191,7 +196,7 @@ export function playPage(): Page {
 
       function storyEntry(e: CampaignSave["story"][number], first: boolean): Raw {
         if (e.type === "player") return html`<div class="story-player"><span>${e.text}</span></div>`;
-        if (e.type === "roll") return rollSummary(e.record);
+        if (e.type === "roll") return rollSummary(e.record, e.auto);
         return html`<div class="story-gm ${first ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}</div>`;
       }
 
@@ -330,16 +335,24 @@ export function playPage(): Page {
       function handle(ev: GmEvent) {
         if (!alive) return;
         if (ev.type === "text") pushLive(ev.text);
-        else if (ev.type === "done") {
+        else if (ev.type === "autoroll") {
+          // Gegnerangriff, Heilung, Rast: Erzählung bis hier abschließen, Wurf zeigen, danach weitererzählen
+          endLive();
+          const entry = { type: "roll" as const, record: ev.record, auto: true };
+          save!.story.push(entry); appendEntry(entry);
+          scrollDown(true);
+        } else if (ev.type === "done") {
           endLive();
           save!.state = ev.state;
           save!.pending = ev.pending;
           budget = ev.budget;
           lastCost = ev.turnCostUsd ?? null;
           persist();
+          renderWorld();
         } else if (ev.type === "error") {
           liveEl?.remove(); liveEl = null; liveText = "";
           lastError = ev;
+          if (save!.story.length > turnMark) { save!.story.length = turnMark; renderStory(); }
         }
       }
 
@@ -348,6 +361,8 @@ export function playPage(): Page {
         if (reroll && !(await confirmDialog("Neuen Einstieg würfeln?", "Der jetzige Anfang wird verworfen und ein neuer gewürfelt.", "Neu würfeln"))) return;
         busy = true; lastError = null;
         save!.story = []; save!.pending = null; save!.opening = null as unknown as Opening;
+        save!.state = { messages: [], characterHash: "", sig: "" }; turnMark = 0;
+        renderWorld();
         renderStory(); renderOpening(false); renderBelow();
         retry = () => void begin(false);
         await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings() }, (ev) => {
@@ -372,6 +387,7 @@ export function playPage(): Page {
         busy = true; lastError = null;
         const entry = { type: "player" as const, text: action };
         save!.story.push(entry); appendEntry(entry);
+        turnMark = save!.story.length;
         renderBelow(); scrollDown();
         const before = save!.state;
         retry = () => { save!.story.pop(); renderStory(); void sendAction(action); };
@@ -385,6 +401,7 @@ export function playPage(): Page {
         if (busy || !save!.pending) return;
         busy = true; lastError = null;
         const p = save!.pending;
+        turnMark = save!.story.length;
         let resolveRoll!: (r: RollRecord) => void, rejectRoll!: (e: Error) => void;
         const rollP = new Promise<RollRecord>((res, rej) => { resolveRoll = res; rejectRoll = rej; });
         // Während das Würfel-Overlay offen ist, wird die Erzählung zurückgehalten und danach gezeigt.
@@ -413,6 +430,7 @@ export function playPage(): Page {
         scrollDown();
       }
 
+      renderWorld();
       renderOpening(false);
       renderStory();
       renderBelow();

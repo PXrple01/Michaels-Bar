@@ -1,18 +1,21 @@
 // Mehrspieler: gemeinsame Abenteuer mit Gruppen-Code. Der Spielstand liegt auf dem Server.
 import type { BudgetInfo, Opening, PendingCheck } from "./campaign";
 import type { RollRecord } from "./dice";
+import type { WorldState } from "./world";
 
 export const MAX_PARTY_SIZE = 4;
 
 export type PartyStoryEntry =
   | { type: "gm"; text: string }
   | { type: "actions"; items: { playerId: string; name: string; text: string }[] }
-  | { type: "roll"; record: RollRecord; playerId: string }
+  | { type: "roll"; record: RollRecord; playerId: string; auto?: boolean }
   | { type: "info"; text: string };
 
 export interface PartyPlayerView {
   id: string;
   host: boolean;
+  /** Figuren-ID – Schlüssel für Lebenspunkte im Spielstand. */
+  characterId: string;
   name: string;
   classId: string;
   className: string;
@@ -38,6 +41,8 @@ export interface PartyView {
   version: number;
   budget: BudgetInfo | null;
   lastTurnCostUsd: number | null;
+  /** Lebenspunkte, Kampf, Aufträge – erst ab dem Start. */
+  world: WorldState | null;
 }
 
 export interface PartyJoinResult { code: string; playerId: string; token: string; view: PartyView }
@@ -45,5 +50,6 @@ export interface PartyJoinResult { code: string; playerId: string; token: string
 export type PartyEvent =
   | { type: "text"; text: string }
   | { type: "roll"; record: RollRecord }
+  | { type: "autoroll"; record: RollRecord }
   | { type: "view"; view: PartyView }
   | { type: "error"; message: string; code?: string };

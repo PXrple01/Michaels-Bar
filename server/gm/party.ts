@@ -3,10 +3,12 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Opening, PendingCheck } from "../../shared/campaign";
 import { MAX_ACTION_LENGTH } from "../../shared/campaign";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyStoryEntry, type PartyView } from "../../shared/party";
+import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
+import { initWorld, worldSummary, type WorldState } from "../../shared/world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, type MessageParam, type Narrator } from "./narrator";
+import { errorEvent, GmError, stripThinking, TOOLSET, type MessageParam, type Narrator, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import type { UsageGuard } from "./usage";
@@ -28,6 +30,11 @@ export interface Party {
   busy: { since: string } | null;
   live: string;
   lastTurnCostUsd: number | null;
+  /** Lebenspunkte, Kampf, Aufträge, Gedächtnis – ab dem Start. */
+  world: WorldState | null;
+  /** Werkzeug-Ergebnisse, die mit dem nächsten Probenergebnis an Claude gehen. */
+  held: ToolResult[];
+  toolset?: number;
 }
 
 /** Speicher mit optimistischer Sperre: put schlägt fehl, wenn jemand anderes inzwischen gespeichert hat. */
@@ -112,7 +119,7 @@ export class PartyService {
       code: party.code, status: party.status, you, version: party.version,
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
-        return { id: p.id, host: p.host, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions };
+        return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions };
       }),
       opening: party.opening,
       story: party.story,
@@ -122,6 +129,7 @@ export class PartyService {
       live: party.live,
       budget,
       lastTurnCostUsd: party.lastTurnCostUsd,
+      world: party.status === "playing" ? party.world ?? null : null,
     };
   }
 
@@ -135,7 +143,7 @@ export class PartyService {
       const now = new Date().toISOString();
       const party: Party = {
         code: newCode(), createdAt: now, updatedAt: now, version: 1, status: "lobby", players: [player], opening: null,
-        messages: [], story: [], actions: {}, pending: null, busy: null, live: "", lastTurnCostUsd: null,
+        messages: [], story: [], actions: {}, pending: null, busy: null, live: "", lastTurnCostUsd: null, world: null, held: [], toolset: TOOLSET,
       };
       if (await this.o.store.put(party, null)) return { code: party.code, playerId: player.id, token, view: this.view(party, player.id) };
     }
@@ -219,12 +227,22 @@ export class PartyService {
     const locked = await this.update(first.code, (p) => {
       if (p.busy && Date.now() - Date.parse(p.busy.since) < STALE_MS) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
       const data = this.dataFor(p);
+      // Gruppen von vor Etappe 5: einmalig auf den neuen Werkzeugstand bringen
+      if (p.status === "playing" && (p.toolset !== TOOLSET || !p.world)) {
+        p.messages = stripThinking(p.messages);
+        p.world = initWorld(this.characters(p));
+        p.held = [];
+        p.toolset = TOOLSET;
+      }
       if (op === "start") {
         if (!me.host) throw new PartyError("Nur der Gastgeber kann das Abenteuer starten.");
         if (p.status !== "lobby") throw new PartyError("Das Abenteuer läuft schon.");
         const previous = Array.isArray(body.previousOpenings) ? (body.previousOpenings as unknown[]).filter((x): x is string => typeof x === "string").slice(-10) : [];
         p.opening = rollOpening(data.openings, previous);
         p.status = "playing";
+        p.world = initWorld(this.characters(p));
+        p.held = [];
+        p.toolset = TOOLSET;
         messages = [{ role: "user", content: kickoffMessage(this.characters(p), data, p.opening, previous) }];
       } else if (op === "action") {
         if (p.pending) throw new PartyError(`Erst muss ${p.pending.characterName} würfeln.`);
@@ -232,7 +250,8 @@ export class PartyService {
         const items = p.players.map((pl) => ({ playerId: pl.id, name: pl.character.name, text: consumed[pl.id] ?? "" }));
         p.story.push({ type: "actions", items: items.filter((i) => i.text) });
         const lines = items.map((i) => `- ${i.name}: ${i.text || "(keine Angabe – handelt passend zur Lage)"}`).join("\n");
-        messages = [...p.messages, { role: "user", content: `<aktionen>\n${lines}\n</aktionen>` }];
+        if (p.world!.combat) p.world!.combat.round++;
+        messages = [...p.messages, { role: "user", content: `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${worldSummary(p.world!, this.characters(p))}\n</spielstand>` }];
       } else {
         if (!p.pending) throw new PartyError("Gerade ist keine Probe offen.");
         if (p.pending.characterId !== me.character.id) throw new PartyError(`${p.pending.characterName} muss würfeln, nicht du.`);
@@ -244,22 +263,27 @@ export class PartyService {
 
     const data = this.dataFor(locked);
     const characters = this.characters(locked);
+    const world = locked.world!;
 
     try {
       // 2) Probe würfeln (nur bei „roll“)
       if (op === "roll") {
-        const { record, result } = await this.o.narrator.rollPending(locked.pending!, characters, data);
+        const { record, content } = await this.o.narrator.rollPending(locked.pending!, { characters, data, world }, locked.held ?? []);
         emit({ type: "roll", record });
         rollEntry = { type: "roll", record, playerId: me.id };
         await this.update(locked.code, (p) => { p.story.push(rollEntry!); p.pending = null; });
-        messages = [...messages, { role: "user", content: [result] }];
+        messages = [...messages, { role: "user", content }];
       }
 
       // 3) Erzählen; der entstehende Text wird regelmäßig gespeichert, damit Mitspieler mitlesen
+      // Server-Würfe (Gegnerangriffe, Heilung) teilen die Erzählung in Abschnitte.
       let live = "";
+      const segments: PartyStoryEntry[] = [];
+      const flush = () => { const t = live.trim(); if (t) segments.push({ type: "gm", text: t }); live = ""; };
+      const onRoll = (record: RollRecord) => { flush(); segments.push({ type: "roll", record, playerId: "", auto: true }); emit({ type: "autoroll", record }); };
       let lastSave = Date.now();
       let saving: Promise<unknown> = Promise.resolve();
-      const res = await this.o.narrator.converse(messages, characters, data, who, (text) => {
+      const res = await this.o.narrator.converse(messages, { characters, data, world, onRoll }, who, (text) => {
         live += text;
         emit({ type: "text", text });
         if (Date.now() - lastSave > LIVE_SAVE_MS) {
@@ -269,12 +293,14 @@ export class PartyService {
         }
       });
       await saving;
+      flush();
 
       // 4) Ergebnis übernehmen und Sperre lösen
       const done = await this.update(locked.code, (p) => {
         p.messages = res.history;
-        const gmText = live.trim();
-        if (gmText) p.story.push({ type: "gm", text: gmText });
+        p.story.push(...segments);
+        p.world = world;
+        p.held = res.held;
         p.pending = res.pending;
         for (const [id, text] of Object.entries(consumed)) if (p.actions[id] === text) delete p.actions[id];
         p.busy = null;

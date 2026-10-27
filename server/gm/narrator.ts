@@ -4,12 +4,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { GmEvent, PendingCheck } from "../../shared/campaign";
 import { characterRoll } from "../../shared/character";
-import { formatModifier, type RollRecord } from "../../shared/dice";
+import { formatModifier, parseNotation, type RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
+import type { WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { systemPrompt } from "./prompt";
 import { costUsd, LimitError, type UsageGuard } from "./usage";
+import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -44,7 +46,23 @@ export function requestBase(model: ModelId, effort: "low" | "medium" | "high") {
 export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
-const MAX_LOOPS = 3;
+/** Werkzeugstand: Ab 2 gibt es Kampf, Aufträge und Gedächtnis. Ältere Verläufe werden einmalig umgestellt. */
+export const TOOLSET = 2;
+const MAX_LOOPS = 5;
+const COMPACT_AT = 80_000;
+const COMPACT_INSTRUCTIONS =
+  "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
+  "Orte; offene und erledigte Aufträge; Versprechen, Schulden, Geheimnisse und Hinweise; besiegte und noch lebende Gegner; erhaltene und verlorene Gegenstände und Geld; " +
+  "den Stand der aktuellen Szene; Ton und Stil der Erzählung. Lebenspunkte stehen ohnehin in jedem <spielstand>.";
+
+/** Entfernt Denkblöcke – nötig, wenn sich Werkzeuge geändert haben (alte Denkblöcke gelten dann nicht mehr). */
+export function stripThinking(messages: MessageParam[]): MessageParam[] {
+  return messages.map((m) => {
+    if (m.role !== "assistant" || typeof m.content === "string") return m;
+    const content = m.content.filter((b) => b.type !== "thinking" && b.type !== "redacted_thinking");
+    return { ...m, content: content.length ? content : [{ type: "text", text: "…" }] };
+  });
+}
 
 export class GmError extends Error {
   constructor(message: string, public code: NonNullable<Extract<GmEvent, { type: "error" }>["code"]>) { super(message); }
@@ -69,7 +87,23 @@ export interface NarratorOptions {
   effort?: "low" | "medium" | "high";
 }
 
-export interface ConverseResult { history: MessageParam[]; pending: PendingCheck | null; costUsd: number }
+/** Alles, was ein Zug über die Szene wissen muss. `world` wird von den Werkzeugen verändert. */
+export interface Scene {
+  characters: Character[];
+  data: GameData;
+  world: WorldState;
+  onRoll: (record: RollRecord) => void;
+}
+
+export type ToolResult = Anthropic.Beta.BetaToolResultBlockParam;
+
+export interface ConverseResult {
+  history: MessageParam[];
+  pending: PendingCheck | null;
+  /** Ergebnisse der übrigen Werkzeuge aus derselben Antwort wie die Probe – gehen mit dem Wurf zurück. */
+  held: ToolResult[];
+  costUsd: number;
+}
 
 export class Narrator {
   constructor(private o: NarratorOptions) {}
@@ -89,6 +123,7 @@ export class Narrator {
       description:
         `Verlangt von ${party ? "einer Spielfigur" : "der Spielfigur"} eine Probe. Der Server würfelt fair, sobald die Person auf „Würfeln“ klickt, und liefert dir das Ergebnis. ` +
         "art: attribute (reine Attributsprobe), skill (Fertigkeit), attack (Waffenangriff, id = waffe), damage (Waffenschaden, id = waffe, sg = 0). " +
+        "Im Kampf gib bei attack und damage den Gegner in ziel an – dann gilt seine Rüstung als SG und der Schaden wird ihm abgezogen. " +
         "Attribute: " + data.rules.attributes.map((a) => `${a.id} (${a.name})`).join(", ") + ". " +
         "Fertigkeiten: " + data.rules.skills.map((s) => `${s.id} (${s.name})`).join(", ") + ".",
       eager_input_streaming: true,
@@ -101,10 +136,11 @@ export class Narrator {
           sg: { type: "integer", description: "Schwierigkeitsgrad 5–25; bei damage 0" },
           modus: { type: "string", enum: ["normal", "advantage", "disadvantage"] },
           grund: { type: "string", description: "Ein kurzer Satz, warum gewürfelt wird – wird der Person angezeigt" },
+          ziel: { type: "string", description: "Nur im Kampf bei attack/damage: Name des Gegners" },
         },
         required: [...(party ? ["figur"] : []), "art", "id", "sg", "modus", "grund"],
       },
-    }];
+    }, ...autoToolDefs(characters)];
   }
 
   private toolInput(data: GameData) {
@@ -116,56 +152,78 @@ export class Narrator {
       sg: z.number().int().min(0).max(30),
       modus: z.enum(["normal", "advantage", "disadvantage"]),
       grund: z.string().min(1).max(300),
+      ziel: z.string().max(60).optional(),
     }).refine((v) => (v.art === "attribute" ? data.rules.attributes.some((a) => a.id === v.id) : v.art === "skill" ? data.rules.skills.some((s) => s.id === v.id) : v.id === "waffe"));
   }
 
-  /** Liest die offene Probe aus der letzten Spielleiter-Nachricht. */
-  pendingFrom(messages: MessageParam[], characters: Character[], data: GameData): PendingCheck | null {
-    const last = messages[messages.length - 1];
-    if (!last || last.role !== "assistant" || typeof last.content === "string") return null;
-    const block = last.content.find((b): b is Anthropic.Beta.BetaToolUseBlockParam => b.type === "tool_use" && b.name === TOOL_NAME);
-    if (!block) return null;
+  /** Macht aus einem Werkzeugaufruf eine offene Probe – oder null, wenn er ungültig ist. */
+  private pendingFor(block: { id: string; input: unknown }, characters: Character[], data: GameData, world: WorldState | null): PendingCheck | null {
     const parsed = this.toolInput(data).safeParse(block.input);
     if (!parsed.success) return null;
     const v = parsed.data;
     const c = characters.length === 1 ? characters[0] : characters.find((x) => x.name === v.figur);
     if (!c) return null;
     const spec = characterRoll(c, data.rules, data.classes, v.art, v.id);
+    const enemy = (v.art === "attack" || v.art === "damage") && v.ziel
+      ? world?.combat?.enemies.find((e) => e.hp > 0 && e.name.toLowerCase() === v.ziel!.trim().toLowerCase()) : undefined;
     return {
       toolUseId: block.id, characterId: c.id, characterName: c.name,
-      art: v.art, id: v.id, sg: spec.d20 ? v.sg : null, modus: spec.d20 ? v.modus : "normal", grund: v.grund, label: spec.label,
+      art: v.art, id: v.id, sg: spec.d20 ? (enemy && v.art === "attack" ? enemy.armor : v.sg) : null,
+      modus: spec.d20 ? v.modus : "normal", grund: v.grund, label: spec.label, ziel: enemy?.name ?? null,
     };
   }
 
-  /** Würfelt die offene Probe. Die Wurf-ID hängt an der Probe – erneutes Senden liefert denselben Wurf. */
-  async rollPending(pending: PendingCheck, characters: Character[], data: GameData): Promise<{ record: RollRecord; result: Anthropic.Beta.BetaToolResultBlockParam }> {
+  /** Liest die offene Probe aus der letzten Spielleiter-Nachricht. */
+  pendingFrom(messages: MessageParam[], characters: Character[], data: GameData, world: WorldState | null = null): PendingCheck | null {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant" || typeof last.content === "string") return null;
+    const block = last.content.find((b): b is Anthropic.Beta.BetaToolUseBlockParam => b.type === "tool_use" && b.name === TOOL_NAME);
+    return block ? this.pendingFor(block, characters, data, world) : null;
+  }
+
+  /**
+   * Würfelt die offene Probe und verrechnet sie im Kampf. Die Wurf-ID hängt an der Probe – erneutes Senden liefert denselben Wurf.
+   * `content` ist die nächste Nachricht an Claude: zurückgehaltene Werkzeug-Ergebnisse plus das Probenergebnis.
+   */
+  async rollPending(pending: PendingCheck, scene: Omit<Scene, "onRoll">, held: ToolResult[] = []): Promise<{ record: RollRecord; content: ToolResult[] }> {
+    const { characters, data, world } = scene;
     const c = characters.find((x) => x.id === pending.characterId)!;
     const spec = characterRoll(c, data.rules, data.classes, pending.art, pending.id);
+    let notation = spec.notation;
+    if (pending.art === "damage" && world.critPending[c.id]) {
+      const p = parseNotation(notation);
+      notation = `${p.terms[0].count * 2}W${p.terms[0].sides}${p.modifier ? (p.modifier > 0 ? `+${p.modifier}` : String(p.modifier)) : ""}`;
+    }
     const record = await this.o.rolls.roll({
       requestId: `gm-${pending.toolUseId.replace(/[^A-Za-z0-9-]/g, "-")}`.slice(0, 64),
       kind: "check",
-      label: `${c.name}: ${spec.label}`,
-      notation: spec.notation,
+      label: `${c.name}: ${spec.label}${notation !== spec.notation ? " (kritisch)" : ""}`,
+      notation,
       mode: pending.modus,
       modifierParts: spec.parts,
       dc: pending.sg,
     });
-    return { record, result: { type: "tool_result", tool_use_id: pending.toolUseId, content: describeRoll(record) } };
+    const text = describeRoll(record) + applyPlayerRoll({ data, characters, world }, c.id, pending.art, pending.ziel ?? null, record);
+    return { record, content: [...held, { type: "tool_result", tool_use_id: pending.toolUseId, content: text }] };
   }
 
-  /** Erzählt weiter, bis Claude fertig ist oder eine Probe verlangt. */
-  async converse(messages: MessageParam[], characters: Character[], data: GameData, who: string, onText: (text: string) => void): Promise<ConverseResult> {
+  /** Erzählt weiter, bis Claude fertig ist oder eine Probe verlangt. Sofort-Werkzeuge werden dabei ausgeführt. */
+  async converse(messages: MessageParam[], scene: Scene, who: string, onText: (text: string) => void): Promise<ConverseResult> {
+    const { characters, data, world } = scene;
     const history = [...messages];
+    const base = requestBase(this.model, this.o.effort ?? "low");
     let cost = 0;
     for (let loop = 0; loop < MAX_LOOPS; loop++) {
       await this.o.guard.check(who);
       const msg = await this.o.llm!.stream({
-        ...requestBase(this.model, this.o.effort ?? "low"),
+        ...base,
+        betas: [...(base.betas ?? []), "compact-2026-01-12"],
         max_tokens: 8000,
         cache_control: CACHE_1H,
         system: [{ type: "text", text: systemPrompt(data), cache_control: CACHE_1H }],
         tools: this.tools(data, characters),
-        tool_choice: { type: "auto", disable_parallel_tool_use: true },
+        tool_choice: { type: "auto" },
+        context_management: { edits: [{ type: "compact_20260112", trigger: { type: "input_tokens", value: COMPACT_AT }, instructions: COMPACT_INSTRUCTIONS }] },
         messages: history,
       }, onText);
       const c = costUsd(msg.usage, this.model);
@@ -176,16 +234,27 @@ export class Narrator {
 
       if (msg.stop_reason === "refusal") throw new GmError("Der Spielleiter möchte diese Szene so nicht erzählen. Versuch es mit einer anderen Handlung.", "refusal");
       history.push({ role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] });
-      const toolUse = msg.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
-      if (toolUse && msg.stop_reason === "tool_use") {
-        const pending = this.pendingFrom(history, characters, data);
-        if (pending) return { history, pending, costUsd: cost };
-        // Ungültige Anfrage: Claude bekommt einen Fehler zurück und versucht es neu.
-        history.push({ role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, is_error: true, content: "INVALID_INPUT: Prüfe figur, art, id (aus der Liste), sg (0–30) und modus." }] });
+      const uses = msg.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
+      if (uses.length && msg.stop_reason === "tool_use") {
+        const results: ToolResult[] = [];
+        let pending: PendingCheck | null = null;
+        for (const b of uses) {
+          if (b.name === TOOL_NAME) {
+            const p: PendingCheck | null = pending ? null : this.pendingFor(b, characters, data, world);
+            if (p) pending = p;
+            else results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: pending ? "Nur eine Probe gleichzeitig – verlange die nächste nach dem Ergebnis." : "INVALID_INPUT: Prüfe figur, art, id (aus der Liste), sg (0–30) und modus." });
+          } else if ((AUTO_TOOLS as readonly string[]).includes(b.name)) {
+            results.push({ type: "tool_result", tool_use_id: b.id, ...(await runAutoTool(b, { data, characters, world, rolls: this.o.rolls, onRoll: scene.onRoll })) });
+          } else {
+            results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: "Unbekanntes Werkzeug." });
+          }
+        }
+        if (pending) return { history, pending, held: results, costUsd: cost };
+        history.push({ role: "user", content: results });
         continue;
       }
-      if (toolUse) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
-      return { history, pending: null, costUsd: cost };
+      if (uses.length) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
+      return { history, pending: null, held: [], costUsd: cost };
     }
     throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");
   }

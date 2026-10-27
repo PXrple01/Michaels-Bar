@@ -15,6 +15,7 @@ import { memberships, partyApi, PartyApiError, type Membership } from "../lib/pa
 import { go, type Page } from "../lib/router";
 import { toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
+import { worldPanel } from "../lib/worldPanel";
 
 const MODE_TEXT = { normal: "", advantage: " mit Vorteil", disadvantage: " mit Nachteil" } as const;
 const inviteLink = (code: string) => `${location.origin}${location.pathname}#/gruppe/${code}`;
@@ -136,6 +137,7 @@ export function partyPage(): Page {
           <span class="chip budget" id="budget" hidden></span>
         </header>
         <div class="party-players" id="players"></div>
+        <div id="world"></div>
         <div id="opening"></div>
         <div class="story" id="story" aria-live="polite"></div>
         <div id="below"></div>
@@ -146,7 +148,7 @@ export function partyPage(): Page {
 
       function entry(e: PartyStoryEntry, firstGm: boolean): Raw {
         if (e.type === "gm") return html`<div class="story-gm ${firstGm ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}</div>`;
-        if (e.type === "roll") return rollSummary(e.record);
+        if (e.type === "roll") return rollSummary(e.record, e.auto);
         if (e.type === "info") return html`<div class="story-info">${e.text}</div>`;
         return html`<div class="story-actions">${e.items.map((i) => html`<div class="story-player ${i.playerId === me.playerId ? "mine" : ""}"><span><b>${i.name}</b>${i.text}</span></div>`)}</div>`;
       }
@@ -249,7 +251,7 @@ export function partyPage(): Page {
         const fresh = rolls.filter((r) => !seenRolls.has(r.record.id));
         for (const r of rolls) seenRolls.add(r.record.id);
         if (firstLoad) return;
-        for (const r of fresh) if (r.playerId !== me.playerId) await rollWithOverlay(`${playerName(r.playerId)} würfelt`, () => Promise.resolve(r.record));
+        for (const r of fresh) if (r.playerId && r.playerId !== me.playerId) await rollWithOverlay(`${playerName(r.playerId)} würfelt`, () => Promise.resolve(r.record));
       }
 
       function apply(v: PartyView) {
@@ -257,6 +259,7 @@ export function partyPage(): Page {
         view = v;
         if (!changed && !firstLoad) return;
         renderPlayers();
+        $("#world", root).innerHTML = worldPanel(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), myChar?.id).value;
         renderOpening();
         renderStory();
         renderBelow();
@@ -277,6 +280,7 @@ export function partyPage(): Page {
         if (!alive) return;
         if (ev.type === "text") { liveLocal += ev.text; renderStory(); }
         else if (ev.type === "roll") seenRolls.add(ev.record.id);
+        else if (ev.type === "autoroll") { seenRolls.add(ev.record.id); liveLocal += `\n\n⚔ ${ev.record.label}: ${ev.record.total}\n\n`; renderStory(); }
         else if (ev.type === "view") { busyLocal = false; liveLocal = ""; apply(ev.view); }
         else if (ev.type === "error") { busyLocal = false; liveLocal = ""; toast(ev.message, "error", 6000); }
       }

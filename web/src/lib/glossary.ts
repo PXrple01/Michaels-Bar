@@ -5,7 +5,7 @@ export interface Term { title: string; short: string; long?: string }
 
 export const GLOSSARY: Record<string, Term> = {
   rollenspiel: { title: "Erzähl-Rollenspiel", short: "Ein Spiel, bei dem ihr gemeinsam eine Geschichte erzählt. Du spielst eine Figur und sagst, was sie tut. Der Spielleiter beschreibt die Welt und was passiert." },
-  spielleiter: { title: "Spielleiter", short: "Erzählt die Geschichte, spielt alle anderen Personen und entscheidet, wann gewürfelt wird. Hier übernimmt das später Claude." },
+  spielleiter: { title: "Spielleiter", short: "Erzählt die Geschichte, spielt alle anderen Personen und entscheidet, wann gewürfelt wird. Hier übernimmt das Claude." },
   figur: { title: "Figur (Charakter)", short: "Die Person, die du in der Geschichte spielst – mit Namen, Herkunft, Stärken und Schwächen." },
   w20: { title: "W20", short: "Ein Würfel mit 20 Seiten. „W“ steht für Würfel, die Zahl für die Seiten. Der W20 entscheidet fast alle Proben." },
   wuerfel: { title: "W4, W6, W8 …", short: "„2W6“ heißt: zwei sechsseitige Würfel werfen und zusammenzählen. „+2“ dahinter wird noch addiert." },
@@ -28,7 +28,7 @@ export const GLOSSARY: Record<string, Term> = {
   stand: { title: "Stand (Herkunft)", short: "Woher deine Figur stammt: Bauernkind, Bürgerkind, Adel … Das gibt dir eine Fertigkeit und Startgeld." },
   stufe: { title: "Stufe", short: "Wie erfahren deine Figur ist (1 bis 10). Durch Abenteuer sammelst du Erfahrung und steigst auf." },
   trefferwuerfel: { title: "Trefferwürfel", short: "Bestimmt, wie viele Trefferpunkte deine Klasse hat. Ein Ritter (W10) hält mehr aus als eine Kräuterhexe (W6)." },
-  rast: { title: "Rast", short: "Eine Pause zum Durchatmen. Manche Fähigkeiten kannst du danach wieder einsetzen." },
+  rast: { title: "Rast", short: "Eine Pause zum Durchatmen. Eine kurze Rast heilt einen Trefferwürfel plus Konstitution, eine Nacht Schlaf alle Trefferpunkte. Manche Fähigkeiten kannst du danach wieder einsetzen." },
   fair: { title: "Fairer Wurf", short: "Das Ergebnis würfelt der Server mit kryptografischem Zufall, bevor die Animation startet. Weder du noch der Spielleiter können es ändern oder neu würfeln." },
 };
 

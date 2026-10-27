@@ -1,7 +1,7 @@
 # Michaels Bar
 
 Ein Erzähl-Rollenspiel im mittelalterlichen Europa – im Browser, lokal auf deinem Rechner.
-Stand: **Etappe 1 bis 4** (Regeln, Würfel-Engine, Charakterbogen, fairer 3D-Würfel, Claude als Spielleiter, eigene Klassen).
+Stand: **Etappe 1 bis 5** (Regeln, Würfel-Engine, Charakterbogen, fairer 3D-Würfel, Claude als Spielleiter, eigene Klassen, Kampf, Gedächtnis und Aufträge).
 
 ## Starten
 
@@ -72,7 +72,7 @@ Netlify Blobs (Wurf-Protokoll, Budgetzähler) ist automatisch dabei.
 - **Startseite, Anleitung und Lexikon** für Leute, die noch nie ein Rollenspiel gespielt haben – mit interaktivem
   Probe-Labor (Chancen live ausrechnen), Vorteil/Nachteil-Vergleich und Erklärungen per Tooltip.
 - **Figur erschaffen** in sechs Schritten: Herkunft, Klasse, Attribute (Punktekauf), Fertigkeiten, Persönlichkeit, Zusammenfassung.
-- **Charakterbogen**: Attribute, Fertigkeiten, Angriff und Schaden antippen = würfeln. Trefferpunkte anpassbar. Figuren liegen im Browser.
+- **Charakterbogen**: Attribute, Fertigkeiten, Angriff und Schaden antippen = würfeln. Trefferpunkte ändern sich nur im Abenteuer. Figuren liegen im Browser.
 - **Würfeltisch**: W4, W6, W8, W10, W12, W20, W100 frei kombinieren, Bonus, Vorteil/Nachteil, Wurf-Protokoll.
 - **Einstellungen**: Würfelfarbe, Animation (voll/kurz/aus), Qualität (auto/hoch/leicht), Zeitlupe bei 20 und 1, Ton, Hintergrund-Effekte.
 
@@ -105,6 +105,24 @@ Netlify Blobs (Wurf-Protokoll, Budgetzähler) ist automatisch dabei.
   der Probe – erneutes Senden liefert denselben Wurf.
 - **Kosten:** Monatsbudget als harte Grenze, Limit pro Stunde, optionaler Zugangscode, Prompt-Caching für Systemprompt und Verlauf.
   Bei einer Sicherheitsablehnung springt automatisch ein Ersatzmodell ein (`fallbacks: "default"`).
+
+## Kampf, Gedächtnis und Aufträge (Etappe 5)
+
+Claude erzählt, der Server rechnet – wie bei den Proben. Dafür hat der Spielleiter Werkzeuge, die der Server sofort ausführt
+(`server/gm/world.ts`):
+
+- **Kampf:** `kampf_beginnen` legt Gegner mit Trefferpunkten und Rüstung fest (gedeckelt: höchstens 6 Gegner, 80 TP, Rüstung 8–20).
+  Angriffe der Figuren laufen über `probe_anfordern` mit `ziel` – die Rüstung des Gegners ist der SG, der Schaden wird ihm abgezogen,
+  eine natürliche 20 verdoppelt die Schadenswürfel. `gegner_greift_an` würfelt der Server (W20 + Bonus bis +8 gegen den Rüstungswert der Figur,
+  Schaden höchstens 2W12+5). Gegnerwürfe erscheinen mitten in der Erzählung.
+- **Lebenspunkte:** Bei 0 TP ist eine Figur kampfunfähig, nicht tot. `heilen` (Würfel bis 2W8+5) und `rast` (kurz: Trefferwürfel + Konstitution,
+  lang: alles) bringen sie zurück – nie über das Maximum.
+- **Auftragsbuch und Gedächtnis:** `auftrag` (neu, Notiz, erledigt, gescheitert) und `merken` (bis zu 30 Tatsachen). Das Auftragsbuch steht
+  oben im Spiel. Jede Handlung bekommt einen kurzen `<spielstand>` angehängt, damit Claude nichts vergisst.
+- **Erfahrung:** `erfahrung` vergibt 10–300 EP pro Anlass. Stufenaufstiege kommen später.
+- **Lange Abenteuer** werden ab etwa 80 000 Eingabe-Tokens serverseitig zusammengefasst (Compaction) – das hält die Kosten pro Zug stabil.
+- Der Spielstand (Lebenspunkte, Kampf, Aufträge) ist im Solo-Modus mitsigniert, in der Gruppe liegt er auf dem Server.
+  Abenteuer von vor Etappe 5 werden beim nächsten Zug einmalig umgestellt.
 
 ## Eigene Klassen (Claude ist Gutachter, der Code ist Richter)
 
@@ -152,7 +170,7 @@ web/      Webseite (Vite + TypeScript, Three.js, cannon-es)
   src/dice3d/   Geometrie, Physik-Simulation, Texturen, 3D-Bühne, Ton
   src/pages/    Start, Lernen, Figuren, Assistent, Bogen, Würfeltisch, Einstellungen
 data/     Regeln und Klassen (JSON)
-server/gm/ Spielleiter: narrator (Kern), engine (Solo), party (Gruppe), review (Klassen), Budget
+server/gm/ Spielleiter: narrator (Kern), world (Kampf, Aufträge), engine (Solo), party (Gruppe), review (Klassen), Budget
 netlify/  Netlify Functions: api (Regeln, Würfe) und gm (Spielleiter, Gruppen, Klassenbewertung – gestreamt)
 scripts/  Regeldaten prüfen und für Netlify bündeln
 saves/    Lokales Wurf-Protokoll (nicht im Git)
@@ -161,5 +179,4 @@ tests/    Vitest
 
 ## Nächste Etappen
 
-5. Kampfsystem, Gedächtnis, Quests
-6. Oberfläche, Speichern/Laden, Kostenlimit
+6. Oberfläche, Speichern/Laden, Kostenlimit, Stufenaufstieg
