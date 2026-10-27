@@ -1,21 +1,30 @@
 // Kostenkontrolle: Monatsbudget als harte Grenze und Limit pro Stunde.
 
-/** Preise für Claude Opus 5.5 in US-Dollar pro Million Token. */
-export const PRICES = { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 };
+/** Preise in US-Dollar pro Million Token. Cache schreiben: 5 Minuten = 1,25×, 1 Stunde = 2× Eingabepreis. */
+export const PRICES: Record<string, { input: number; output: number; cacheRead: number }> = {
+  "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.2 },
+  "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2 },
+  "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheRead: 0.01 },
+};
 
 export interface TokenUsage {
   input_tokens: number;
   output_tokens: number;
   cache_creation_input_tokens?: number | null;
   cache_read_input_tokens?: number | null;
+  cache_creation?: { ephemeral_5m_input_tokens?: number | null; ephemeral_1h_input_tokens?: number | null } | null;
 }
 
-export function costUsd(u: TokenUsage): number {
+export function costUsd(u: TokenUsage, model = "claude-opus-5-5"): number {
+  const p = PRICES[model] ?? PRICES["claude-opus-5-5"];
+  const write1h = u.cache_creation?.ephemeral_1h_input_tokens ?? 0;
+  const write5m = u.cache_creation ? (u.cache_creation.ephemeral_5m_input_tokens ?? 0) : (u.cache_creation_input_tokens ?? 0);
   return (
-    (u.input_tokens * PRICES.input +
-      u.output_tokens * PRICES.output +
-      (u.cache_creation_input_tokens ?? 0) * PRICES.cacheWrite +
-      (u.cache_read_input_tokens ?? 0) * PRICES.cacheRead) /
+    (u.input_tokens * p.input +
+      u.output_tokens * p.output +
+      write5m * p.input * 1.25 +
+      write1h * p.input * 2 +
+      (u.cache_read_input_tokens ?? 0) * p.cacheRead) /
     1_000_000
   );
 }
@@ -54,8 +63,8 @@ export class UsageGuard {
     if (turns > this.turnsPerHour) throw new LimitError(`Zu viele Züge in dieser Stunde (höchstens ${this.turnsPerHour}). Gönn dem Spielleiter eine Pause.`, "rate");
   }
 
-  async record(u: TokenUsage): Promise<number> {
-    return this.store.add(monthKey(), costUsd(u));
+  async record(u: TokenUsage, model?: string): Promise<number> {
+    return this.store.add(monthKey(), costUsd(u, model));
   }
 
   async info() {

@@ -26,7 +26,8 @@ export async function presentOnStage(s: DiceStage, record: RollRecord): Promise<
   s.setSimple(simple);
   s.clear(); // erst danach steht die Tischgröße fest, für die die Bahn berechnet wird
   const dice = record.dice.map((d) => ({ kind: d.kind, face: d.face }));
-  const instant = st.animation === "off";
+  // Im Hintergrund-Tab laufen keine Animationen – dann direkt das Ergebnis zeigen.
+  const instant = st.animation === "off" || document.visibilityState === "hidden";
   let plan: RollPlan;
   let physical = false;
   if (instant || simple) plan = planSimpleRoll(dice, s.arena, Math.random, st.animation === "short" ? 1.0 : 1.6);

@@ -9,6 +9,7 @@ import { campaignStore } from "../lib/campaigns";
 import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
+import { worldPanel } from "../lib/worldPanel";
 import { term } from "../lib/glossary";
 import { icon, sigil } from "../lib/icons";
 import { go, type Page } from "../lib/router";
@@ -16,22 +17,22 @@ import { confirmDialog, toast } from "../lib/ui";
 
 const MODE_TEXT = { normal: "", advantage: " mit Vorteil", disadvantage: " mit Nachteil" } as const;
 
-function paragraphs(text: string): Raw {
+export function paragraphs(text: string): Raw {
   const parts = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   return html`${parts.map((p) => html`<p>${p.split("\n").map((l, i) => html`${i ? html`<br/>` : ""}${l}`)}</p>`)}`;
 }
 
 /** Wörtliche Rede („…“) hervorheben – nach dem Maskieren, also sicher. */
-function withSpeech(r: Raw): Raw {
+export function withSpeech(r: Raw): Raw {
   return raw(r.value.replace(/(„[^“]{1,400}“|&quot;[^&]{1,400}&quot;)/g, '<span class="speech">$1</span>'));
 }
 
-function rollSummary(r: RollRecord): Raw {
-  const verdict = r.success === null ? "" : r.success ? "geschafft" : "nicht geschafft";
-  return html`<div class="story-roll ${r.critical ?? ""} ${r.success === false ? "fail" : r.success ? "ok" : ""}">
+export function rollSummary(r: RollRecord, auto = false): Raw {
+  const verdict = r.success === null ? "" : auto ? (r.success ? "Treffer" : "daneben") : r.success ? "geschafft" : "nicht geschafft";
+  return html`<div class="story-roll ${auto ? "auto" : ""} ${r.critical ?? ""} ${r.success === false ? "fail" : r.success ? "ok" : ""}">
     <span class="sr-total">${r.total}</span>
     <span class="sr-text"><b>${r.label.replace(/^[^:]+:\s*/, "")}</b><span>gewürfelt ${r.values.join(" / ")}${r.modifier ? ` ${formatModifier(r.modifier)}` : ""}${r.dc !== null ? ` · SG ${r.dc}` : ""}${verdict ? ` · ${verdict}` : ""}${r.critical === "hit" ? " · kritisch!" : r.critical === "fumble" ? " · Patzer!" : ""}</span></span>
-    ${icon("dice")}
+    ${icon(auto ? "sword" : "dice")}
   </div>`;
 }
 
@@ -43,7 +44,7 @@ const OPENING_CARDS: { key: string; label: string; icon: string; get: (o: Openin
   { key: "konflikt", label: "Konflikt", icon: "zap", get: (o) => o.konflikt },
 ];
 
-function openingCards(o: Opening, animate: boolean): Raw {
+export function openingCards(o: Opening, animate: boolean): Raw {
   return html`<div class="opening-cards ${animate ? "reveal" : ""}">
     ${OPENING_CARDS.map((c, i) => html`<div class="oc" style="--i:${i}">
       <div class="oc-inner">
@@ -67,8 +68,22 @@ export function adventuresPage(): Page {
           <header class="page-head" data-reveal>
             <div class="eyebrow">Claude als Spielleiter</div>
             <h1>Abenteuer</h1>
-            <p class="lead">Wähle eine Figur – die Würfel bestimmen, wo und wie deine Geschichte beginnt. Jede Geschichte fängt anders an.</p>
+            <p class="lead">Die Würfel bestimmen, wo und wie deine Geschichte beginnt. Jede Geschichte fängt anders an.</p>
           </header>
+          <div class="mode-cards">
+            <button class="card mode-card tilt selected start-card" data-solo data-reveal="scale" style="--i:0">
+              <div class="mode-icon">${icon("user")}</div>
+              <h3>Allein spielen</h3>
+              <p>Du und der Spielleiter. Spiele in deinem Tempo – dein Spielstand liegt in diesem Browser.</p>
+              <span class="link-arrow">Figur unten wählen ${icon("arrowRight")}</span>
+            </button>
+            <a class="card mode-card tilt" href="#/gruppe" data-reveal="scale" style="--i:1">
+              <div class="mode-icon">${icon("users")}</div>
+              <h3>Mit Freunden spielen</h3>
+              <p>Bis zu 4 Personen, jede auf ihrem Gerät. Gruppe gründen, Code teilen, gemeinsam losziehen.</p>
+              <span class="link-arrow">Gruppe gründen oder beitreten ${icon("arrowRight")}</span>
+            </a>
+          </div>
           ${saves.length ? html`
             <h2 class="sec-title" data-reveal>${icon("scroll")} Weitererzählen</h2>
             <div class="char-grid">
@@ -86,7 +101,7 @@ export function adventuresPage(): Page {
                 </article>`;
               })}
             </div>` : ""}
-          <h2 class="sec-title" data-reveal style="margin-top:40px">${icon("sparkles")} Neues Abenteuer</h2>
+          <h2 class="sec-title" id="neues-abenteuer" data-reveal style="margin-top:40px">${icon("sparkles")} Neues Solo-Abenteuer</h2>
           ${chars.length ? html`
             <div class="char-grid">
               ${chars.map((c, i) => {
@@ -106,6 +121,7 @@ export function adventuresPage(): Page {
         </div>`);
       root.addEventListener("click", async (e) => {
         const t = e.target as HTMLElement;
+        if (t.closest("[data-solo]")) document.getElementById("neues-abenteuer")?.scrollIntoView({ behavior: "smooth", block: "start" });
         const start = t.closest<HTMLElement>("[data-start]");
         if (start) {
           const c = chars.find((x) => x.id === start.dataset.start)!;
@@ -147,6 +163,9 @@ export function playPage(): Page {
       let liveEl: HTMLElement | null = null;
       let lastError: Extract<GmEvent, { type: "error" }> | null = null;
       let budget: { spentUsd: number; limitUsd: number } | null = null;
+      let lastCost: number | null = null;
+      /** Länge der Geschichte vor dem laufenden Zug – bei Fehlern wird bis hierher zurückgesetzt. */
+      let turnMark = 0;
 
       setHTML(root, html`
         <div class="container play">
@@ -155,6 +174,7 @@ export function playPage(): Page {
             <div class="ph-title"><div class="eyebrow">${character.name}</div><h1 id="play-title">${save.title}</h1></div>
             <span class="chip budget" id="budget" hidden></span>
           </header>
+          <div id="world"></div>
           <div id="opening"></div>
           <div class="story" id="story" aria-live="polite"></div>
           <div id="below"></div>
@@ -163,6 +183,7 @@ export function playPage(): Page {
       const belowEl = $("#below", root);
 
       const persist = () => campaignStore.save(save);
+      const renderWorld = () => { $("#world", root).innerHTML = worldPanel(save!.state.world, [character]).value; };
 
       function renderOpening(animate: boolean) {
         const el = $("#opening", root);
@@ -175,7 +196,7 @@ export function playPage(): Page {
 
       function storyEntry(e: CampaignSave["story"][number], first: boolean): Raw {
         if (e.type === "player") return html`<div class="story-player"><span>${e.text}</span></div>`;
-        if (e.type === "roll") return rollSummary(e.record);
+        if (e.type === "roll") return rollSummary(e.record, e.auto);
         return html`<div class="story-gm ${first ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}</div>`;
       }
 
@@ -256,7 +277,7 @@ export function playPage(): Page {
         belowEl.innerHTML = html`${content}
           ${!save!.started && save!.opening && !busy ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="reroll">${icon("refresh")} Neuen Einstieg würfeln</button></div>` : ""}`.value;
         const b = $("#budget", root);
-        if (budget) { b.hidden = false; b.textContent = `Budget: ${budget.spentUsd.toFixed(2)} $ / ${budget.limitUsd.toFixed(0)} $`; }
+        if (budget) { b.hidden = false; b.textContent = `${lastCost !== null ? `Letzter Zug ${(lastCost * 100).toFixed(1)} ct · ` : ""}Budget ${budget.spentUsd.toFixed(2)} $ / ${budget.limitUsd.toFixed(0)} $`; }
         bindBelow();
         enhance(belowEl);
       }
@@ -314,15 +335,24 @@ export function playPage(): Page {
       function handle(ev: GmEvent) {
         if (!alive) return;
         if (ev.type === "text") pushLive(ev.text);
-        else if (ev.type === "done") {
+        else if (ev.type === "autoroll") {
+          // Gegnerangriff, Heilung, Rast: Erzählung bis hier abschließen, Wurf zeigen, danach weitererzählen
+          endLive();
+          const entry = { type: "roll" as const, record: ev.record, auto: true };
+          save!.story.push(entry); appendEntry(entry);
+          scrollDown(true);
+        } else if (ev.type === "done") {
           endLive();
           save!.state = ev.state;
           save!.pending = ev.pending;
           budget = ev.budget;
+          lastCost = ev.turnCostUsd ?? null;
           persist();
+          renderWorld();
         } else if (ev.type === "error") {
           liveEl?.remove(); liveEl = null; liveText = "";
           lastError = ev;
+          if (save!.story.length > turnMark) { save!.story.length = turnMark; renderStory(); }
         }
       }
 
@@ -331,6 +361,8 @@ export function playPage(): Page {
         if (reroll && !(await confirmDialog("Neuen Einstieg würfeln?", "Der jetzige Anfang wird verworfen und ein neuer gewürfelt.", "Neu würfeln"))) return;
         busy = true; lastError = null;
         save!.story = []; save!.pending = null; save!.opening = null as unknown as Opening;
+        save!.state = { messages: [], characterHash: "", sig: "" }; turnMark = 0;
+        renderWorld();
         renderStory(); renderOpening(false); renderBelow();
         retry = () => void begin(false);
         await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings() }, (ev) => {
@@ -355,6 +387,7 @@ export function playPage(): Page {
         busy = true; lastError = null;
         const entry = { type: "player" as const, text: action };
         save!.story.push(entry); appendEntry(entry);
+        turnMark = save!.story.length;
         renderBelow(); scrollDown();
         const before = save!.state;
         retry = () => { save!.story.pop(); renderStory(); void sendAction(action); };
@@ -368,6 +401,7 @@ export function playPage(): Page {
         if (busy || !save!.pending) return;
         busy = true; lastError = null;
         const p = save!.pending;
+        turnMark = save!.story.length;
         let resolveRoll!: (r: RollRecord) => void, rejectRoll!: (e: Error) => void;
         const rollP = new Promise<RollRecord>((res, rej) => { resolveRoll = res; rejectRoll = rej; });
         // Während das Würfel-Overlay offen ist, wird die Erzählung zurückgehalten und danach gezeigt.
@@ -396,6 +430,7 @@ export function playPage(): Page {
         scrollDown();
       }
 
+      renderWorld();
       renderOpening(false);
       renderStory();
       renderBelow();

@@ -1,5 +1,6 @@
 // Gemeinsame Typen für Abenteuer mit Claude als Spielleiter.
 import type { RollMode, RollRecord } from "./dice";
+import type { WorldState } from "./world";
 
 /** Vom Code gewürfelter Startimpuls einer neuen Geschichte. */
 export interface Opening {
@@ -14,6 +15,9 @@ export interface Opening {
 /** Die Probe, die der Spielleiter verlangt hat und die noch gewürfelt werden muss. */
 export interface PendingCheck {
   toolUseId: string;
+  /** Wer würfeln muss (in der Gruppe wichtig). */
+  characterId: string;
+  characterName: string;
   art: "attribute" | "skill" | "attack" | "damage";
   id: string;
   sg: number | null;
@@ -21,6 +25,8 @@ export interface PendingCheck {
   grund: string;
   /** Lesbarer Titel, z. B. „Athletik-Probe“. */
   label: string;
+  /** Gegner bei Angriff/Schaden im Kampf (dann gilt seine Rüstung als SG). */
+  ziel: string | null;
 }
 
 /**
@@ -31,12 +37,17 @@ export interface SignedState {
   messages: unknown[];
   characterHash: string;
   sig: string;
+  /** Lebenspunkte, Kampf, Aufträge, Gedächtnis (ab Werkzeugstand 2). */
+  world?: WorldState;
+  /** Ergebnisse sofort ausgeführter Werkzeuge, die mit dem Probenergebnis zusammen zurückgehen. */
+  held?: unknown[];
+  toolset?: number;
 }
 
 export type StoryEntry =
   | { type: "gm"; text: string }
   | { type: "player"; text: string }
-  | { type: "roll"; record: RollRecord };
+  | { type: "roll"; record: RollRecord; auto?: boolean };
 
 export interface CampaignSave {
   id: string;
@@ -60,7 +71,9 @@ export type GmEvent =
   | { type: "opening"; opening: Opening; summary: string }
   | { type: "text"; text: string }
   | { type: "roll"; record: RollRecord }
-  | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo }
+  /** Vom Server ausgelöster Wurf (Gegnerangriff, Heilung, Rast) – mitten in der Erzählung. */
+  | { type: "autoroll"; record: RollRecord }
+  | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo; turnCostUsd?: number }
   | { type: "error"; message: string; code?: "no_api_key" | "access" | "budget" | "rate" | "state" | "refusal" | "api" };
 
 export interface StartRequest {

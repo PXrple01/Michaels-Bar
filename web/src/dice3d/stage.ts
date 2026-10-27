@@ -312,7 +312,18 @@ export class DiceStage {
       return Promise.resolve({ avgFps: 60 });
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolveRaw) => {
+      let finished = false;
+      const resolve = (stats: PlayStats) => { if (!finished) { finished = true; clearTimeout(watchdog); resolveRaw(stats); } };
+      // Sicherheitsnetz: Läuft die Animation nicht (z. B. Tab im Hintergrund), springt sie ans Ende.
+      const maxMs = ((last * plan.throw.dt) / opts.speed) * 1000 * (opts.slowmoTail ? 2.5 : 1) + 3000;
+      const watchdog = window.setTimeout(() => {
+        this.stop();
+        this.dice.forEach((_, i) => this.setPose(i, last, plan));
+        this.highlight(1);
+        this.render();
+        resolve({ avgFps: 60 });
+      }, maxMs);
       let frameF = 0;
       let impactIdx = 0;
       let phase: "roll" | "settle" | "effect" = "roll";

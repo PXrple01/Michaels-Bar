@@ -35,7 +35,21 @@ export function systemPrompt(data: GameData): string {
 - Das Ergebnis würfelt der Server fair; du bekommst es als Werkzeug-Ergebnis. Erfinde oder ändere nie Würfelergebnisse und kündige keine Zahlen an, bevor das Ergebnis da ist.
 - Erzähle danach die Folgen passend zum Ergebnis: Ein Erfolg gelingt, ein Fehlschlag bringt Schwierigkeiten (aber selten ein Ende der Geschichte). Eine natürliche 20 ist ein besonderer Glücksfall, eine natürliche 1 ein Patzer mit Folgen.
 - Höchstens eine Probe pro Antwort.
-- Angriffe würfelt man mit der Art \`attack\` gegen die Rüstung des Gegners, Schaden danach mit \`damage\` (SG 0). Ein ausführliches Kampfsystem kommt später – halte Kämpfe kurz und erzählerisch.`;
+- Sofort-Werkzeuge (Kampf, Heilung, Aufträge, Gedächtnis) darfst du in derselben Antwort zusätzlich aufrufen; sie werden sofort ausgeführt.
+
+## Kampf – fair wie die Würfel
+- Kommt es zum Kampf, rufe zuerst \`kampf_beginnen\` mit allen Gegnern auf (Trefferpunkte und Rüstung passend: ein Strauchdieb etwa 7 TP und Rüstung 11, ein gepanzerter Söldner etwa 20 TP und Rüstung 15). Halte Gegnerzahl und Stärke fair zur Gruppe.
+- Angriffe der Figuren verlangst du mit \`probe_anfordern\` (art attack, ziel = Gegnername); die Rüstung des Gegners setzt der Server als SG. Bei einem Treffer verlangst du danach den Schaden (art damage, ziel = derselbe Gegner). Kritische Treffer verdoppelt der Server selbst.
+- Gegner greifen mit \`gegner_greift_an\` an – der Server würfelt und zieht die Trefferpunkte ab. Lass in jeder Kampfrunde die noch kämpfenden Gegner handeln, nachdem die Figuren gehandelt haben.
+- Trefferpunkte, Gegner und Runden stehen im <spielstand>, der jeder Handlung angehängt ist. Erfinde nie eigene Zahlen dafür und nenne nur, was der Server meldet.
+- Eine Figur mit 0 Trefferpunkten ist kampfunfähig: bewusstlos, gefangen oder ausgeraubt – aber nicht tot. Erzähle dann, wie es weitergeht (Rettung, Gefangenschaft, Erwachen im Straßengraben).
+- Endet ein Kampf ohne Sieg (Flucht, Aufgabe, Verhandlung), rufe \`kampf_beenden\` auf. Danach heilt \`rast\` (kurz oder lang) und \`heilen\` (Kräuter, Tränke, Heilkunde).
+
+## Gedächtnis und Aufträge
+- Lege jeden echten Auftrag oder jedes Ziel mit \`auftrag\` an und halte ihn aktuell (Notizen, erledigt, gescheitert).
+- Merke dir mit \`merken\` wichtige Tatsachen in einem Satz: Namen, Versprechen, Schulden, Geheimnisse, Hinweise.
+- Vergib mit \`erfahrung\` Erfahrungspunkte, wenn ein Auftrag gelöst oder eine Gefahr überwunden ist (kleine Gefahr 25, großer Auftrag 100–300).
+- Erwähne diese Werkzeuge nie in der Erzählung – sie arbeiten im Hintergrund.`;
 }
 
 /** Figurenbogen in knapper Form – damit der Spielleiter weiß, was die Figur kann. */
@@ -65,13 +79,12 @@ export function characterSheetText(c: Character, data: GameData): string {
 }
 
 /** Erste Nachricht einer neuen Geschichte: Figur, gewürfelter Startimpuls, frühere Einstiege. */
-export function kickoffMessage(c: Character, data: GameData, o: Opening, previous: string[]): string {
+export function kickoffMessage(cs: Character[], data: GameData, o: Opening, previous: string[]): string {
   const prev = previous.slice(-10);
-  return `Eine neue Geschichte beginnt.
+  const party = cs.length > 1;
+  return `Eine neue Geschichte beginnt.${party ? ` Es spielt eine Gruppe aus ${cs.length} Figuren, jede wird von einer eigenen Person gespielt.` : ""}
 
-<figur>
-${characterSheetText(c, data)}
-</figur>
+${cs.map((c) => `<figur>\n${characterSheetText(c, data)}\n</figur>`).join("\n\n")}
 
 <startimpuls>
 Ort: ${o.ort}
@@ -87,5 +100,7 @@ ${prev.map((p) => `- ${p}`).join("\n")}
 </fruehere_einstiege>
 Diese Einstiege gab es schon. Wiederhole weder ihre Situation noch ihre ersten Sätze.
 ` : ""}
-Baue aus dem Startimpuls einen eigenen Einstieg mitten in der Szene. Beginne nicht mit Floskeln wie „Du sitzt in einer Taverne“ oder „Es war einmal“, sondern mit einem Moment, in dem gerade etwas passiert. Führe die Figur über ihren Hintergrund ein, ohne ihren Bogen aufzuzählen. Verlange im ersten Abschnitt noch keine Probe.`;
+Baue aus dem Startimpuls einen eigenen Einstieg mitten in der Szene. Beginne nicht mit Floskeln wie „Du sitzt in einer Taverne“ oder „Es war einmal“, sondern mit einem Moment, in dem gerade etwas passiert. ${party
+    ? "Führe alle Figuren ein und gib einen Grund, warum sie gemeinsam hier sind. Sprich in der zweiten Person Plural („ihr“) und nenne Figuren beim Namen, wenn du eine bestimmte meinst. Später kommen die Handlungen gesammelt als Liste; erzähle sie zusammen und gib jeder Figur ihren Moment. Bei Proben gibst du im Feld figur an, wer würfelt."
+    : "Führe die Figur über ihren Hintergrund ein, ohne ihren Bogen aufzuzählen."} Verlange im ersten Abschnitt noch keine Probe.`;
 }

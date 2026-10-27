@@ -36,6 +36,31 @@ export function confirmDialog(title: string, text: string, okLabel = "Ja", dange
   });
 }
 
+/** Kleiner Eingabe-Dialog (z. B. für den Zugangscode). Gibt null zurück, wenn abgebrochen wurde. */
+export function promptDialog(title: string, text: string, opts: { placeholder?: string; password?: boolean; okLabel?: string } = {}): Promise<string | null> {
+  return new Promise((resolve) => {
+    const el = fragment(html`
+      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="${title}">
+        <form class="modal card glow-border">
+          <h3>${title}</h3>
+          <p>${text}</p>
+          <input class="input" ${opts.password ? html`type="password"` : html`type="text"`} placeholder="${opts.placeholder ?? ""}" autocomplete="off" />
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px">
+            <button class="btn btn-ghost btn-sm" type="button" data-r="0">Abbrechen</button>
+            <button class="btn btn-sm" type="submit">${opts.okLabel ?? "OK"}</button>
+          </div>
+        </form>
+      </div>`);
+    const input = el.querySelector("input")!;
+    const close = (v: string | null) => { el.remove(); resolve(v); };
+    el.querySelector("form")!.addEventListener("submit", (e) => { e.preventDefault(); close(input.value.trim()); });
+    el.querySelector('[data-r="0"]')!.addEventListener("click", () => close(null));
+    el.addEventListener("click", (e) => { if (e.target === el) close(null); });
+    $("#modal-root").append(el);
+    input.focus();
+  });
+}
+
 /** Tooltips für alle .term-Elemente (Maus, Tastatur und Tippen). */
 export function initTooltips() {
   const tip = $("#tooltip");

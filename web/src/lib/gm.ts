@@ -46,7 +46,7 @@ export async function streamSse<E extends { type: string }>(url: string, body: u
       const line = chunk.split("\n").find((l) => l.startsWith("data: "));
       if (!line) continue;
       const ev = JSON.parse(line.slice(6)) as E;
-      if (ev.type === "done" || ev.type === "error" || ev.type === "review") finished = true;
+      if (ev.type === "done" || ev.type === "error" || ev.type === "review" || ev.type === "view") finished = true;
       onEvent(ev);
     }
   }
