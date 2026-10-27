@@ -124,6 +124,26 @@ Claude erzählt, der Server rechnet – wie bei den Proben. Dafür hat der Spiel
 - Der Spielstand (Lebenspunkte, Kampf, Aufträge) ist im Solo-Modus mitsigniert, in der Gruppe liegt er auf dem Server.
   Abenteuer von vor Etappe 5 werden beim nächsten Zug einmalig umgestellt.
 
+## Kampagne in Akten und Kapiteln
+
+Jede Kampagne ist lang wie eine typische DnD-Kampagne – aber sie hat ein Ende (`shared/world.ts`, Werkzeuge in `server/gm/world.ts`).
+
+- **Plan:** Im ersten Zug legt Claude mit `kampagne_planen` ein Ziel, eine Bedrohung und eine lineare Folge von Kapiteln an:
+  Anfang 2–4, Mitte 3–6, Finale 2–3 Kapitel. Den Plan sehen die Spieler nicht; Claude bekommt ihn bei jedem Zug im
+  `<spielstand>` zurück – auch nach einer automatischen Zusammenfassung.
+- **Kapitel statt Züge:** Wie lange ein Kapitel dauert, entscheiden die Spieler. Ist sein Ziel erreicht (egal auf welchem Weg),
+  schließt Claude es mit `kapitel_abschliessen` ab; nach dem letzten Kapitel eines Akts beginnt der nächste.
+- **Abzweigungen:** Verlassen die Spieler den Plan, schiebt Claude mit `abzweigung` ein Kapitel ein – mit festgelegtem Weg zurück
+  zur Hauptlinie; das unterbrochene Kapitel folgt danach. Je Akt sind Abzweigungen begrenzt (Anfang 2, Mitte 3, Finale 1).
+  Danach haben Entscheidungen Folgen innerhalb des laufenden Kapitels. Umplanen kann einen Akt nicht über seine Höchstzahl
+  verlängern. So zieht sich ein Akt durch Entscheidungen in die Länge, aber nie endlos.
+- **Lange Kapitel:** Ab 20 Zügen in einem Kapitel bekommt Claude einen unsichtbaren Hinweis, es auf sein Ziel zuzuführen –
+  kein harter Schnitt.
+- **Ende:** Im letzten Kapitel des Finales erzählt Claude den Ausgang und einen Epilog (`abenteuer_beenden`). Danach nimmt
+  der Server keine Handlungen mehr an; die Seite zeigt eine Abschlusskarte mit allen Kapiteln.
+- **Anzeige:** Im Spielstand stehen die drei Akte mit je einem Punkt pro Kapitel (kommende Kapitel ohne Titel – keine Spoiler)
+  und das laufende Kapitel.
+
 ## OpenAI-kompatible Schnittstelle (für Chat-Apps und Programme)
 
 Der Spielleiter ist auch im OpenAI-Format erreichbar (`server/gm/openai.ts`) – für Chat-Apps mit „OpenAI-kompatibler“ Adresse
@@ -206,4 +226,4 @@ tests/    Vitest
 
 ## Nächste Etappen
 
-6. Oberfläche, Speichern/Laden, Kostenlimit, Stufenaufstieg
+6. Oberfläche, Speichern/Laden, Kostenlimit, Stufenaufstieg (Erfahrungspunkte werden schon gesammelt)

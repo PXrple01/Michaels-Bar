@@ -3,6 +3,7 @@ import type { WorldState } from "../../../shared/world";
 import { html, type Raw } from "./dom";
 import { term } from "./glossary";
 import { icon } from "./icons";
+import { arcProgress } from "./arc";
 
 function bar(cur: number, max: number, cls = ""): Raw {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
@@ -16,6 +17,7 @@ export function worldPanel(w: WorldState | null | undefined, characters: { id: s
   const closed = w.quests.filter((q) => q.status !== "offen");
   const xp = characters.length ? w.xp[characters[0].id] ?? 0 : 0;
   return html`<section class="world card ${w.combat ? "in-combat" : ""}" aria-label="Spielstand">
+    ${w.arc ? arcProgress(w.arc) : ""}
     <div class="world-heroes">
       ${characters.map((c) => {
         const hp = w.hp[c.id] ?? 0, max = w.maxHp[c.id] ?? 0;

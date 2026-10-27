@@ -2,13 +2,14 @@ import path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
 import type { GmEvent, SignedState } from "../shared/campaign";
-import { initWorld } from "../shared/world";
+import { currentChapter, initWorld, worldSummary } from "../shared/world";
 import { buildCharacter } from "../server/characters";
 import { RollLog } from "../server/dice/log";
 import { GameMaster, type LlmClient } from "../server/gm/engine";
+import { TOOLSET } from "../server/gm/narrator";
 import { signState, characterHash } from "../server/gm/state";
 import { MemoryCounterStore, UsageGuard } from "../server/gm/usage";
-import { clampDice, runAutoTool } from "../server/gm/world";
+import { clampDice, countChapterTurn, runAutoTool } from "../server/gm/world";
 import { loadGameData } from "../server/rules/loader";
 
 const data = await loadGameData(path.resolve(__dirname, "../data"));
@@ -164,7 +165,7 @@ describe("Aufträge, Gedächtnis, Erfahrung", () => {
     const evs = await run("turn", { character, state: legacy, action: "Ich schaue mich um." });
     const sent = llm.calls[0].messages[1].content as { type: string }[];
     expect(sent.map((b) => b.type)).toEqual(["text"]);
-    expect(done(evs).state.toolset).toBe(2);
+    expect(done(evs).state.toolset).toBe(TOOLSET);
     expect(done(evs).state.world?.hp[character.id]).toBe(character.hp.max);
     expect(llm.calls[0].context_management?.edits?.[0]).toMatchObject({ type: "compact_20260112" });
   });
@@ -173,7 +174,7 @@ describe("Aufträge, Gedächtnis, Erfahrung", () => {
 describe("Modellwechsel", () => {
   it("wechselt GM_MODEL, werden die Denkblöcke des alten Modells entfernt – sonst bleiben sie", async () => {
     const thinking = { role: "assistant", content: [{ type: "thinking", thinking: "x", signature: "s" }, { type: "text", text: "Hallo" }] };
-    const state = signState(SECRET, { messages: [{ role: "user", content: "Start" }, thinking], world: initWorld([character]), held: [], toolset: 2 }, characterHash(character));
+    const state = signState(SECRET, { messages: [{ role: "user", content: "Start" }, thinking], world: initWorld([character]), held: [], toolset: TOOLSET }, characterHash(character));
     const sentTypes = async (model: "claude-opus-5-5" | "claude-sonnet-5-5", s: SignedState) => {
       const llm = new FakeLlm([text("Weiter.")]);
       const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET, model });
@@ -186,5 +187,83 @@ describe("Modellwechsel", () => {
     const switched = await sentTypes("claude-sonnet-5-5", state);
     expect(switched.types).toEqual(["text"]);
     expect(switched.done.state.model).toBe("claude-sonnet-5-5");
+  });
+});
+
+describe("Kampagne in Akten und Kapiteln", () => {
+  const ctx = (world: ReturnType<typeof initWorld>) => ({ data, characters: [character], world, rolls: new RollLog(), onRoll: () => {} });
+  const ch = (titel: string) => ({ titel, ziel: `${titel} erreicht` });
+  const plan = { ziel: "Den Kelch zurückholen", bedrohung: "Der Raubritter Kuno", anfang: [ch("Die Spur"), ch("Der Wald")], mitte: [ch("Die Burg"), ch("Der Verrat"), ch("Die Flucht")], finale: [ch("Der Turm"), ch("Kuno")] };
+  const tool = (w: ReturnType<typeof initWorld>, name: string, input: object) => runAutoTool({ id: `toolu_${name}`, name, input }, ctx(w));
+
+  it("Plan anlegen: lineare Kapitel in drei Akten, Mindestzahl je Akt", async () => {
+    const w = initWorld([character]);
+    expect((await tool(w, "kampagne_planen", { ...plan, anfang: [ch("Nur eins")] })).is_error).toBe(true);
+    await tool(w, "kampagne_planen", plan);
+    expect(w.arc!.chapters.map((c) => `${c.act}:${c.titel}`)).toEqual(["0:Die Spur", "0:Der Wald", "1:Die Burg", "1:Der Verrat", "1:Die Flucht", "2:Der Turm", "2:Kuno"]);
+    const summary = worldSummary(w, [character]);
+    expect(summary).toContain("Akt 1 von 3 „Anfang“, Kapitel 1 von 2 dieses Akts: „Die Spur“");
+    expect(summary).not.toMatch(/Zug \d/); // keine Zugzahlen
+  });
+
+  it("Kapitel abschließen führt durch die Akte; das Ende kommt erst im letzten Kapitel des Finales", async () => {
+    const w = initWorld([character]);
+    await tool(w, "kampagne_planen", plan);
+    expect((await tool(w, "abenteuer_beenden", { epilog: "x" })).is_error).toBe(true);
+    await tool(w, "kapitel_abschliessen", { rueckblick: "Eine Spur führt in den Wald." });
+    const r = await tool(w, "kapitel_abschliessen", { rueckblick: "Im Wald wartet ein Bote." });
+    expect(r.content).toContain("Akt 2 „Mitte“");
+    for (let i = 0; i < 4; i++) await tool(w, "kapitel_abschliessen", { rueckblick: "weiter" });
+    expect(worldSummary(w, [character])).toContain("letzte Kapitel des Finales");
+    expect((await tool(w, "kapitel_abschliessen", { rueckblick: "x" })).is_error).toBe(true); // letztes Kapitel → abenteuer_beenden
+    await tool(w, "abenteuer_beenden", { epilog: "Kuno ist besiegt." });
+    expect(w.arc).toMatchObject({ finished: true, epilog: "Kuno ist besiegt." });
+  });
+
+  it("Abzweigungen: eingeschoben vor dem unterbrochenen Kapitel, begrenzt je Akt – kein endloser Anfang", async () => {
+    const w = initWorld([character]);
+    await tool(w, "kampagne_planen", plan);
+    await tool(w, "abzweigung", { titel: "Der Jahrmarkt", ziel: "Gaukler befragt", rueckweg: "Der Gaukler kennt die Spur" });
+    expect(currentChapter(w.arc!)).toMatchObject({ titel: "Der Jahrmarkt", detour: true });
+    expect(worldSummary(w, [character])).toContain("ABZWEIGUNG; danach zurück zur Hauptlinie: Der Gaukler kennt die Spur");
+    expect((await tool(w, "abzweigung", { titel: "Noch eine", ziel: "x", rueckweg: "y" })).is_error).toBe(true); // nicht in einer Abzweigung
+    await tool(w, "kapitel_abschliessen", { rueckblick: "Der Gaukler redet." });
+    expect(currentChapter(w.arc!)!.titel).toBe("Die Spur"); // das unterbrochene Kapitel folgt
+    await tool(w, "abzweigung", { titel: "Die Mühle", ziel: "x", rueckweg: "y" });
+    await tool(w, "kapitel_abschliessen", { rueckblick: "x" });
+    const third = await tool(w, "abzweigung", { titel: "Der See", ziel: "x", rueckweg: "y" });
+    expect(third.is_error).toBe(true); // Anfang: höchstens 2
+    expect(worldSummary(w, [character])).toContain("Keine Abzweigungen mehr in diesem Akt");
+  });
+
+  it("Umplanen kann einen Akt nicht über seine Höchstzahl verlängern", async () => {
+    const w = initWorld([character]);
+    await tool(w, "kampagne_planen", plan);
+    await tool(w, "kampagne_planen", { ...plan, anfang: Array.from({ length: 9 }, (_, i) => ch(`Neu ${i}`)) });
+    const anfang = w.arc!.chapters.filter((c) => c.act === 0);
+    expect(anfang.length).toBeLessThanOrEqual(4);
+    expect(anfang[0].titel).toBe("Die Spur"); // laufendes Kapitel bleibt
+  });
+
+  it("lange Kapitel: nur ein Hinweis an Claude, kein harter Schnitt", async () => {
+    const w = initWorld([character]);
+    await tool(w, "kampagne_planen", plan);
+    for (let i = 0; i < 60; i++) countChapterTurn(w);
+    expect(currentChapter(w.arc!)!.titel).toBe("Die Spur");
+    expect(worldSummary(w, [character])).toContain("läuft schon lange");
+  });
+
+  it("im Solo-Spiel: erst der Plan, am Ende kein Zug mehr", async () => {
+    const { run } = setup([
+      tools("Es beginnt.\n» Vorschläge: A | B", { id: "toolu_plan", name: "kampagne_planen", input: { ...plan, anfang: [ch("A1"), ch("A2")], mitte: [ch("M1"), ch("M2"), ch("M3")], finale: [ch("F1"), ch("F2")] } }),
+      ...Array.from({ length: 6 }, (_, i) => tools("Weiter.\n» Vorschläge: A | B", { id: `toolu_k${i}`, name: "kapitel_abschliessen", input: { rueckblick: `Kapitel ${i + 1}` } })),
+      tools("Kuno fällt. Epilog: Frieden.", { id: "toolu_end", name: "abenteuer_beenden", input: { epilog: "Frieden kehrt ein." } }),
+    ]);
+    let state = done(await run("start", { character, previousOpenings: [] })).state;
+    expect(state.world!.arc!.chapters).toHaveLength(7);
+    for (let i = 0; i < 7; i++) state = done(await run("turn", { character, state, action: "Weiter." })).state;
+    expect(state.world!.arc).toMatchObject({ finished: true, epilog: "Frieden kehrt ein." });
+    const after = await run("turn", { character, state, action: "Und weiter?" });
+    expect(after.at(-1)).toMatchObject({ type: "error", message: expect.stringMatching(/abgeschlossen/) });
   });
 });

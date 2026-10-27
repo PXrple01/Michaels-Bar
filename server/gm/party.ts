@@ -5,7 +5,8 @@ import { MAX_ACTION_LENGTH } from "../../shared/campaign";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyStoryEntry, type PartyView } from "../../shared/party";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import { initWorld, worldSummary, type WorldState } from "../../shared/world";
+import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
+import { countChapterTurn } from "./world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
 import { errorEvent, GmError, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
@@ -212,6 +213,7 @@ export class PartyService {
     const updated = await this.update(party.code, (p) => {
       if (p.status !== "playing") throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
       if (p.pending) throw new PartyError(`Erst muss ${p.pending.characterName} würfeln.`);
+      if (p.world?.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
       // Abgegeben ist abgegeben: Eine Handlung lässt sich danach nicht mehr ändern oder zurückziehen.
       if (text && me.id in p.actions) throw new PartyError("Deine Handlung ist schon abgegeben – sie lässt sich nicht mehr ändern.");
       if (text) p.actions[me.id] = text;
@@ -232,10 +234,12 @@ export class PartyService {
       if (p.busy && Date.now() - Date.parse(p.busy.since) < STALE_MS) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
       const data = this.dataFor(p);
       // Gruppen von vor Etappe 5: einmalig auf den neuen Werkzeugstand bringen
+      // Gruppen von älterem Werkzeugstand: Denkblöcke einmal entfernen; Lebenspunkte usw. bleiben, der Kampagnenbogen kommt dazu
       if (p.status === "playing" && (p.toolset !== TOOLSET || !p.world)) {
         p.messages = stripThinking(p.messages);
-        p.world = initWorld(this.characters(p));
-        p.held = [];
+        p.world ??= initWorld(this.characters(p));
+        if (!isArc(p.world.arc)) p.world.arc = initArc();
+        p.held ??= [];
         p.toolset = TOOLSET;
       }
       if (p.status === "playing" && (p.model ?? LEGACY_MODEL) !== this.o.narrator.model) p.messages = stripThinking(p.messages);
@@ -255,7 +259,9 @@ export class PartyService {
         const items = p.players.map((pl) => ({ playerId: pl.id, name: pl.character.name, text: consumed[pl.id] ?? "" }));
         p.story.push({ type: "actions", items: items.filter((i) => i.text) });
         const lines = items.map((i) => `- ${i.name}: ${i.text || "(keine Angabe – handelt passend zur Lage)"}`).join("\n");
+        if (p.world!.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
         if (p.world!.combat) p.world!.combat.round++;
+        countChapterTurn(p.world!);
         messages = [...p.messages, userTurn(p.held ?? [], `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${worldSummary(p.world!, this.characters(p))}\n</spielstand>`)];
       } else {
         if (!p.pending) throw new PartyError("Gerade ist keine Probe offen.");

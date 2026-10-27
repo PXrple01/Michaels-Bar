@@ -6,11 +6,11 @@ import { z } from "zod";
 import { armorValue, modifier } from "../../shared/character";
 import { formatModifier, parseNotation, type RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import { MAX_MEMORY, MAX_QUESTS, type WorldState } from "../../shared/world";
+import { ACTS, currentChapter, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 
-export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "auftrag", "merken", "erfahrung"] as const;
+export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 300 };
 
@@ -27,6 +27,7 @@ const nameProp = (characters: Character[], description: string) =>
 
 export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[] {
   const party = characters.length > 1;
+  const chapterList = { type: "array", items: { type: "object", properties: { titel: { type: "string" }, ziel: { type: "string" } }, required: ["titel", "ziel"] } };
   const dice = (d: string) => ({ type: "string", description: d });
   const tool = (name: string, description: string, properties: Record<string, object>, required: string[]): Anthropic.Beta.BetaTool => ({
     name, description, eager_input_streaming: true, input_schema: { type: "object", properties, required },
@@ -56,6 +57,17 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
     }, ["aktion", "titel", "text"]),
     tool("merken", "Merkt sich eine wichtige Tatsache für später (Namen, Versprechen, Geheimnisse, Orte). Ein Satz.", { text: { type: "string" } }, ["text"]),
     tool("erfahrung", "Vergibt Erfahrungspunkte an alle Figuren für einen gelösten Auftrag oder eine besiegte Gefahr (10–300).", { menge: { type: "integer" }, grund: { type: "string" } }, ["menge", "grund"]),
+    tool("kampagne_planen", `Plant die Kampagne (nur für dich, die Spieler sehen den Plan nicht): großes Ziel, Bedrohung und eine lineare Folge von Kapiteln in drei Akten – Anfang ${ACTS[0].chapters[0]}–${ACTS[0].chapters[1]}, Mitte ${ACTS[1].chapters[0]}–${ACTS[1].chapters[1]}, Finale ${ACTS[2].chapters[0]}–${ACTS[2].chapters[1]} Kapitel. Jedes Kapitel hat einen Titel und ein Ziel, das erreicht sein muss. Erneut aufgerufen, ersetzt es die noch nicht gespielten Kapitel (z. B. wenn die Spieler die Richtung geändert haben).`, {
+      ziel: { type: "string", description: "Was die Figuren am Ende erreichen sollen" },
+      bedrohung: { type: "string", description: "Gegenspieler oder Gefahr hinter allem" },
+      anfang: chapterList, mitte: chapterList, finale: chapterList,
+    }, ["ziel", "bedrohung", "anfang", "mitte", "finale"]),
+    tool("kapitel_abschliessen", "Schließt das laufende Kapitel ab, sobald sein Ziel erreicht ist (auf welchem Weg auch immer die Spieler dorthin gekommen sind). Danach beginnt das nächste Kapitel – ist es das letzte des Akts, beginnt der nächste Akt.", { rueckblick: { type: "string", description: "Ein Satz: Was ist in diesem Kapitel passiert?" } }, ["rueckblick"]),
+    tool("abzweigung", "Die Spieler verlassen mit einer Entscheidung den geplanten Weg: Schiebt ein Kapitel für diese Abzweigung ein. Das unterbrochene Kapitel folgt danach. Die Zahl der Abzweigungen je Akt ist begrenzt (siehe <spielstand>).", {
+      titel: { type: "string" }, ziel: { type: "string", description: "Woran man merkt, dass die Abzweigung abgeschlossen ist" },
+      rueckweg: { type: "string", description: "Wie die Geschichte danach zur Hauptlinie zurückfindet" },
+    }, ["titel", "ziel", "rueckweg"]),
+    tool("abenteuer_beenden", "Beendet die Kampagne im letzten Kapitel des Finales: Erzähle vorher die Entscheidung, den Ausgang und einen Epilog. Danach geht die Geschichte nicht weiter.", { epilog: { type: "string", description: "Zwei, drei Sätze: Wie geht es für die Figuren aus?" } }, ["epilog"]),
   ];
 }
 
@@ -196,8 +208,90 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       for (const c of ctx.characters) w.xp[c.id] = (w.xp[c.id] ?? 0) + amount;
       return { content: `Alle erhalten ${amount} Erfahrungspunkte.` };
     }
+    case "kampagne_planen": {
+      const arc = arcOf(w);
+      const ziel = text(input.ziel, 300), bedrohung = text(input.bedrohung, 300);
+      if (!ziel || !bedrohung) return err("ziel und bedrohung fehlen.");
+      const lists = [input.anfang, input.mitte, input.finale].map((l) => (Array.isArray(l) ? l : []).map((c) => ({ titel: text((c as Chapter)?.titel, 80), ziel: text((c as Chapter)?.ziel, 240) })).filter((c) => c.titel && c.ziel));
+      const replan = arc.chapters.length > 0;
+      const actNow: ActIndex = replan ? currentChapter(arc)!.act : 0;
+      // Erledigte Kapitel und das laufende bleiben; ersetzt werden nur die noch kommenden.
+      const kept = replan ? arc.chapters.slice(0, arc.current + 1) : [];
+      const next: Chapter[] = [];
+      for (const act of [0, 1, 2] as ActIndex[]) {
+        if (act < actNow) continue;
+        const already = kept.filter((c) => c.act === act && !c.detour).length;
+        const [min, max] = ACTS[act].chapters;
+        // Ein Akt darf durch Umplanen nicht wachsen, über die Höchstzahl hinaus schon gar nicht – kein endloser Anfang.
+        const room = Math.max(0, max - already);
+        const items = lists[act].slice(0, room);
+        if (!replan && items.length < min) return err(`${ACTS[act].name}: mindestens ${min} Kapitel planen (höchstens ${max}).`);
+        if (!items.length && act > actNow) return err(`${ACTS[act].name}: mindestens ein Kapitel planen.`);
+        next.push(...items.map((c) => ({ ...c, act, detour: false, rueckweg: null, done: false, rueckblick: null })));
+      }
+      arc.plan = { ziel, bedrohung };
+      arc.chapters = [...kept, ...next];
+      if (!replan) { arc.current = 0; arc.turnsInChapter = 0; }
+      const cut = lists.filter((_, act) => act >= actNow).reduce((n, l) => n + l.length, 0) - next.length;
+      return { content: `${replan ? "Plan angepasst" : "Plan gespeichert"}: ${ACTS.map((a, i) => `${a.name} ${arc.chapters.filter((c) => c.act === i).length} Kapitel`).join(", ")}.${cut > 0 ? " Einige Kapitel wurden gestrichen – ein Akt kann durch Umplanen nicht länger werden." : ""} Laufendes Kapitel: „${currentChapter(arc)!.titel}“.` };
+    }
+    case "kapitel_abschliessen": {
+      const arc = arcOf(w);
+      const ch = currentChapter(arc);
+      if (!arc.plan || !ch) return err("Es gibt noch keinen Plan – lege ihn mit kampagne_planen an.");
+      if (arc.finished) return err("Die Kampagne ist schon zu Ende.");
+      if (arc.current === arc.chapters.length - 1) return err("Das ist das letzte Kapitel – beende die Kampagne mit abenteuer_beenden (nach Ausgang und Epilog).");
+      ch.done = true;
+      ch.rueckblick = text(input.rueckblick, 240) || null;
+      arc.current++;
+      arc.turnsInChapter = 0;
+      const nx = currentChapter(arc)!;
+      return { content: nx.act !== ch.act
+        ? `Kapitel „${ch.titel}“ und damit der Akt „${ACTS[ch.act].name}“ sind abgeschlossen. Jetzt beginnt Akt ${nx.act + 1} „${ACTS[nx.act].name}“ mit dem Kapitel „${nx.titel}“: ${nx.ziel}`
+        : `Kapitel „${ch.titel}“ ist abgeschlossen. Nächstes Kapitel: „${nx.titel}“: ${nx.ziel}` };
+    }
+    case "abzweigung": {
+      const arc = arcOf(w);
+      const ch = currentChapter(arc);
+      if (!arc.plan || !ch) return err("Es gibt noch keinen Plan – lege ihn mit kampagne_planen an.");
+      if (ch.detour) return err("Ihr seid schon in einer Abzweigung – lass die Entscheidung innerhalb dieses Kapitels Folgen haben.");
+      const act = ch.act;
+      if (arc.detoursUsed[act] >= ACTS[act].detours) return err(`Im Akt „${ACTS[act].name}“ sind keine Abzweigungen mehr möglich. Lass die Entscheidung innerhalb des laufenden Kapitels Folgen haben und lenke zurück zur Hauptlinie.`);
+      const titel = text(input.titel, 80), ziel = text(input.ziel, 240);
+      if (!titel || !ziel) return err("titel und ziel fehlen.");
+      arc.chapters.splice(arc.current, 0, { titel, ziel, act, detour: true, rueckweg: text(input.rueckweg, 240) || null, done: false, rueckblick: null });
+      arc.detoursUsed[act]++;
+      arc.turnsInChapter = 0;
+      return { content: `Abzweigung „${titel}“ beginnt (${arc.detoursUsed[act]} von ${ACTS[act].detours} in diesem Akt). Danach geht es weiter mit „${arc.chapters[arc.current + 1].titel}“.` };
+    }
+    case "abenteuer_beenden": {
+      const arc = arcOf(w);
+      if (arc.finished) return { content: "Die Kampagne ist bereits beendet." };
+      const ch = currentChapter(arc);
+      if (!ch || arc.current !== arc.chapters.length - 1 || ch.act !== 2) return err(`Noch nicht: Das Ende kommt im letzten Kapitel des Finales. Jetzt läuft „${ch?.titel ?? "noch kein Kapitel"}“.`);
+      ch.done = true;
+      arc.finished = true;
+      arc.epilog = text(input.epilog, 600) || null;
+      w.combat = null;
+      return { content: "Die Kampagne ist abgeschlossen. Schreib keine weiteren Vorschläge – die Geschichte endet hier." };
+    }
   }
   return err("Unbekanntes Werkzeug.");
+}
+
+/* ── Kampagnenbogen ── */
+
+const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
+
+function arcOf(w: WorldState): Arc {
+  if (!isArc(w.arc)) w.arc = initArc();
+  return w.arc;
+}
+
+/** Vor jeder Spieler-Handlung: Züge im Kapitel zählen – nur für den Hinweis bei sehr langen Kapiteln, kein harter Schnitt. */
+export function countChapterTurn(w: WorldState): void {
+  const arc = arcOf(w);
+  if (!arc.finished) arc.turnsInChapter++;
 }
 
 /** Spieler-Angriff oder -Schaden gegen einen Gegner verrechnen (nach dem Wurf der Probe). */

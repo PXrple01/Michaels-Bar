@@ -10,6 +10,7 @@ import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
 import { worldPanel } from "../lib/worldPanel";
+import { endCard } from "../lib/arc";
 import { abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
 import { SOLO_TUTORIAL } from "../lib/tutorials";
@@ -96,9 +97,9 @@ export function adventuresPage(): Page {
                 return html`<article class="card adv-card tilt" data-reveal="scale" style="--i:${i}">
                   <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
                   <h3>${s.title}</h3>
-                  <p class="muted">${c?.name ?? "Figur fehlt"} · ${s.story.filter((e) => e.type === "player").length} Züge</p>
+                  <p class="muted">${c?.name ?? "Figur fehlt"} · ${s.story.filter((e) => e.type === "player").length} Züge${s.state.world?.arc?.finished ? html` · <span class="chip good">abgeschlossen</span>` : ""}</p>
                   <div class="adv-actions">
-                    ${c ? html`<a class="btn btn-sm" href="#/abenteuer/${s.id}">${icon("play")} Weiter</a>` : ""}
+                    ${c ? html`<a class="btn btn-sm" href="#/abenteuer/${s.id}">${icon("play")} ${s.state.world?.arc?.finished ? "Nachlesen" : "Weiter"}</a>` : ""}
                     <button class="btn btn-ghost btn-sm" data-delete="${s.id}" aria-label="Abenteuer löschen">${icon("trash")}</button>
                   </div>
                 </article>`;
@@ -273,6 +274,7 @@ export function playPage(): Page {
         else if (busy) content = html`<div class="thinking">${icon("feather")} Der Spielleiter erzählt …</div>`;
         else if (!save!.opening) content = html``;
         else if (save!.pending) content = pendingCard(save!.pending);
+        else if (save!.state.world?.arc?.finished) content = endCard(save!.state.world, [character], { href: "#/abenteuer#neues-abenteuer", label: "Neue Kampagne beginnen" });
         else content = html`
           ${suggestions.length ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
           <form class="composer card" id="composer">

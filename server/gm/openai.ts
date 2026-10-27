@@ -5,12 +5,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import { initWorld, worldSummary, type WorldState } from "../../shared/world";
+import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
 import { buildCharacter, resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
 import { errorEvent, type MessageParam, type Narrator } from "./narrator";
 import { rollOpening, seededRng } from "./openings";
 import { kickoffMessage } from "./prompt";
+import { countChapterTurn } from "./world";
 import type { UsageGuard } from "./usage";
 
 /** Zwei Modelle: mit Spielstand (unsichtbarer Kommentar) oder ohne – falls eine App Kommentare sichtbar anzeigt. */
@@ -147,6 +148,15 @@ export class OpenAiGateway {
       else history.push({ role: m.role as "user" | "assistant", content: text });
     }
     const world = withState && saved && saved.characterId === character.id ? saved.world : initWorld([character]);
+    if (!isArc(world.arc)) world.arc = initArc();
+    if (withState && world.arc.finished) {
+      // Das Abenteuer ist zu Ende: freundlich antworten, ohne Claude zu fragen (kostet nichts)
+      const text = `*Dieses Abenteuer ist abgeschlossen.*${world.arc.epilog ? `\n\n${world.arc.epilog}` : ""}\n\nBeginne ein neues Gespräch für das nächste Abenteuer.`;
+      return req.stream === true
+        ? { status: 200, stream: async (write) => { write(`data: ${JSON.stringify({ id: "chatcmpl-ende", object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: modelId, choices: [{ index: 0, delta: { role: "assistant", content: text }, finish_reason: "stop" }] })}\n\n`); write("data: [DONE]\n\n"); } }
+        : { status: 200, json: { id: "chatcmpl-ende", object: "chat.completion", created: Math.floor(Date.now() / 1000), model: modelId, choices: [{ index: 0, message: { role: "assistant", content: text }, finish_reason: "stop" }], usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } } };
+    }
+    if (withState && history.length > 1) countChapterTurn(world);
     if (withState && history.length > 1) {
       const last = history[history.length - 1];
       last.content = `${last.content as string}\n\n<spielstand>\n${worldSummary(world, [character])}\n</spielstand>`;

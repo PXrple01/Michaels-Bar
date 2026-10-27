@@ -16,6 +16,7 @@ import { go, type Page } from "../lib/router";
 import { toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
 import { worldPanel } from "../lib/worldPanel";
+import { endCard } from "../lib/arc";
 import { abilityChips, abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
 import { PARTY_TUTORIAL } from "../lib/tutorials";
@@ -227,6 +228,8 @@ export function partyPage(): Page {
           content = html`<div class="thinking">${icon("feather")} Der Spielleiter erzählt …</div>`;
         } else if (v.pending) {
           content = pendingCard();
+        } else if (v.world?.arc?.finished) {
+          content = endCard(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), { href: "#/gruppe", label: "Neue Gruppe gründen" });
         } else {
           const last = [...v.story].reverse().find((e) => e.type === "gm");
           const suggestions = last?.type === "gm" ? splitSuggestions(last.text).suggestions : [];
@@ -265,7 +268,7 @@ export function partyPage(): Page {
         hud.hidden = v.status !== "playing";
         if (hud.hidden) return;
         if (!hud.isConnected) document.body.append(hud);
-        const open = !v.busy && !busyLocal && !v.pending;
+        const open = !v.busy && !busyLocal && !v.pending && !v.world?.arc?.finished;
         const waiting = open ? v.players.filter((p) => !p.acted) : [];
         const w = v.world;
         const hpOf = (p: PartyView["players"][number]) => ({ hp: w?.hp[p.characterId] ?? 0, max: w?.maxHp[p.characterId] ?? 0 });

@@ -2,7 +2,7 @@
 import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest } from "../../shared/campaign";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import { initWorld, worldSummary, type WorldState } from "../../shared/world";
+import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
@@ -10,6 +10,7 @@ import { errorEvent, GmError, Narrator, LEGACY_MODEL, stripThinking, TOOLSET, us
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import { characterHash, signState, verifyState } from "./state";
+import { countChapterTurn } from "./world";
 import type { UsageGuard } from "./usage";
 
 export { AnthropicLlm, describeRoll, type LlmClient } from "./narrator";
@@ -49,9 +50,12 @@ export class GameMaster {
     if (state!.toolset === TOOLSET && state!.world) {
       // Anderes Modell als beim letzten Zug (z. B. GM_MODEL umgestellt): dessen Denkblöcke kann das neue Modell nicht lesen.
       const sameModel = (state!.model ?? LEGACY_MODEL) === this.narrator.model;
-      return { messages: sameModel ? messages : stripThinking(messages), world: state!.world, held: (state!.held ?? []) as ToolResult[] };
+      return { messages: sameModel ? messages : stripThinking(messages), world: structuredClone(state!.world), held: (state!.held ?? []) as ToolResult[] };
     }
-    return { messages: stripThinking(messages), world: initWorld([c]), held: [] };
+    // Älterer Werkzeugstand: Denkblöcke einmal entfernen; Lebenspunkte, Aufträge usw. bleiben, der Kampagnenbogen kommt dazu.
+    const world = state!.world ? structuredClone(state!.world) : initWorld([c]);
+    if (!isArc(world.arc)) world.arc = initArc();
+    return { messages: stripThinking(messages), world, held: (state!.held ?? []) as ToolResult[] };
   }
 
   /** Führt eine Aktion aus und meldet alle Ereignisse über `emit`. Fehler werden als Ereignis gemeldet. */
@@ -78,10 +82,12 @@ export class GameMaster {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
     if (this.pendingFrom(messages, c, data, world)) throw new GmError("Erst muss die verlangte Probe gewürfelt werden.", "state");
+    if (world.arc?.finished) throw new GmError("Dieses Abenteuer ist abgeschlossen. Beginne ein neues!", "state");
     const action = typeof req.action === "string" ? req.action.trim() : "";
     if (!action) throw new GmError("Was tust du? Schreib es in das Feld.", "state");
     if (action.length > MAX_ACTION_LENGTH) throw new GmError(`Bitte kürzer fassen (höchstens ${MAX_ACTION_LENGTH} Zeichen).`, "state");
     if (world.combat) world.combat.round++;
+    countChapterTurn(world);
     await this.converse([...messages, userTurn(held, `${action}\n\n<spielstand>\n${worldSummary(world, [c])}\n</spielstand>`)], world, c, data, who, emit);
   }
 

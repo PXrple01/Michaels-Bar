@@ -4,6 +4,7 @@ import type { Opening } from "../../shared/campaign";
 import { armorValue, attackInfo, findItem, modifier, skillBonusForLevel, trainedSkills } from "../../shared/character";
 import { formatModifier } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
+import { ACTS } from "../../shared/world";
 import type { GameData } from "../rules/loader";
 
 export function systemPrompt(data: GameData): string {
@@ -44,6 +45,15 @@ export function systemPrompt(data: GameData): string {
 - Trefferpunkte, Gegner und Runden stehen im <spielstand>, der jeder Handlung angehängt ist. Erfinde nie eigene Zahlen dafür und nenne nur, was der Server meldet.
 - Eine Figur mit 0 Trefferpunkten ist kampfunfähig: bewusstlos, gefangen oder ausgeraubt – aber nicht tot. Erzähle dann, wie es weitergeht (Rettung, Gefangenschaft, Erwachen im Straßengraben).
 - Endet ein Kampf ohne Sieg (Flucht, Aufgabe, Verhandlung), rufe \`kampf_beenden\` auf. Danach heilt \`rast\` (kurz oder lang) und \`heilen\` (Kräuter, Tränke, Heilkunde).
+
+## Kampagnenstruktur – lang wie eine DnD-Kampagne, aber mit Ende
+- Eine Kampagne hat drei Akte: **Anfang** (Einführung, Haken, erste Herausforderungen), **Mitte** (Komplikationen, Verbündete und Gegenspieler, ein Wendepunkt) und **Finale** (Höhepunkt, Entscheidung, Auflösung, Epilog). Jeder Akt besteht aus Kapiteln.
+- Lege in deiner ersten Antwort mit \`kampagne_planen\` einen linearen Plan an: ein klares Ziel, eine Bedrohung und je Akt einige Kapitel mit Titel und Ziel. Die Kapitel bauen aufeinander auf und führen zum Finale.
+- Wie lange ein Kapitel dauert, entscheiden die Spieler und ihre Entscheidungen – es gibt keine Zugzahl. Ist das Ziel eines Kapitels erreicht (egal auf welchem Weg), rufe \`kapitel_abschliessen\` auf.
+- Abzweigungen sind ausdrücklich erwünscht: Verlassen die Spieler mit einer Entscheidung den geplanten Weg, folge ihnen. Wird daraus ein eigener Handlungsstrang, rufe \`abzweigung\` auf und lege fest, wie die Geschichte danach zur Hauptlinie zurückfindet. Behalte dabei immer im Kopf, in welchem Akt ihr seid – der <spielstand> sagt es dir bei jedem Zug.
+- Abzweigungen je Akt sind begrenzt. Sind sie aufgebraucht, haben Entscheidungen trotzdem Folgen – aber innerhalb des laufenden Kapitels, und du lenkst zurück zur Hauptlinie. So zieht sich ein Akt durch Entscheidungen in die Länge, aber nie endlos.
+- Ändert sich die Richtung grundlegend, passe den Plan mit \`kampagne_planen\` an (ein Akt kann dadurch nicht länger werden).
+- Im letzten Kapitel des Finales führst du die Entscheidung herbei, erzählst den Ausgang und einen Epilog und rufst \`abenteuer_beenden\` auf – ohne neue Vorschlagszeile. Eröffne im Finale keine neuen großen Handlungsstränge.
 
 ## Gedächtnis und Aufträge
 - Lege jeden echten Auftrag oder jedes Ziel mit \`auftrag\` an und halte ihn aktuell (Notizen, erledigt, gescheitert).
@@ -100,6 +110,11 @@ ${prev.map((p) => `- ${p}`).join("\n")}
 </fruehere_einstiege>
 Diese Einstiege gab es schon. Wiederhole weder ihre Situation noch ihre ersten Sätze.
 ` : ""}
+<kampagne>
+Plane eine lange Kampagne wie in DnD: ${ACTS.map((a) => `${a.name} ${a.chapters[0]}–${a.chapters[1]} Kapitel`).join(", ")}.
+Rufe in dieser ersten Antwort kampagne_planen auf – Ziel, Bedrohung und Kapitel passend zum Startimpuls und zu ${cs.length > 1 ? "den Figuren" : "der Figur"}.
+</kampagne>
+
 Baue aus dem Startimpuls einen eigenen Einstieg mitten in der Szene. Beginne nicht mit Floskeln wie „Du sitzt in einer Taverne“ oder „Es war einmal“, sondern mit einem Moment, in dem gerade etwas passiert. ${party
     ? "Führe alle Figuren ein und gib einen Grund, warum sie gemeinsam hier sind. Sprich in der zweiten Person Plural („ihr“) und nenne Figuren beim Namen, wenn du eine bestimmte meinst. Später kommen die Handlungen gesammelt als Liste; erzähle sie zusammen und gib jeder Figur ihren Moment. Bei Proben gibst du im Feld figur an, wer würfelt."
     : "Führe die Figur über ihren Hintergrund ein, ohne ihren Bogen aufzuzählen."} Verlange im ersten Abschnitt noch keine Probe.`;

@@ -74,11 +74,11 @@ export function requestBase(model: ModelId, effort: "low" | "medium" | "high") {
 export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
-/** Werkzeugstand: Ab 2 gibt es Kampf, Aufträge und Gedächtnis. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 2;
+/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln. Ältere Verläufe werden einmalig umgestellt. */
+export const TOOLSET = 3;
 const MAX_LOOPS = 5;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
-const QUIET_TOOLS = new Set(["merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden"]);
+const QUIET_TOOLS = new Set(["merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
@@ -301,7 +301,8 @@ export class Narrator {
         }
         if (pending) return { history, pending, held: results, costUsd: cost, usage };
         const told = msg.content.some((b) => b.type === "text" && /»\s*Vorschläge:/.test(b.text));
-        if (told && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost, usage };
+        const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
+        if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost, usage };
         history.push({ role: "user", content: results });
         continue;
       }
