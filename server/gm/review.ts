@@ -11,18 +11,18 @@ import { apiErrorText, CACHE_1H, requestBase, type LlmClient, type ModelId } fro
 import { LimitError, type UsageGuard } from "./usage";
 
 const SIGILS = ["shield", "axe", "mask", "candle", "bow", "cauldron"];
-const nullable = (schema: object) => ({ anyOf: [schema, { type: "null" }] });
 const obj = (properties: Record<string, object>) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
 
-/** JSON-Schema der Antwort, mit allen IDs aus rules.json als feste Auswahl. */
+/**
+ * JSON-Schema der Antwort. Bewusst schlank: Lange Auswahllisten (alle Fertigkeiten, Gegenstände …) lassen die
+ * Grammatik der API zu groß werden. Die IDs stehen im Systemprompt; `toClassDef` und die Regelprüfung fangen Fehler ab.
+ * Leerer Text "" bedeutet „nichts“ (statt null – das hält das Schema klein).
+ */
 export function reviewSchema(rules: Rules) {
-  const attrIds = rules.attributes.map((a) => a.id);
-  const skillIds = rules.skills.map((s) => s.id);
-  const itemIds = rules.items.map((i) => i.id);
-  const weapons = rules.items.filter((i) => i.type === "weapon").map((i) => i.id);
-  const armors = rules.items.filter((i) => i.type === "armor").map((i) => i.id);
   const cb = rules.classBuilder;
-  const dice = nullable({ type: "string", description: "Würfelausdruck wie 1W6 oder 1W8+2" });
+  const id = (what: string) => ({ type: "string", description: `${what}-ID aus der Liste` });
+  const ids = (what: string) => ({ type: "array", items: { type: "string" }, description: `${what}-IDs aus der Liste` });
+  const dice = { type: "string", description: "Würfelausdruck wie 1W6 oder 1W8+2, leer wenn keiner" };
   return obj({
     zusammenfassung: { type: "string", description: "2–3 Sätze in einfacher Sprache: Was kann die Klasse, wie spielt sie sich?" },
     klasse: obj({
@@ -31,16 +31,16 @@ export function reviewSchema(rules: Rules) {
       description: { type: "string" },
       role: { type: "string", description: "Rolle in der Gruppe, z. B. Kämpfer, Heiler" },
       sigil: { type: "string", enum: SIGILS },
-      hitDie: { type: "integer", enum: [4, 6, 8, 10, 12, 20] },
-      primaryAttributes: { type: "array", items: { type: "string", enum: attrIds } },
-      recommendedAttributes: obj(Object.fromEntries(attrIds.map((a) => [a, { type: "integer" }]))),
-      trainedSkills: { type: "array", items: { type: "string", enum: skillIds } },
-      skillChoices: obj({ count: { type: "integer" }, from: { type: "array", items: { type: "string", enum: skillIds } } }),
+      hitDie: { type: "integer", description: `Trefferwürfel: ${cb.hitDie.allowed.join(", ")}` },
+      primaryAttributes: ids("Attribut"),
+      recommendedAttributes: obj(Object.fromEntries(rules.attributes.map((a) => [a.id, { type: "integer" }]))),
+      trainedSkills: ids("Fertigkeit"),
+      skillChoices: obj({ count: { type: "integer" }, from: ids("Fertigkeit") }),
       armor: { type: "array", items: { type: "string", enum: ["leicht", "mittel", "schwer", "schild"] } },
-      startingEquipment: { type: "array", items: { type: "string", enum: itemIds } },
-      equippedWeapon: { type: "string", enum: weapons },
-      equippedArmor: nullable({ type: "string", enum: armors }),
-      equippedShield: nullable({ type: "string", enum: ["schild"] }),
+      startingEquipment: ids("Gegenstand"),
+      equippedWeapon: id("Waffen"),
+      equippedArmor: { type: "string", description: "Rüstungs-ID, leer wenn keine" },
+      equippedShield: { type: "string", description: "\"schild\" oder leer" },
       startingMoney: obj({ gulden: { type: "integer" }, groschen: { type: "integer" }, pfennig: { type: "integer" } }),
       abilities: {
         type: "array",
@@ -67,7 +67,7 @@ export function reviewSchema(rules: Rules) {
     }),
     probleme: { type: "array", items: obj({ schwere: { type: "string", enum: ["fehler", "warnung", "hinweis"] }, text: { type: "string" } }) },
     vorschlaege: { type: "array", items: { type: "string" } },
-    gegenvorschlag: nullable({ type: "string", description: "Nur wenn zu stark oder unzulässig: konkreter Vorschlag, der ins Budget passt" }),
+    gegenvorschlag: { type: "string", description: "Nur wenn zu stark oder unzulässig: konkreter Vorschlag, der ins Budget passt; sonst leer" },
   });
 }
 
@@ -86,7 +86,10 @@ export function reviewSystemPrompt(data: GameData): string {
 - Verboten: unbegrenzte oder spielbrechende Effekte (unendlicher Schaden, Unverwundbarkeit, Sofort-Sieg, Regeln ändern, Wiederbelebung). Schaden, Heilung, Vorteil oder Nachteil dürfen nicht „beliebig oft“ einsetzbar sein.
 - Startattribute nach Punktekauf: Basis 10, ${rules.attributeRules.pointBudget} Punkte, bis 13 kostet ein Punkt 1, darüber 2, Werte ${rules.attributeRules.min}–${rules.attributeRules.max}, höchstens zwei Attribute unter 10.
 - Welt: Magie „${campaign.magic_level}“. Magische Fähigkeiten markierst du mit magic = true.
+- Attribute (IDs): ${rules.attributes.map((a) => `${a.id} (${a.name})`).join(", ")}.
+- Fertigkeiten (IDs): ${rules.skills.map((x) => `${x.id} (${x.name})`).join(", ")}.
 - Gegenstände (IDs): ${items}.
+- Verwende in allen ID-Feldern genau diese IDs. Leere Textfelder bedeuten „nichts“.
 
 ## So arbeitest du
 1. Übertrage das Konzept treu in die Felder. Schwäche nichts heimlich ab – wenn etwas zu stark ist, übernimm es so und melde es als Problem.
@@ -103,14 +106,22 @@ const assessmentSchema = z.object({
   staerke: z.object({ punkte: z.number(), urteil: z.enum(["zu_schwach", "ausgewogen", "zu_stark"]), begruendung: z.string() }),
   probleme: z.array(z.object({ schwere: z.enum(["fehler", "warnung", "hinweis"]), text: z.string() })),
   vorschlaege: z.array(z.string()),
-  gegenvorschlag: z.string().nullable(),
+  gegenvorschlag: z.string().nullable().transform((v) => (v && v.trim() ? v : null)),
 });
 
 const slug = (s: string) => s.toLowerCase().normalize("NFKD").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 24) || "klasse";
 
 /** Macht aus Claudes Antwort eine Klassen-Definition (noch ungeprüft). */
-export function toClassDef(raw: Record<string, unknown>, draftId: string, summary: string): ClassDef {
+export function toClassDef(raw: Record<string, unknown>, draftId: string, summary: string, rules: Rules): ClassDef {
   const k = raw as Record<string, any>;
+  // Unbekannte IDs (Tippfehler) still entfernen – über die Stärke entscheidet danach die Regelprüfung.
+  const known = (list: { id: string }[]) => new Set(list.map((x) => x.id));
+  const attrs = known(rules.attributes), skills = known(rules.skills), items = known(rules.items);
+  const weapons = known(rules.items.filter((i) => i.type === "weapon")), armors = known(rules.items.filter((i) => i.type === "armor"));
+  const only = (v: unknown, set: Set<string>) => (Array.isArray(v) ? [...new Set(v.map(String).filter((x) => set.has(x)))] : []);
+  const orNull = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const equipment = only(k.startingEquipment, items);
+  const weapon = weapons.has(k.equippedWeapon) ? k.equippedWeapon : equipment.find((x) => weapons.has(x)) ?? "dolch";
   const abilities = (Array.isArray(k.abilities) ? k.abilities : []).map((a: any, i: number) => ({
     id: `${slug(String(a.name ?? "faehigkeit"))}_${i}`,
     name: String(a.name ?? "Fähigkeit").slice(0, 60),
@@ -119,7 +130,7 @@ export function toClassDef(raw: Record<string, unknown>, draftId: string, summar
     beginnerText: String(a.beginnerText ?? "").slice(0, 300) || "—",
     scope: a.scope === "eng" ? "eng" as const : "breit" as const,
     magic: Boolean(a.magic),
-    mechanics: a.mechanics,
+    mechanics: a.mechanics ? { ...a.mechanics, extraDamage: orNull(a.mechanics.extraDamage), heal: orNull(a.mechanics.heal), bonusDie: orNull(a.mechanics.bonusDie) } : a.mechanics,
   }));
   return {
     id: `eigen_${slug(String(k.name ?? "klasse"))}_${draftId.replace(/[^a-z0-9]/gi, "").slice(0, 6).toLowerCase()}`,
@@ -131,15 +142,15 @@ export function toClassDef(raw: Record<string, unknown>, draftId: string, summar
     difficulty: 2,
     beginnerTip: summary.slice(0, 300),
     hitDie: Number(k.hitDie) || 8,
-    primaryAttributes: Array.isArray(k.primaryAttributes) ? k.primaryAttributes : [],
+    primaryAttributes: only(k.primaryAttributes, attrs),
     recommendedAttributes: k.recommendedAttributes ?? {},
-    trainedSkills: Array.isArray(k.trainedSkills) ? k.trainedSkills : [],
-    skillChoices: { count: Number(k.skillChoices?.count) || 0, from: Array.isArray(k.skillChoices?.from) ? k.skillChoices.from : [] },
+    trainedSkills: only(k.trainedSkills, skills),
+    skillChoices: { count: Number(k.skillChoices?.count) || 0, from: only(k.skillChoices?.from, skills) },
     armor: Array.isArray(k.armor) ? k.armor : [],
-    startingEquipment: Array.isArray(k.startingEquipment) ? k.startingEquipment : [],
-    equippedWeapon: String(k.equippedWeapon ?? "dolch"),
-    equippedArmor: k.equippedArmor ?? null,
-    equippedShield: k.equippedShield ?? null,
+    startingEquipment: equipment.includes(weapon) || !items.has(weapon) ? equipment : [weapon, ...equipment],
+    equippedWeapon: weapon,
+    equippedArmor: armors.has(orNull(k.equippedArmor) ?? "") ? orNull(k.equippedArmor) : null,
+    equippedShield: orNull(k.equippedShield) === "schild" ? "schild" : null,
     startingMoney: { gulden: Math.max(0, Number(k.startingMoney?.gulden) || 0), groschen: Math.max(0, Number(k.startingMoney?.groschen) || 0), pfennig: Math.max(0, Number(k.startingMoney?.pfennig) || 0) },
     requiresMagic: abilities.some((a: { magic: boolean }) => a.magic) ? "low" : "none",
     abilities,
@@ -199,21 +210,33 @@ ${JSON.stringify(input.vorher).slice(0, 6000)}
 </vorherige_fassung>
 Arbeite an der vorherigen Fassung weiter und übernimm die neuen Wünsche aus Beschreibung und Formular.` : ""}`;
 
-    const msg = await this.o.llm.stream({
+    const schema = reviewSchema(data.rules);
+    const ask = (strict: boolean) => this.o.llm!.stream({
       ...requestBase(this.o.model ?? "claude-opus-5-5", this.o.effort ?? "low"),
-      output_config: { effort: this.o.effort ?? "low", format: { type: "json_schema", schema: reviewSchema(data.rules) } },
+      output_config: strict ? { effort: this.o.effort ?? "low", format: { type: "json_schema", schema } } : { effort: this.o.effort ?? "low" },
       max_tokens: 16000,
       system: [{ type: "text", text: reviewSystemPrompt(data), cache_control: CACHE_1H }],
-      messages: [{ role: "user", content: userText }],
+      messages: [{ role: "user", content: strict ? userText : `${userText}\n\nAntworte ausschließlich mit einem JSON-Objekt nach diesem Schema, ohne weiteren Text:\n${JSON.stringify(schema)}` }],
     }, () => {});
+    let msg: Anthropic.Beta.BetaMessage;
+    try {
+      msg = await ask(true);
+    } catch (e) {
+      // Ist das feste Antwortformat der API zu groß, geht es ohne – die Antwort wird danach ohnehin streng geprüft.
+      if (!(e instanceof Anthropic.BadRequestError) || !/grammar|schema/i.test(apiErrorText(e))) throw e;
+      console.warn(`[Claude] Antwortformat abgelehnt (${apiErrorText(e)}) – Bewertung ohne festes Format.`);
+      msg = await ask(false);
+    }
     await this.o.guard.record(msg.usage, this.o.model ?? "claude-opus-5-5");
     if (msg.stop_reason === "refusal") throw fail("Diese Klasse kann nicht bewertet werden. Versuch eine andere Beschreibung.");
     if (msg.stop_reason === "max_tokens") throw fail("Die Bewertung war zu lang und wurde abgeschnitten. Bitte kürzer beschreiben.");
     const text = msg.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text").map((b) => b.text).join("");
     let raw: Record<string, unknown>;
-    try { raw = JSON.parse(text); } catch { throw fail("Die Bewertung kam unvollständig an. Bitte erneut versuchen."); }
-    const assessment: ClaudeAssessment = assessmentSchema.parse(raw);
-    const cls = toClassDef((raw.klasse ?? {}) as Record<string, unknown>, draftId, assessment.zusammenfassung);
+    try { raw = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { throw fail("Die Bewertung kam unvollständig an. Bitte erneut versuchen."); }
+    const parsed = assessmentSchema.safeParse(raw);
+    if (!parsed.success) throw fail("Die Bewertung kam unvollständig an. Bitte erneut versuchen.");
+    const assessment: ClaudeAssessment = parsed.data;
+    const cls = toClassDef((raw.klasse ?? {}) as Record<string, unknown>, draftId, assessment.zusammenfassung, data.rules);
     const check = checkClass(cls, data.rules, data.campaign.magic_level);
     emit({
       type: "review",

@@ -1,5 +1,5 @@
 import path from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import { describe, expect, it } from "vitest";
 import { checkClass, classCost } from "../shared/classbuilder";
 import type { ReviewEvent, ReviewResult, SignedClass } from "../shared/classreview";
@@ -8,7 +8,7 @@ import { handleApi } from "../server/api";
 import { buildCharacter } from "../server/characters";
 import { RollLog } from "../server/dice/log";
 import type { LlmClient } from "../server/gm/engine";
-import { ClassReviewer } from "../server/gm/review";
+import { ClassReviewer, reviewSchema } from "../server/gm/review";
 import { MemoryCounterStore, UsageGuard } from "../server/gm/usage";
 import { loadGameData } from "../server/rules/loader";
 
@@ -123,6 +123,36 @@ describe("Gutachten durch Claude (Schein-Modell)", () => {
     expect(r.assessment.staerke.urteil).toBe("ausgewogen");
     expect(r.check.ok).toBe(true);
     expect(r.check.cls.id).toMatch(/^eigen_schmuggler_/);
+  });
+
+  it("ist das feste Antwortformat zu groß, klappt die Bewertung ohne; Tippfehler bei IDs werden entfernt", async () => {
+    const calls: { format: boolean }[] = [];
+    const sloppy = { ...klasse, trainedSkills: [...klasse.trainedSkills, "wahrnehmungg"], equippedArmor: "", equippedShield: "" };
+    const llm2: LlmClient = {
+      async stream(params) {
+        const format = !!(params.output_config as { format?: unknown } | undefined)?.format;
+        calls.push({ format });
+        if (format) throw new Anthropic.BadRequestError(400, { type: "error", error: { type: "invalid_request_error", message: "The compiled grammar is too large" } }, "400", new Headers());
+        return { id: "m", type: "message", role: "assistant", model: "fake", stop_reason: "end_turn", usage: { input_tokens: 2000, output_tokens: 900 },
+          content: [{ type: "text", text: "```json\n" + JSON.stringify({ ...assessment, gegenvorschlag: "", klasse: sloppy }) + "\n```", citations: null }] } as unknown as Anthropic.Beta.BetaMessage;
+      },
+    };
+    const r2 = new ClassReviewer({ data: () => data, llm: llm2, guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET });
+    const evs: ReviewEvent[] = [];
+    await r2.run({ draftId: "draft-abcdefgh", round: 1, token: null, input }, "tester", (e) => evs.push(e));
+    expect(calls).toEqual([{ format: true }, { format: false }]);
+    const ev = evs.at(-1)! as Extract<ReviewEvent, { type: "review" }>;
+    expect(ev.type).toBe("review");
+    expect(ev.result.check.cls.trainedSkills).not.toContain("wahrnehmungg");
+    expect(ev.result.check.cls.equippedArmor).toBeNull();
+    expect(ev.result.assessment.gegenvorschlag).toBeNull();
+  });
+
+  it("das Antwortformat bleibt klein (die API lehnt zu große Grammatiken ab)", () => {
+    let enums = 0, anyOf = 0;
+    JSON.stringify(reviewSchema(data.rules), (k, v) => { if (k === "enum") enums += v.length; if (k === "anyOf") anyOf++; return v; });
+    expect(enums).toBeLessThanOrEqual(40);
+    expect(anyOf).toBe(0);
   });
 
   it("höchstens fünf Runden pro Klasse, jede Runde braucht den Nachweis der vorigen", async () => {
