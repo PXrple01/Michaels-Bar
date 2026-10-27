@@ -88,7 +88,7 @@ export class UpgradeForge {
     const list = effective.map((a) => `- ${a.id}: „${a.name}“ (${a.type}, ${a.uses}, Reichweite ${a.scope ?? "breit"}, ${abilityCost(a as Ability, data.rules)} Punkte) – ${a.text} | Mechanik: ${JSON.stringify(a.mechanics ?? {})}${a.upgraded ? " [bereits verbessert]" : ""}`).join("\n");
     const task = tier === 1
       ? "Wähle zuerst die zwei Fähigkeiten dieser Figur, die sich am besten weiterentwickeln lassen und am meisten Spaß machen (auswahl.erste wird jetzt verbessert, auswahl.zweite später im Finale). Liefere dann zwei Verbesserungen für auswahl.erste."
-      : `Verbessere jetzt die Fähigkeit „${fixedTarget}“ (trage sie in auswahl.erste ein, auswahl.zweite darf gleich sein). Liefere zwei Verbesserungen für sie. Die bereits verbesserte Fähigkeit darf als Anknüpfung dienen, wird aber nicht weiter verbessert.`;
+      : `Verbessere jetzt die Fähigkeit „${fixedTarget}“ (trage sie in auswahl.erste ein, auswahl.zweite darf gleich sein). Liefere zwei Verbesserungen für sie. Die bereits verbesserte Fähigkeit bleibt, wie sie ist – keine Option darf sie zusätzlich stärken (keine zweite Stufe).`;
     const user = `<figur>\n${characterSheetText(character, data)}\n</figur>\n\n<faehigkeiten>\n${list}\n</faehigkeiten>\n\n<lage>\n${this.situation(world, args.characters, args.recent)}\n</lage>\n\nFreischaltung ${tier} von 2 (${tier === 1 ? "Mitte" : "Finale"} der Kampagne). ${task}`;
 
     let cost = 0;

@@ -82,6 +82,9 @@ describe("Verbesserungen: Regeln", () => {
     w.arc!.current = 5;
     w.xp[hexe.id] = 600;
     expect(upgradeDue(w, hexe.id)).toBe(2);
+    // Keine zweite Stufe: Gibt es nur eine verbesserbare Fähigkeit, entfällt die zweite Freischaltung
+    w.progress[hexe.id].abilities = ["giftkunde", "giftkunde"];
+    expect(upgradeDue(w, hexe.id)).toBeNull();
   });
 });
 
@@ -135,6 +138,15 @@ describe("Verbesserungen im Solo-Spiel", () => {
     expect(effectiveAbilities(data.classes.find((c) => c.id === "kraeuterhexe")!.abilities, prog).find((a) => a.id === "giftkunde")!.name).toBe("Giftblut");
     expect(worldSummary(chosen.state.world!, [hexe])).toContain("„Giftblut“ (verbesserte Fassung von „Giftkunde“");
     expect((await run("upgrade", { character: hexe, state: chosen.state })).type).toBe("error"); // Stufe 2 erst im Finale
+    // Im Finale wird die zweite Fähigkeit verbessert – nie dieselbe noch einmal
+    const fin = structuredClone(chosen.state.world!);
+    fin.arc!.current = 5;
+    fin.xp[hexe.id] = 600;
+    const llm2 = setup([json({ auswahl: { erste: "giftkunde", zweite: "giftkunde" }, optionen: [{ ...options[1], name: "Fluchblick", text: "Wie Böser Blick; das Opfer verliert zusätzlich 1W4 TP.", extraDamage: "1W4", imposeDisadvantage: true }] })]);
+    const up2 = (await llm2.run("upgrade", { character: hexe, state: stateFor(fin) })) as Extract<GmEvent, { type: "upgrade" }>;
+    expect(up2.offer!.tier).toBe(2);
+    expect(up2.offer!.abilityId).toBe("boeser_blick");
+    expect(String(llm2.llm.calls[0].messages[0].content)).toContain("keine zweite Stufe");
 
     const forged = { ...chosen.state, world: { ...chosen.state.world!, progress: { [hexe.id]: { ...prog, chosen: [] } } } };
     expect((await run("turn", { character: hexe, state: forged, action: "x" })).type).toBe("error"); // Signatur

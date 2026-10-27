@@ -60,6 +60,8 @@ export function upgradeDue(w: WorldState, characterId: string): UpgradeTier | nu
   if (prog?.offer) return null;
   const tier = ((prog?.chosen.length ?? 0) + 1) as UpgradeTier;
   if (tier > 2 || ch.act < UPGRADE_ACT[tier]) return null;
+  // Jede Fähigkeit wird höchstens einmal verbessert: Hat die Figur keine zweite Fähigkeit, gibt es keine zweite Freischaltung.
+  if (tier === 2 && prog?.abilities && prog.abilities[1] === prog.abilities[0]) return null;
   // Spätestens im letzten Kapitel des Akts – auch wenn noch nicht genug Erfahrung gesammelt ist.
   const inAct = arc.chapters.filter((c) => c.act === ch.act);
   const lastOfAct = inAct.indexOf(ch) === inAct.length - 1;
