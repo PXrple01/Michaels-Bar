@@ -1,15 +1,17 @@
 // Solo-Modus: Der Spielstand liegt im Browser und ist vom Server signiert.
-import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest } from "../../shared/campaign";
+import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest } from "../../shared/campaign";
+import { emptyProgression, upgradeDue } from "../../shared/upgrades";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, Narrator, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type LlmClient, type MessageParam, type ModelId, type ToolResult } from "./narrator";
+import { errorEvent, GmError, Narrator, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type LlmClient, type MessageParam, type ModelId, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import { characterHash, signState, verifyState } from "./state";
+import { UpgradeForge } from "./upgrades";
 import { countChapterTurn } from "./world";
 import type { UsageGuard } from "./usage";
 
@@ -29,8 +31,10 @@ interface Saved { messages: MessageParam[]; world: WorldState; held: ToolResult[
 
 export class GameMaster {
   readonly narrator: Narrator;
+  readonly forge: UpgradeForge;
   constructor(private o: GmOptions) {
     this.narrator = new Narrator(o);
+    this.forge = new UpgradeForge(o);
   }
 
   pendingFrom(messages: MessageParam[], c: Character, data: GameData, world: WorldState | null = null) {
@@ -59,11 +63,13 @@ export class GameMaster {
   }
 
   /** Führt eine Aktion aus und meldet alle Ereignisse über `emit`. Fehler werden als Ereignis gemeldet. */
-  async run(kind: "start" | "turn" | "roll", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
+  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
     try {
+      if (kind === "choose") return void (await this.choose(body as UpgradeRequest, emit));
       this.narrator.ensureReady();
       if (kind === "start") await this.start(body as StartRequest, who, emit);
       else if (kind === "turn") await this.turn(body as TurnRequest, who, emit);
+      else if (kind === "upgrade") await this.upgrade(body as UpgradeRequest, who, emit);
       else await this.roll(body as RollRequest, who, emit);
     } catch (e) {
       emit(errorEvent(e));
@@ -101,10 +107,38 @@ export class GameMaster {
     await this.converse([...messages, { role: "user", content }], world, c, data, who, emit);
   }
 
+  /** Freischaltung: Claude erstellt zwei Verbesserungen, passend zur Figur und teils zur Lage. */
+  private async upgrade(req: UpgradeRequest, who: string, emit: (ev: GmEvent) => void) {
+    const { c, data } = this.character(req?.character);
+    const { messages, world, held } = this.verified(req.state, c);
+    const prog = world.progress?.[c.id] ?? emptyProgression();
+    if (prog.offer) throw new GmError("Die Verbesserungen liegen schon bereit – wähle eine aus.", "state");
+    const tier = upgradeDue(world, c.id);
+    if (!tier) throw new GmError("Gerade ist keine Verbesserung freigeschaltet.", "state");
+    const res = await this.forge.generate({ data, character: c, characters: [c], world, tier, recent: lastNarration(messages), who });
+    world.progress = { ...world.progress, [c.id]: { abilities: res.abilities, chosen: prog.chosen, offer: res.offer } };
+    emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: res.offer, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
+  }
+
+  /** Eine der angebotenen Verbesserungen übernehmen – ohne Claude, kostet nichts. */
+  private async choose(req: UpgradeRequest, emit: (ev: GmEvent) => void) {
+    const { c } = this.character(req?.character);
+    const { messages, world, held } = this.verified(req.state, c);
+    const prog = world.progress?.[c.id];
+    const option = prog?.offer?.options[Number(req.option)];
+    if (!prog?.offer || !option) throw new GmError("Diese Verbesserung gibt es nicht (mehr).", "state");
+    world.progress = { ...world.progress, [c.id]: { ...prog, chosen: [...prog.chosen, option], offer: null } };
+    emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: null, budget: await this.o.guard.info() });
+  }
+
+  private sign(messages: MessageParam[], world: WorldState, held: ToolResult[], c: Character): SignedState {
+    return { ...signState(this.o.secret, { messages, world, held, toolset: TOOLSET }, characterHash(c)), model: this.narrator.model };
+  }
+
   private async converse(messages: MessageParam[], world: WorldState, c: Character, data: GameData, who: string, emit: (ev: GmEvent) => void) {
     const scene = { characters: [c], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }) };
     const res = await this.narrator.converse(messages, scene, who, (text) => emit({ type: "text", text }));
-    const state = { ...signState(this.o.secret, { messages: res.history, world, held: res.held, toolset: TOOLSET }, characterHash(c)), model: this.narrator.model };
-    emit({ type: "done", state, pending: res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
+    emit({ type: "done", state: this.sign(res.history, world, res.held, c), pending: res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
   }
 }
+

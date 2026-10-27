@@ -17,6 +17,7 @@ import { toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
 import { worldPanel } from "../lib/worldPanel";
 import { endCard } from "../lib/arc";
+import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { abilityChips, abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
 import { PARTY_TUTORIAL } from "../lib/tutorials";
@@ -139,6 +140,7 @@ export function partyPage(): Page {
       const seenRolls = new Set<string>();
       let firstLoad = true;
       let draft = "";
+      let forging = false;
 
       setHTML(root, html`<div class="container play party-play">
         <header class="play-head">
@@ -250,6 +252,11 @@ export function partyPage(): Page {
         const oldTa = belowEl.querySelector<HTMLTextAreaElement>("#action");
         const typing = !!oldTa && document.activeElement === oldTa;
         const sel = oldTa ? [oldTa.selectionStart, oldTa.selectionEnd] as const : null;
+        // Freigeschaltete Verbesserung (nur die eigene Figur) – über dem Eingabefeld
+        const myCharId = v.players.find((p) => p.id === me.playerId)?.characterId ?? "";
+        if (v.status === "playing" && !v.busy && !busyLocal && !v.world?.arc?.finished && (forging || upgradeState(v.world, myCharId) !== "none")) {
+          content = html`${upgradeCard(v.world!, myCharId, abilityType, forging)}${content}`;
+        }
         belowEl.innerHTML = content.value;
         const newTa = belowEl.querySelector<HTMLTextAreaElement>("#action");
         if (oldTa && newTa && (typing || (draft && oldTa.value === draft))) {
@@ -297,9 +304,37 @@ export function partyPage(): Page {
       function renderAbilities() {
         const el = $("#my-abilities", root);
         const mine = view?.players.find((p) => p.id === me.playerId);
-        if (!mine || el.dataset.done) return;
-        el.dataset.done = "1";
+        if (!mine) return;
+        const key = JSON.stringify(mine.abilities.map((a) => a.name));
+        if (el.dataset.key === key) return; // nur neu zeichnen, wenn sich etwas geändert hat (z. B. nach einer Verbesserung)
+        el.dataset.key = key;
         el.innerHTML = abilityList(mine.name, mine.abilities).value;
+      }
+
+      const abilityType = (id: string) => (myChar ? dataFor(data, myChar).classes.find((x) => x.id === myChar.classId)?.abilities.find((a) => a.id === id)?.type : undefined) ?? "unterstuetzung";
+
+      /** Verbesserungen erstellen lassen (Claude) bzw. eine wählen (ohne Claude). */
+      async function doUpgrade(option?: number) {
+        if (forging) return;
+        if (option !== undefined) {
+          try {
+            const v = await partyApi.choose(me, option);
+            const mine = v.players.find((p) => p.id === me.playerId);
+            const up = mine?.abilities.find((a) => a.upgraded);
+            apply(v);
+            renderBelow();
+            if (up) toast(`${up.name} – deine Fähigkeit hat sich weiterentwickelt!`, "success", 5000);
+          } catch (e) { toast((e as Error).message, "error", 6000); }
+          return;
+        }
+        forging = true;
+        renderBelow();
+        await partyApi.stream("upgrade", me, {}, (ev) => {
+          if (ev.type === "view") apply(ev.view);
+          else if (ev.type === "error") toast(ev.message, "error", 6000);
+        });
+        forging = false;
+        renderBelow();
       }
 
       function renderOpening() {
@@ -394,6 +429,8 @@ export function partyPage(): Page {
         belowEl.querySelector("#start")?.addEventListener("click", () => void stream("start", { previousOpenings: campaignStore.previousOpenings() }));
         belowEl.querySelector("#leave")?.addEventListener("click", async () => { try { await partyApi.leave(me); } catch { /* egal */ } memberships.remove(code); go("/gruppe"); });
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
+        belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
+        belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
         belowEl.querySelector("#now")?.addEventListener("click", () => void stream("action", { text: "", now: true }));
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
         if (ta && !ta.dataset.bound) {

@@ -86,6 +86,20 @@ const clampInt = (v: number, min: number, max: number, label: string, notes: str
   return r;
 };
 
+/** Würfel und Boni einer Fähigkeit auf die Grenzen aus rules.json kürzen (auch für Verbesserungen). */
+export function clampMechanics(a: Pick<Ability, "name" | "mechanics">, rules: Rules, notes: string[]): Mechanics {
+  const cb = rules.classBuilder;
+  const label = `„${a.name}“`;
+  const m = { ...EMPTY_MECHANICS, ...(a.mechanics ?? {}) };
+  m.extraDamage = clampDice(m.extraDamage, rules, `${label} Zusatzschaden`, notes);
+  m.heal = clampDice(m.heal, rules, `${label} Heilung`, notes);
+  m.bonusDie = clampDice(m.bonusDie, rules, `${label} Bonuswürfel`, notes);
+  m.flatBonus = clampInt(m.flatBonus, 0, cb.maxFlatDamageBonus, `${label} fester Bonus`, notes);
+  m.armorBonus = clampInt(m.armorBonus, cb.armorBonus.min, cb.armorBonus.max, `${label} Rüstungsbonus`, notes);
+  m.attackBonus = clampInt(m.attackBonus, cb.attackBonus.min, cb.attackBonus.max, `${label} Angriffsbonus`, notes);
+  return m;
+}
+
 /** Legale Start-Attribute, wenn die angegebenen das Punktebudget sprengen. */
 export function defaultAttributes(cls: Pick<ClassDef, "primaryAttributes">, rules: Rules): Record<string, number> {
   const out = Object.fromEntries(rules.attributes.map((a) => [a.id, rules.attributeRules.base]));
@@ -95,7 +109,7 @@ export function defaultAttributes(cls: Pick<ClassDef, "primaryAttributes">, rule
   return out;
 }
 
-function forbiddenHits(text: string, rules: Rules): string[] {
+export function forbiddenHits(text: string, rules: Rules): string[] {
   const lower = text.toLowerCase();
   return rules.classBuilder.forbiddenEffects.filter((w) => new RegExp(`(^|[^a-zäöüß])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(lower));
 }
@@ -171,13 +185,7 @@ export function checkClass(input: ClassDef, rules: Rules, campaignMagic: MagicLe
     const label = `„${a.name}“`;
     if (!cb.abilityTypes.includes(a.type)) errors.push(`${label}: unbekannter Fähigkeitstyp „${a.type}“`);
     if (!cb.abilityUses.includes(a.uses)) errors.push(`${label}: unbekannte Nutzung „${a.uses}“`);
-    const m = { ...EMPTY_MECHANICS, ...(a.mechanics ?? {}) };
-    m.extraDamage = clampDice(m.extraDamage, rules, `${label} Zusatzschaden`, adjustments);
-    m.heal = clampDice(m.heal, rules, `${label} Heilung`, adjustments);
-    m.bonusDie = clampDice(m.bonusDie, rules, `${label} Bonuswürfel`, adjustments);
-    m.flatBonus = clampInt(m.flatBonus, 0, cb.maxFlatDamageBonus, `${label} fester Bonus`, adjustments);
-    m.armorBonus = clampInt(m.armorBonus, cb.armorBonus.min, cb.armorBonus.max, `${label} Rüstungsbonus`, adjustments);
-    m.attackBonus = clampInt(m.attackBonus, cb.attackBonus.min, cb.attackBonus.max, `${label} Angriffsbonus`, adjustments);
+    const m = clampMechanics(a, rules, adjustments);
     if (a.uses === "beliebig" && (m.extraDamage || m.heal || m.advantage || m.imposeDisadvantage)) {
       errors.push(`${label}: Schaden, Heilung oder Vorteil/Nachteil beliebig oft einsetzbar wäre spielbrechend – höchstens einmal pro Kampf.`);
     }

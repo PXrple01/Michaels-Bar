@@ -11,6 +11,8 @@ import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
 import { worldPanel } from "../lib/worldPanel";
 import { endCard } from "../lib/arc";
+import { upgradeCard, upgradeState } from "../lib/upgradeUi";
+import { effectiveAbilities } from "../../../shared/upgrades";
 import { abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
 import { SOLO_TUTORIAL } from "../lib/tutorials";
@@ -163,6 +165,7 @@ export function playPage(): Page {
       catch (e) { setHTML(root, html`<div class="container empty"><h2>Figur fehlt</h2><p>${(e as Error).message}</p></div>`); return; }
 
       let busy = false;
+      let forging = false;
       let liveText = "";
       let liveEl: HTMLElement | null = null;
       let lastError: Extract<GmEvent, { type: "error" }> | null = null;
@@ -282,6 +285,9 @@ export function playPage(): Page {
             <button class="btn" type="submit" aria-label="Handlung senden">${icon("arrowRight")}</button>
           </form>
           <p class="hint center">Enter sendet, Umschalt+Enter macht eine neue Zeile. Du kannst alles versuchen – nicht nur die Ideen.</p>`;
+        const world = save!.state.world;
+        const showUpgrade = !lastError && !busy && !world?.arc?.finished && (forging || upgradeState(world, character.id) !== "none");
+        if (showUpgrade) content = html`${upgradeCard(world!, character.id, abilityType, forging)}${content}`;
         belowEl.innerHTML = html`${content}
           ${!save!.started && save!.opening && !busy ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="reroll">${icon("refresh")} Neuen Einstieg würfeln</button></div>` : ""}`.value;
         const b = $("#budget", root);
@@ -318,6 +324,37 @@ export function playPage(): Page {
 
       let retry: (() => void) | null = null;
 
+      const myClassDef = () => dataFor(data, character).classes.find((x) => x.id === character.classId);
+      const abilityType = (id: string) => myClassDef()?.abilities.find((a) => a.id === id)?.type ?? "unterstuetzung";
+      function renderAbilities() {
+        const abilities = effectiveAbilities(myClassDef()?.abilities ?? [], save!.state.world?.progress?.[character.id]);
+        $("#my-abilities", root).innerHTML = abilityList(character.name, abilities).value;
+      }
+
+      /** Ohne Auswahl: Verbesserungen erstellen lassen (Claude). Mit Auswahl: eine davon übernehmen (ohne Claude). */
+      async function doUpgrade(option?: number) {
+        if (busy || forging) return;
+        forging = option === undefined;
+        renderBelow();
+        await streamGm(option === undefined ? "upgrade" : "choose", { character, state: save!.state, option }, (ev) => {
+          if (!alive) return;
+          if (ev.type === "upgrade") {
+            save!.state = ev.state;
+            budget = ev.budget;
+            if (ev.turnCostUsd !== undefined) lastCost = ev.turnCostUsd;
+            persist();
+            if (option !== undefined) {
+              const chosen = ev.state.world?.progress?.[character.id]?.chosen.at(-1);
+              if (chosen) toast(`${chosen.name} – deine Fähigkeit hat sich weiterentwickelt!`, "success", 5000);
+            }
+          } else if (ev.type === "error") toast(ev.message, "error", 6000);
+        });
+        forging = false;
+        renderWorld();
+        renderAbilities();
+        renderBelow();
+      }
+
       function bindBelow() {
         belowEl.querySelector("#composer")?.addEventListener("submit", (e) => { e.preventDefault(); void sendAction(); });
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
@@ -329,6 +366,8 @@ export function playPage(): Page {
           t.focus();
         }));
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
+        belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
+        belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
         belowEl.querySelector("#reroll")?.addEventListener("click", () => void begin(true));
         belowEl.querySelector("#retry")?.addEventListener("click", () => { lastError = null; retry ? retry() : renderBelow(); });
         belowEl.querySelector("#access-form")?.addEventListener("submit", (e) => {
@@ -442,8 +481,7 @@ export function playPage(): Page {
       renderOpening(false);
       renderStory();
       renderBelow();
-      const myClass = dataFor(data, character).classes.find((x) => x.id === character.classId);
-      $("#my-abilities", root).innerHTML = abilityList(character.name, myClass?.abilities ?? []).value;
+      renderAbilities();
       showTutorial(`solo-${save.id}`, SOLO_TUTORIAL);
       if (!save.opening) void begin(false);
       else if (query !== "neu") scrollDown();

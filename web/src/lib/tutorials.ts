@@ -24,6 +24,10 @@ const QUESTS: TutorialStep = {
   icon: "scroll", title: "Auftragsbuch",
   text: "Bekommst du eine Aufgabe, trägt der Spielleiter sie ins Auftragsbuch ein. Dort steht auch, was er sich gemerkt hat – Namen, Versprechen, Geheimnisse. So geht in langen Geschichten nichts verloren. Für erledigte Aufträge gibt es Erfahrungspunkte (EP).",
 };
+const GROWTH: TutorialStep = {
+  icon: "star", title: "Erfahrung zahlt sich aus",
+  text: "Für gelöste Aufträge und überstandene Gefahren gibt es Erfahrungspunkte (EP). Zweimal in der Kampagne – einmal in der Mitte, einmal im Finale – entwickelt sich dadurch eine Fähigkeit deiner Figur weiter. Welche, verrät der Spielleiter erst dann. Du bekommst zwei Möglichkeiten und wählst eine; manchmal passt eine davon genau zu eurer Lage.",
+};
 const ABILITIES: TutorialStep = {
   icon: "sparkles", title: "Deine Fähigkeiten",
   text: "Ganz unten auf der Seite stehen die besonderen Fähigkeiten deiner Figur – mit einer einfachen Erklärung. Willst du eine benutzen, schreib es einfach in deine Handlung. Manche gehen nur einmal pro Kampf oder Rast, passive wirken immer von selbst.",
@@ -34,7 +38,7 @@ export const SOLO_TUTORIAL: TutorialStep[] = [
   { icon: "feather", title: "Willkommen im Abenteuer!", text: "Du spielst eine Figur in einer Geschichte. Claude ist der Spielleiter: Er erzählt, was passiert, und spricht für alle anderen Personen. Du entscheidest, was deine Figur tut. Es gibt kein Falsch – nur eine Geschichte, die ihr zusammen erzählt." },
   { icon: "play", title: "So läuft ein Zug", text: "1. Lies, was der Spielleiter erzählt. 2. Schreib unten in das Feld, was deine Figur tut oder sagt – in ganz normalen Worten. 3. Drück Enter. Dann erzählt der Spielleiter, was daraufhin passiert.", example: "Du schreibst: „Ich frage den Wirt, ob er den Fremden gesehen hat.“" },
   { icon: "sparkles", title: "Du darfst alles versuchen", text: "Unter der Geschichte stehen manchmal Ideen zum Antippen. Das sind nur Hilfen für den Anfang – du kannst jederzeit etwas ganz anderes tun: reden, schleichen, verhandeln, weglaufen …" },
-  PROBE, LUCK, FIGHT, HP, QUESTS, ABILITIES,
+  PROBE, LUCK, FIGHT, HP, QUESTS, GROWTH, ABILITIES,
   { icon: "check", title: "Fertig – los geht's!", text: "Dein Spielstand wird automatisch gespeichert. Du kannst jederzeit aufhören und später weiterspielen. Diese Einführung öffnest du wieder über das „?“ oben." },
 ];
 
@@ -45,6 +49,6 @@ export const PARTY_TUTORIAL: TutorialStep[] = [
   { icon: "users", title: "Oben links: euer Team", text: "Dort siehst du, auf wen noch gewartet wird, wie viele Lebenspunkte jede Figur hat und kleine Symbole für ihre Fähigkeiten. Tippe auf ein Symbol, um zu sehen, was deine Mitspieler können. Auf dem Handy tippst du auf „Team“, um die Leiste zu öffnen." },
   { icon: "crown", title: "Der Gastgeber", text: "Wer die Gruppe gegründet hat, ist Gastgeber (Krone). Er kann die Runde auch früher erzählen lassen, wenn jemand gerade nicht da ist." },
   { ...PROBE, text: PROBE.text + " Der Spielleiter sagt dabei, wer würfeln muss – nur diese Person sieht den Knopf, alle anderen schauen beim Wurf zu." },
-  LUCK, FIGHT, HP, QUESTS, ABILITIES,
+  LUCK, FIGHT, HP, QUESTS, GROWTH, ABILITIES,
   { icon: "check", title: "Fertig – los geht's!", text: "Der Spielstand liegt auf dem Server – ihr könnt jederzeit über den Gruppen-Link zurückkommen. Diese Einführung öffnest du wieder über das „?“ oben." },
 ];

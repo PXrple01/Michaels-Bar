@@ -3,7 +3,7 @@ import type { Ability } from "../../../shared/schema";
 import { html, type Raw } from "./dom";
 import { icon } from "./icons";
 
-export type AbilityInfo = Pick<Ability, "name" | "type" | "uses" | "text" | "beginnerText">;
+export type AbilityInfo = Pick<Ability, "name" | "type" | "uses" | "text" | "beginnerText"> & { upgraded?: unknown };
 
 const ICONS: Record<string, string> = {
   angriff: "sword", verteidigung: "shield", heilung: "heart", unterstuetzung: "star", kontrolle: "target",
@@ -29,10 +29,10 @@ export function abilityList(name: string, abilities: AbilityInfo[]): Raw {
       <p class="muted small">So setzt du sie ein: Schreib einfach in deine Handlung, dass du sie nutzt – z. B. „Ich setze ${abilities.find((a) => a.uses !== "passiv")?.name ?? abilities[0].name} ein“. Passive Fähigkeiten wirken von selbst.</p>
     </div>
     <div class="ab-grid">
-      ${abilities.map((a, i) => html`<div class="ab" style="--i:${i}">
+      ${abilities.map((a, i) => html`<div class="ab ${a.upgraded ? "upgraded" : ""}" style="--i:${i}">
         <div class="ab-top">
           <span class="ab-icon t-${a.type}">${abilityIcon(a.type)}</span>
-          <span class="ab-title"><b>${a.name}</b><small>${TYPES[a.type] ?? a.type}</small></span>
+          <span class="ab-title"><b>${a.name}${a.upgraded ? html` <span class="chip gold ab-up">${icon("star")} verbessert</span>` : ""}</b><small>${TYPES[a.type] ?? a.type}</small></span>
           <span class="chip ab-uses">${usesLabel(a.uses)}</span>
         </div>
         <p class="ab-easy">${a.beginnerText}</p>
@@ -44,5 +44,5 @@ export function abilityList(name: string, abilities: AbilityInfo[]): Raw {
 
 /** Kleine Symbolreihe – Name und Erklärung erscheinen beim Antippen/Darüberfahren. */
 export function abilityChips(abilities: AbilityInfo[]): Raw {
-  return html`<span class="ab-chips">${abilities.map((a) => html`<span class="ab-chip t-${a.type}" tabindex="0" title="${a.name} (${usesLabel(a.uses)}): ${a.beginnerText}" aria-label="${a.name}: ${a.beginnerText}">${abilityIcon(a.type)}</span>`)}</span>`;
+  return html`<span class="ab-chips">${abilities.map((a) => html`<span class="ab-chip t-${a.type} ${a.upgraded ? "upgraded" : ""}" tabindex="0" title="${a.name} (${usesLabel(a.uses)}): ${a.beginnerText}" aria-label="${a.name}: ${a.beginnerText}">${abilityIcon(a.type)}</span>`)}</span>`;
 }

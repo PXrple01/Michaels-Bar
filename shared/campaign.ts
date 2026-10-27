@@ -1,5 +1,6 @@
 // Gemeinsame Typen für Abenteuer mit Claude als Spielleiter.
 import type { RollMode, RollRecord } from "./dice";
+import type { UpgradeOffer } from "./upgrades";
 import type { WorldState } from "./world";
 
 /** Vom Code gewürfelter Startimpuls einer neuen Geschichte. */
@@ -76,6 +77,8 @@ export type GmEvent =
   /** Vom Server ausgelöster Wurf (Gegnerangriff, Heilung, Rast) – mitten in der Erzählung. */
   | { type: "autoroll"; record: RollRecord }
   | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo; turnCostUsd?: number }
+  /** Verbesserungen erstellt (offer) oder gewählt (offer = null) – neuer signierter Spielstand. */
+  | { type: "upgrade"; state: SignedState; offer: UpgradeOffer | null; budget: BudgetInfo; turnCostUsd?: number }
   | { type: "error"; message: string; code?: "no_api_key" | "access" | "budget" | "rate" | "state" | "refusal" | "api" };
 
 export interface StartRequest {
@@ -93,6 +96,13 @@ export interface TurnRequest {
 export interface RollRequest {
   character: unknown;
   state: SignedState;
+}
+
+/** Verbesserungen erstellen lassen (upgrade) bzw. eine davon wählen (choose, mit `option`). */
+export interface UpgradeRequest {
+  character: unknown;
+  state: SignedState;
+  option?: number;
 }
 
 /** Trennt die Vorschlagszeile („» Vorschläge: A | B | C“) vom Erzähltext. */

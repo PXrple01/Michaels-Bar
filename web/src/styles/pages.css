@@ -856,3 +856,31 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .end-grid div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: rgba(8, 5, 15, 0.5); border: 1px solid var(--line); }
 .end-grid span { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
 .end-chapters { text-align: left; max-width: 620px; margin: 0; padding-left: 20px; color: var(--text-2); display: grid; gap: 6px; }
+
+/* Verbesserte Fähigkeiten: Freischaltung und Auswahl */
+.upgrade-card { display: grid; gap: 14px; margin-bottom: 16px; padding: 18px 20px; border-color: rgba(245, 214, 138, 0.4); animation: pop-in 0.6s var(--ease-spring) both; }
+.upgrade-card.due, .upgrade-card.forging { grid-template-columns: auto 1fr auto; align-items: center; }
+.upgrade-card.forging { grid-template-columns: auto 1fr; }
+.up-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: radial-gradient(circle at 30% 30%, var(--gold), #b7791f); box-shadow: 0 10px 30px -10px rgba(245, 214, 138, 0.7); }
+.up-icon svg { width: 26px; height: 26px; color: #2a1a00; }
+.upgrade-card.due .up-icon { animation: up-glow 2.2s ease-in-out infinite; }
+.upgrade-card.forging .up-icon svg { animation: quill 1s ease-in-out infinite; }
+@keyframes up-glow { 50% { box-shadow: 0 0 0 8px rgba(245, 214, 138, 0.12), 0 10px 34px -6px rgba(245, 214, 138, 0.9); } }
+.upgrade-card h3 { margin: 2px 0 4px; display: flex; align-items: center; gap: 8px; }
+.upgrade-card h3 svg { width: 20px; height: 20px; color: var(--gold); }
+.upgrade-card p { margin: 0; }
+.up-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.up-option { display: grid; gap: 8px; align-content: start; padding: 14px; border-radius: var(--radius-sm); background: rgba(8, 5, 15, 0.5); border: 1px solid var(--line); animation: pop-in 0.5s var(--ease-spring) both; animation-delay: calc(var(--i) * 120ms); transition: border-color 0.2s, transform 0.2s var(--ease-spring); }
+.up-option:hover { border-color: rgba(245, 214, 138, 0.5); transform: translateY(-2px); }
+.up-top { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; }
+.up-fit { justify-self: start; font-size: 0.72rem; }
+.up-fit svg { width: 12px; height: 12px; }
+.up-easy { color: var(--text); }
+.up-rule { font-size: 0.84rem; color: var(--muted); }
+.up-option .btn { justify-self: start; margin-top: 4px; }
+.ab.upgraded { border-color: rgba(245, 214, 138, 0.45); box-shadow: 0 0 0 1px rgba(245, 214, 138, 0.12), 0 8px 26px -14px rgba(245, 214, 138, 0.6); }
+.ab-up { font-size: 0.68rem; vertical-align: middle; }
+.ab-up svg { width: 11px; height: 11px; }
+.ab-chip.upgraded { border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 214, 138, 0.45); }
+@media (max-width: 640px) { .upgrade-card.due { grid-template-columns: auto 1fr; } .upgrade-card.due .btn { grid-column: 1 / -1; justify-self: stretch; } }
+@media (prefers-reduced-motion: reduce) { .upgrade-card.due .up-icon, .upgrade-card.forging .up-icon svg { animation: none; } }

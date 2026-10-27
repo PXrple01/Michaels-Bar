@@ -9,9 +9,11 @@ import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../
 import { countChapterTurn } from "./world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
+import { errorEvent, GmError, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
+import type { UpgradeForge } from "./upgrades";
+import { effectiveAbilities, emptyProgression, upgradeDue } from "../../shared/upgrades";
 import type { UsageGuard } from "./usage";
 
 interface PartyPlayer { id: string; tokenHash: string; host: boolean; joinedAt: string; character: Character }
@@ -69,7 +71,7 @@ const LIVE_SAVE_MS = 1500;
 class PartyError extends Error { constructor(message: string, public code = "state") { super(message); } }
 
 export class PartyService {
-  constructor(private o: { data: () => GameData; narrator: Narrator; guard: UsageGuard; store: PartyStore; secret: string }) {}
+  constructor(private o: { data: () => GameData; narrator: Narrator; forge?: UpgradeForge; guard: UsageGuard; store: PartyStore; secret: string }) {}
 
   /* ── Hilfen ── */
 
@@ -123,7 +125,7 @@ export class PartyService {
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
         return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions,
-          abilities: (cls?.abilities ?? []).map((x) => ({ name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText })) };
+          abilities: effectiveAbilities(cls?.abilities ?? [], party.world?.progress?.[p.character.id]).map((x) => ({ name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded })) };
       }),
       opening: party.opening,
       story: party.story,
@@ -188,8 +190,9 @@ export class PartyService {
 
   /* ── Spielleiter-Züge (mit Claude, gestreamt) ── */
 
-  async run(op: "start" | "action" | "roll", body: Record<string, unknown>, who: string, emit: (ev: PartyEvent) => void): Promise<void> {
+  async run(op: "start" | "action" | "roll" | "upgrade", body: Record<string, unknown>, who: string, emit: (ev: PartyEvent) => void): Promise<void> {
     try {
+      if (op === "upgrade") return void (await this.upgrade(body, who, emit));
       if (op === "action") {
         const ready = await this.submitAction(body);
         if (!ready) { emit({ type: "view", view: await this.state(body) }); return; }
@@ -200,6 +203,39 @@ export class PartyService {
       if (e instanceof PartyError) emit({ type: "error", message: e.message, code: e.code });
       else emit(errorEvent(e));
     }
+  }
+
+  /* ── Verbesserte Fähigkeiten: jede Person für ihre eigene Figur ── */
+
+  private async upgrade(body: Record<string, unknown>, who: string, emit: (ev: PartyEvent) => void) {
+    this.o.narrator.ensureReady();
+    if (!this.o.forge) throw new PartyError("Verbesserungen sind hier nicht eingerichtet.");
+    const { party } = await this.load(body.code);
+    const me = this.player(party, body.token);
+    const world = party.world;
+    const tier = world ? upgradeDue(world, me.character.id) : null;
+    if (!world || !tier) throw new PartyError(world?.progress?.[me.character.id]?.offer ? "Deine Verbesserungen liegen schon bereit – wähle eine aus." : "Gerade ist für dich keine Verbesserung freigeschaltet.");
+    const prog = world.progress?.[me.character.id] ?? emptyProgression();
+    const res = await this.o.forge.generate({ data: this.dataFor(party), character: me.character, characters: this.characters(party), world, tier, recent: lastNarration(party.messages), who });
+    const done = await this.update(party.code, (p) => {
+      const cur = p.world?.progress?.[me.character.id] ?? emptyProgression();
+      if (cur.offer || cur.chosen.length !== prog.chosen.length) return; // inzwischen schon erledigt (zweites Gerät)
+      p.world!.progress = { ...p.world!.progress, [me.character.id]: { abilities: res.abilities, chosen: cur.chosen, offer: res.offer } };
+      p.lastTurnCostUsd = res.costUsd;
+    });
+    emit({ type: "view", view: this.view(done, me.id, await this.o.guard.info()) });
+  }
+
+  async choose(body: { code?: unknown; token?: unknown; option?: unknown }): Promise<PartyView> {
+    const { party } = await this.load(body?.code);
+    const me = this.player(party, body?.token);
+    const done = await this.update(party.code, (p) => {
+      const prog = p.world?.progress?.[me.character.id];
+      const option = prog?.offer?.options[Number(body.option)];
+      if (!prog?.offer || !option) throw new PartyError("Diese Verbesserung gibt es nicht (mehr).");
+      p.world!.progress = { ...p.world!.progress, [me.character.id]: { ...prog, chosen: [...prog.chosen, option], offer: null } };
+    });
+    return this.view(done, me.id, await this.o.guard.info());
   }
 
   /** Speichert die Handlung. Gibt true zurück, wenn jetzt erzählt werden soll. */

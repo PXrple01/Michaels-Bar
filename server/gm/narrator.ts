@@ -324,3 +324,14 @@ export function describeRoll(r: RollRecord): string {
   if (r.natural === null) text += " (Schadenswurf)";
   return text;
 }
+
+/** Text der letzten Erzählung – für die Lage beim Freischalten. */
+export function lastNarration(messages: MessageParam[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "assistant") continue;
+    const text = typeof m.content === "string" ? m.content : m.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("\n");
+    if (text.trim()) return text.trim();
+  }
+  return "";
+}

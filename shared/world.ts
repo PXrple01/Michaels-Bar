@@ -1,6 +1,7 @@
 // Spielwelt-Zustand eines Abenteuers: Lebenspunkte, Kampf, Aufträge, Gedächtnis, Erfahrung, Kampagnenbogen.
 // Wird nur vom Server verändert (über Werkzeuge des Spielleiters) und ist signiert bzw. serverseitig gespeichert.
 import type { Character } from "./schema";
+import { upgradesSummary, type Progression } from "./upgrades";
 
 export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
 export interface Quest { id: string; title: string; description: string; status: "offen" | "erledigt" | "gescheitert"; notes: string[] }
@@ -16,6 +17,8 @@ export interface WorldState {
   critPending: Record<string, boolean>;
   /** Kampagnenbogen: Anfang, Mitte, Finale – mit festem Ende. Fehlt bei Spielständen von vor dem Bogen. */
   arc?: Arc;
+  /** Verbesserte Fähigkeiten je Figur. */
+  progress?: Record<string, Progression>;
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */
@@ -90,6 +93,8 @@ export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "
   const open = w.quests.filter((q) => q.status === "offen");
   // Nur Titel: Notizen und Gemerktes stehen schon im Verlauf (und in der Zusammenfassung) – jede Wiederholung kostet bei jedem Zug.
   if (open.length) lines.push(`Offene Aufträge: ${open.map((q) => q.title).join(" | ")}`);
+  const upgrades = upgradesSummary(w, characters);
+  if (upgrades) lines.push(upgrades);
   if (w.arc) lines.push(arcSummary(w.arc));
   return lines.join("\n");
 }

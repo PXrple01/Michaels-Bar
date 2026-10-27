@@ -144,6 +144,25 @@ Jede Kampagne ist lang wie eine typische DnD-Kampagne – aber sie hat ein Ende 
 - **Anzeige:** Im Spielstand stehen die drei Akte mit je einem Punkt pro Kapitel (kommende Kapitel ohne Titel – keine Spoiler)
   und das laufende Kapitel.
 
+## Verbesserte Fähigkeiten
+
+Zweimal pro Kampagne entwickelt sich eine Fähigkeit weiter (`shared/upgrades.ts`, Claude-Teil in `server/gm/upgrades.ts`).
+
+- **Wann:** einmal im Akt Mitte (ab 200 EP), einmal im Finale (ab 550 EP). Damit es sicher passiert, spätestens im letzten
+  Kapitel des Akts – auch mit weniger Erfahrung.
+- **Welche:** Bei der ersten Freischaltung wählt Claude die zwei Fähigkeiten, die sich am besten weiterentwickeln lassen;
+  in der Mitte wird die erste verbessert, im Finale die zweite. Vorher erfährt der Spieler nicht, welche es sind.
+- **Wie:** Erst beim Freischalten erfindet Claude zwei Verbesserungen derselben Fähigkeit – passend zur Figur; eine darf zur
+  aktuellen Lage passen (z. B. liegt im Kampf ein Gefährte am Boden: Gefallene wieder auf die Beine bringen). Beide müssen
+  auch später immer nützlich sein. Der Spieler wählt eine; die Wahl gilt für den Rest der Kampagne.
+- **Fair:** Der Code misst die Stärke mit der Punkte-Tabelle des Klassen-Editors: Jede Verbesserung muss +0,5 bis +3 Punkte
+  bringen. Würfelgrenzen und verbotene Effekte gelten wie immer. Ungültige Vorschläge gehen einmal mit Begründung an Claude
+  zurück; klappt es dann nicht, springt eine maßvolle Ersatz-Verbesserung ein.
+- **Kosten:** ein Claude-Aufruf pro Freischaltung und Figur; die Wahl selbst kostet nichts.
+- Der Spielleiter sieht die gewählten Verbesserungen in jedem `<spielstand>`. In der Gruppe schaltet jede Person für ihre
+  eigene Figur frei; in der Team-Leiste leuchten verbesserte Fähigkeiten golden. Über die OpenAI-Schnittstelle gibt es
+  (noch) keine Verbesserungen.
+
 ## OpenAI-kompatible Schnittstelle (für Chat-Apps und Programme)
 
 Der Spielleiter ist auch im OpenAI-Format erreichbar (`server/gm/openai.ts`) – für Chat-Apps mit „OpenAI-kompatibler“ Adresse

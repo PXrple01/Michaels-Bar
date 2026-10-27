@@ -38,7 +38,7 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model });
   return {
     gm,
-    party: new PartyService({ data, narrator: gm.narrator, guard, store: parties, secret }),
+    party: new PartyService({ data, narrator: gm.narrator, forge: gm.forge, guard, store: parties, secret }),
     openai: new OpenAiGateway({ data, narrator: gm.narrator, guard, secret, apiKey: env.OPENAI_COMPAT_KEY?.trim() || undefined }),
     reviewer: new ClassReviewer({ data, llm, guard, secret, effort, model: pickModel(env.REVIEW_MODEL, model, "REVIEW_MODEL") }),
   };
