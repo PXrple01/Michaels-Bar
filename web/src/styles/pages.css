@@ -741,3 +741,11 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
   .wc-enemies { grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .hp-bar > span, .hp-bar.low > span, .wc-head svg { animation: none; transition: none; } }
+
+/* Figur löschen direkt in der Liste */
+.char-wrap { position: relative; display: grid; }
+.char-wrap > .char-card { height: 100%; }
+.char-delete { position: absolute; top: 12px; right: 12px; z-index: 2; opacity: 0.55; transition: opacity 0.2s, color 0.2s, background 0.2s; }
+.char-wrap:hover .char-delete, .char-delete:focus-visible { opacity: 1; }
+.char-delete:hover { color: var(--bad); background: rgba(253, 164, 175, 0.12); }
+@media (hover: none) { .char-delete { opacity: 0.9; } }

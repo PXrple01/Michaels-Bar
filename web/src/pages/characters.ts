@@ -1,8 +1,10 @@
 import { enhance } from "../fx/effects";
 import { api, loadGameData } from "../lib/api";
+import { campaignStore } from "../lib/campaigns";
 import { html, setHTML } from "../lib/dom";
 import { icon, sigil } from "../lib/icons";
-import type { Page } from "../lib/router";
+import { go, type Page } from "../lib/router";
+import { confirmDialog, toast } from "../lib/ui";
 
 export function charactersPage(): Page {
   return {
@@ -34,18 +36,35 @@ export function charactersPage(): Page {
               const stand = rules.stands.find((s) => s.id === c.stand);
               const hpPct = Math.round((c.hp.current / c.hp.max) * 100);
               return html`
-                <a class="card char-card tilt" href="#/figur/${c.id}" data-reveal="scale" style="--i:${i + 1}">
+                <div class="char-wrap" data-reveal="scale" style="--i:${i + 1}">
+                <button class="icon-btn char-delete" data-delete="${c.id}" aria-label="${c.name} löschen" title="Figur löschen">${icon("trash")}</button>
+                <a class="card char-card tilt" href="#/figur/${c.id}">
                   <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
                   <h3>${c.name}</h3>
                   <p class="muted">${cls?.name ?? c.classId} · ${stand?.name ?? c.stand} · Stufe ${c.level}</p>
                   <div class="mini-hp" title="${c.hp.current} von ${c.hp.max} Trefferpunkten"><i style="width:${hpPct}%"></i></div>
                   <span class="link-arrow">Bogen öffnen ${icon("arrowRight")}</span>
-                </a>`;
+                </a>
+                </div>`;
             })}
           </div>
           <div class="center" style="margin-top:28px"><a class="btn btn-ghost" href="#/klassen">${icon("wand")} Eigene Klassen bauen</a></div>
           <p class="hint center" style="margin-top:18px">Deine Figuren werden in diesem Browser gespeichert – auf einem anderen Gerät siehst du sie nicht.</p>
         </div>`);
+      root.addEventListener("click", async (e) => {
+        const del = (e.target as HTMLElement).closest<HTMLElement>("[data-delete]");
+        if (!del) return;
+        e.preventDefault();
+        const c = list.find((x) => x.id === del.dataset.delete);
+        if (!c) return;
+        const adventures = campaignStore.list().filter((s) => s.characterId === c.id);
+        const extra = adventures.length ? ` Auch ${adventures.length === 1 ? "ihr Abenteuer wird" : `ihre ${adventures.length} Abenteuer werden`} gelöscht.` : "";
+        if (!(await confirmDialog("Figur löschen?", `${c.name} wird endgültig gelöscht.${extra} Das lässt sich nicht rückgängig machen.`, "Löschen", true))) return;
+        await api.deleteCharacter(c.id);
+        for (const a of adventures) campaignStore.remove(a.id);
+        toast(`${c.name} ist in die Legenden eingegangen.`);
+        go("/figuren");
+      });
       enhance(root);
     },
   };

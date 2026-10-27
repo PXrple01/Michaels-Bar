@@ -34,7 +34,11 @@ export function startRouter(el: HTMLElement, navigate: (nav: string) => void) {
 async function swap(page: Page, params: Record<string, string>) {
   current?.leave?.();
   current = page;
-  root.innerHTML = "";
+  // Frisches Element: Seiten hängen Klick-Reaktionen an `root` – ohne Austausch sammelten sie sich bei jedem Besuch an
+  // (z. B. fünf Löschen-Rückfragen nach fünf Besuchen, oder ein alter Figuren-Entwurf, der mitgespeichert wurde).
+  const fresh = root.cloneNode(false) as HTMLElement;
+  root.replaceWith(fresh);
+  root = fresh;
   window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
   await page.render(root, params);
   root.focus({ preventScroll: true });

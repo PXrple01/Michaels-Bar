@@ -3,6 +3,7 @@ import { formatModifier, type RollMode } from "../../../shared/dice";
 import type { Character, Money } from "../../../shared/schema";
 import { rollWithOverlay } from "../dice3d/roller";
 import { countUp, enhance } from "../fx/effects";
+import { campaignStore } from "../lib/campaigns";
 import { api, loadGameData, type GameData } from "../lib/api";
 import { dataFor } from "../lib/customClasses";
 import { $, $$, html, setHTML, uuid } from "../lib/dom";
@@ -204,6 +205,7 @@ export function sheetPage(): Page {
       $("#delete-char", root).addEventListener("click", async () => {
         if (!(await confirmDialog("Figur löschen?", `${c.name} wird endgültig gelöscht. Das lässt sich nicht rückgängig machen.`, "Löschen", true))) return;
         await api.deleteCharacter(c.id);
+        for (const a of campaignStore.list().filter((x) => x.characterId === c.id)) campaignStore.remove(a.id);
         toast(`${c.name} ist in die Legenden eingegangen.`);
         go("/figuren");
       });
