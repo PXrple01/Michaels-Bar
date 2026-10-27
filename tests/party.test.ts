@@ -115,5 +115,7 @@ describe("Kosten", () => {
     expect(costUsd({ input_tokens: 0, output_tokens: 0, cache_creation: { ephemeral_1h_input_tokens: 1_000_000 } }, "claude-opus-5-5")).toBeCloseTo(8);
     expect(costUsd({ input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 1_000_000 }, "claude-opus-5-5")).toBeCloseTo(0.2);
     expect(costUsd({ input_tokens: 1_000_000, output_tokens: 1_000_000 }, "claude-sonnet-5-5")).toBeCloseTo(12);
+    // Die Zusammenfassung steht nicht in den Hauptzahlen und muss mitgezählt werden
+    expect(costUsd({ input_tokens: 0, output_tokens: 0, iterations: [{ type: "compaction", input_tokens: 0, output_tokens: 100_000 }] }, "claude-opus-5-5")).toBeCloseTo(2);
   });
 });

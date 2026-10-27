@@ -6,7 +6,7 @@ import { initWorld, worldSummary, type WorldState } from "../../shared/world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, Narrator, stripThinking, TOOLSET, type LlmClient, type MessageParam, type ModelId, type ToolResult } from "./narrator";
+import { errorEvent, GmError, Narrator, stripThinking, TOOLSET, userTurn, type LlmClient, type MessageParam, type ModelId, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import { characterHash, signState, verifyState } from "./state";
@@ -72,13 +72,13 @@ export class GameMaster {
 
   private async turn(req: TurnRequest, who: string, emit: (ev: GmEvent) => void) {
     const { c, data } = this.character(req?.character);
-    const { messages, world } = this.verified(req.state, c);
+    const { messages, world, held } = this.verified(req.state, c);
     if (this.pendingFrom(messages, c, data, world)) throw new GmError("Erst muss die verlangte Probe gewürfelt werden.", "state");
     const action = typeof req.action === "string" ? req.action.trim() : "";
     if (!action) throw new GmError("Was tust du? Schreib es in das Feld.", "state");
     if (action.length > MAX_ACTION_LENGTH) throw new GmError(`Bitte kürzer fassen (höchstens ${MAX_ACTION_LENGTH} Zeichen).`, "state");
     if (world.combat) world.combat.round++;
-    await this.converse([...messages, { role: "user", content: `${action}\n\n<spielstand>\n${worldSummary(world, [c])}\n</spielstand>` }], world, c, data, who, emit);
+    await this.converse([...messages, userTurn(held, `${action}\n\n<spielstand>\n${worldSummary(world, [c])}\n</spielstand>`)], world, c, data, who, emit);
   }
 
   private async roll(req: RollRequest, who: string, emit: (ev: GmEvent) => void) {

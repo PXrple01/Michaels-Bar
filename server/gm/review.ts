@@ -7,7 +7,7 @@ import { checkClass } from "../../shared/classbuilder";
 import { MAX_REVIEW_ROUNDS, type ClaudeAssessment, type ReviewEvent, type ReviewRequest } from "../../shared/classreview";
 import type { ClassDef, Rules } from "../../shared/schema";
 import type { GameData } from "../rules/loader";
-import { CACHE_1H, requestBase, type LlmClient, type ModelId } from "./narrator";
+import { apiErrorText, CACHE_1H, requestBase, type LlmClient, type ModelId } from "./narrator";
 import { LimitError, type UsageGuard } from "./usage";
 
 const SIGILS = ["shield", "axe", "mask", "candle", "bow", "cauldron"];
@@ -161,6 +161,7 @@ export class ClassReviewer {
     } catch (e) {
       if (e instanceof LimitError) emit({ type: "error", message: e.message, code: e.code });
       else if (e instanceof Anthropic.AuthenticationError) emit({ type: "error", message: "Der API-Schlüssel wurde abgelehnt.", code: "no_api_key" });
+      else if (e instanceof Anthropic.BadRequestError) { console.error("[Claude] 400 bei der Klassenbewertung:", apiErrorText(e)); emit({ type: "error", message: `Claude hat die Anfrage abgelehnt (400): ${apiErrorText(e)}`, code: "api" }); }
       else if (e instanceof Anthropic.APIError) emit({ type: "error", message: `Verbindung zu Claude fehlgeschlagen (${e.status ?? "Netzwerk"}). Bitte erneut versuchen.`, code: "api" });
       else if (e instanceof Error && e.name === "ReviewError") emit({ type: "error", message: e.message, code: "state" });
       else { console.error(e); emit({ type: "error", message: "Unerwarteter Fehler bei der Bewertung.", code: "api" }); }

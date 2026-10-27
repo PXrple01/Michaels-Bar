@@ -130,6 +130,32 @@ describe("Aufträge, Gedächtnis, Erfahrung", () => {
     expect((await run("turn", { character, state: forged, action: "Ich gehe." })).at(-1)).toMatchObject({ type: "error", code: "state" });
   });
 
+  it("Buchführung nach fertiger Erzählung kostet keinen zweiten Modellaufruf", async () => {
+    const { llm, run } = setup([
+      tools("Der Abt nickt dir zu.\n» Vorschläge: Ins Kloster gehen | Weiterreiten",
+        { id: "toolu_s1", name: "merken", input: { text: "Der Abt heißt Gregor." } },
+        { id: "toolu_s2", name: "auftrag", input: { aktion: "neu", titel: "Der Brief", text: "Bring den Brief nach Ulm." } }),
+      text("Du reitest weiter."),
+    ]);
+    const start = done(await run("start", { character, previousOpenings: [] }));
+    expect(llm.calls).toHaveLength(1);
+    expect(start.pending).toBeNull();
+    expect(start.state.world?.memory).toEqual(["Der Abt heißt Gregor."]);
+    await run("turn", { character, state: start.state, action: "Ich reite weiter." });
+    const sent = llm.calls[1].messages.at(-1)!.content as { type: string; tool_use_id?: string; text?: string }[];
+    expect(sent.map((b) => b.tool_use_id ?? b.type)).toEqual(["toolu_s1", "toolu_s2", "text"]);
+    expect(sent[2].text).toContain("Ich reite weiter.");
+  });
+
+  it("ohne Vorschlagszeile erzählt Claude nach der Buchführung weiter", async () => {
+    const { llm, run } = setup([
+      tools("Der Abt nickt.", { id: "toolu_t1", name: "merken", input: { text: "Abt Gregor." } }),
+      text("Er reicht dir einen Brief.\n» Vorschläge: Lesen | Einstecken"),
+    ]);
+    await run("start", { character, previousOpenings: [] });
+    expect(llm.calls).toHaveLength(2);
+  });
+
   it("alte Spielstände werden einmalig umgestellt (Denkblöcke entfernt, Welt angelegt)", async () => {
     const { llm, run } = setup([text("Weiter geht's.")]);
     const old = { messages: [{ role: "user", content: "Start" }, { role: "assistant", content: [{ type: "thinking", thinking: "x", signature: "s" }, { type: "text", text: "Hallo" }] }] };

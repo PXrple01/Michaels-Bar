@@ -24,12 +24,40 @@ export interface LlmClient {
 
 export class AnthropicLlm implements LlmClient {
   private client: Anthropic;
-  constructor(apiKey: string) { this.client = new Anthropic({ apiKey, maxRetries: 2 }); }
+  /** Lehnt die API das Ersatzmodell (fallbacks) ab, wird es für diese Instanz nicht mehr mitgeschickt. */
+  private noFallback = false;
+  constructor(apiKey: string, options: Omit<NonNullable<ConstructorParameters<typeof Anthropic>[0]>, "apiKey"> = {}) { this.client = new Anthropic({ apiKey, maxRetries: 2, ...options }); }
   async stream(params: StreamParams, onText: (text: string) => void): Promise<Message> {
+    if (this.noFallback) params = withoutFallback(params);
+    try {
+      return await this.once(params, onText);
+    } catch (e) {
+      // Ein 400 kommt vor der ersten Ausgabe. Liegt es an der Ersatzmodell-Option, geht es ohne sie weiter.
+      if (!(e instanceof Anthropic.BadRequestError) || !("fallbacks" in params)) throw e;
+      console.warn(`[Claude] Anfrage mit Ersatzmodell abgelehnt (${apiErrorText(e)}) – nächster Versuch ohne.`);
+      const result = await this.once(withoutFallback(params), onText);
+      this.noFallback = true;
+      return result;
+    }
+  }
+  private once(params: StreamParams, onText: (text: string) => void): Promise<Message> {
     const stream = this.client.beta.messages.stream(params);
     stream.on("text", onText);
     return stream.finalMessage();
   }
+}
+
+function withoutFallback(params: StreamParams): StreamParams {
+  const { fallbacks: _, ...rest } = params as StreamParams & { fallbacks?: unknown };
+  const betas = rest.betas?.filter((b) => !String(b).startsWith("server-side-fallback"));
+  return { ...rest, betas } as StreamParams;
+}
+
+/** Die eigentliche Fehlermeldung der API (z. B. welcher Parameter ungültig ist) – ohne Geheimnisse, gut zum Melden. */
+export function apiErrorText(e: unknown): string {
+  if (!(e instanceof Anthropic.APIError)) return e instanceof Error ? e.message : String(e);
+  const body = e.error as { error?: { message?: string } } | undefined;
+  return (body?.error?.message ?? e.message).slice(0, 300);
 }
 
 export const MODELS = ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"] as const;
@@ -49,11 +77,18 @@ export const TOOL_NAME = "probe_anfordern";
 /** Werkzeugstand: Ab 2 gibt es Kampf, Aufträge und Gedächtnis. Ältere Verläufe werden einmalig umgestellt. */
 export const TOOLSET = 2;
 const MAX_LOOPS = 5;
+/** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
+const QUIET_TOOLS = new Set(["merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden"]);
 const COMPACT_AT = 80_000;
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
   "Orte; offene und erledigte Aufträge; Versprechen, Schulden, Geheimnisse und Hinweise; besiegte und noch lebende Gegner; erhaltene und verlorene Gegenstände und Geld; " +
   "den Stand der aktuellen Szene; Ton und Stil der Erzählung. Lebenspunkte stehen ohnehin in jedem <spielstand>.";
+
+/** Nächste Nachricht an Claude: zurückgehaltene Werkzeug-Ergebnisse zuerst, dann der Text. */
+export function userTurn(held: ToolResult[], text: string): MessageParam {
+  return { role: "user", content: held.length ? [...held, { type: "text", text }] : text };
+}
 
 /** Entfernt Denkblöcke – nötig, wenn sich Werkzeuge geändert haben (alte Denkblöcke gelten dann nicht mehr). */
 export function stripThinking(messages: MessageParam[]): MessageParam[] {
@@ -74,6 +109,7 @@ export function errorEvent(e: unknown): Extract<GmEvent, { type: "error" }> {
   if (e instanceof LimitError) return { type: "error", message: e.message, code: e.code };
   if (e instanceof Anthropic.RateLimitError) return { type: "error", message: "Der Spielleiter ist gerade überlastet. Bitte gleich noch einmal versuchen.", code: "api" };
   if (e instanceof Anthropic.AuthenticationError) return { type: "error", message: "Der API-Schlüssel wurde abgelehnt. Bitte ANTHROPIC_API_KEY prüfen.", code: "no_api_key" };
+  if (e instanceof Anthropic.BadRequestError) { console.error("[Claude] 400:", apiErrorText(e)); return { type: "error", message: `Claude hat die Anfrage abgelehnt (400): ${apiErrorText(e)}`, code: "api" }; }
   if (e instanceof Anthropic.APIError) return { type: "error", message: `Fehler bei der Verbindung zum Spielleiter (${e.status ?? "Netzwerk"}). Bitte erneut versuchen.`, code: "api" };
   console.error(e);
   return { type: "error", message: "Unerwarteter Fehler beim Erzählen.", code: "api" };
@@ -230,7 +266,8 @@ export class Narrator {
       cost += c;
       await this.o.guard.record(msg.usage, this.model);
       const u = msg.usage;
-      console.log(`[Kosten] ${this.model}: Eingabe ${u.input_tokens}, Cache gelesen ${u.cache_read_input_tokens ?? 0}, Cache geschrieben ${u.cache_creation_input_tokens ?? 0}, Ausgabe ${u.output_tokens} → ${(c * 100).toFixed(2)} ct`);
+      const compacted = (u.iterations ?? []).some((i) => i.type === "compaction");
+      console.log(`[Kosten] ${this.model}: Eingabe ${u.input_tokens}, Cache gelesen ${u.cache_read_input_tokens ?? 0}, Cache geschrieben ${u.cache_creation_input_tokens ?? 0}, Ausgabe ${u.output_tokens} (davon Denken ${u.output_tokens_details?.thinking_tokens ?? "?"})${compacted ? ", mit Zusammenfassung" : ""} → ${(c * 100).toFixed(2)} ct`);
 
       if (msg.stop_reason === "refusal") throw new GmError("Der Spielleiter möchte diese Szene so nicht erzählen. Versuch es mit einer anderen Handlung.", "refusal");
       history.push({ role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] });
@@ -250,6 +287,8 @@ export class Narrator {
           }
         }
         if (pending) return { history, pending, held: results, costUsd: cost };
+        const told = msg.content.some((b) => b.type === "text" && /»\s*Vorschläge:/.test(b.text));
+        if (told && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost };
         history.push({ role: "user", content: results });
         continue;
       }
