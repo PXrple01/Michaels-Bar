@@ -31,13 +31,13 @@ export function initWorld(characters: Pick<Character, "id" | "hp">[]): WorldStat
   };
 }
 
-/** Kurzer Spielstand für Claude – wird jeder Handlung angehängt, damit nach einer Komprimierung nichts verloren geht. */
+/** Kurzer Spielstand für Claude – wird jeder Handlung angehängt, damit Zahlen auch nach einer Zusammenfassung stimmen. */
 export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "name">[]): string {
   const hp = characters.map((c) => `${c.name} ${w.hp[c.id] ?? 0}/${w.maxHp[c.id] ?? 0} TP${(w.hp[c.id] ?? 0) <= 0 ? " (kampfunfähig)" : ""}`).join(", ");
   const lines = [`Lebenspunkte: ${hp}`];
   if (w.combat) lines.push(`Kampf (Runde ${w.combat.round}): ${w.combat.enemies.map((e) => `${e.name} ${e.hp}/${e.maxHp} TP, Rüstung ${e.armor}${e.hp <= 0 ? " – besiegt" : ""}`).join("; ")}`);
   const open = w.quests.filter((q) => q.status === "offen");
-  if (open.length) lines.push(`Offene Aufträge: ${open.map((q) => `${q.title}${q.notes.length ? ` (${q.notes.slice(-2).join("; ")})` : ""}`).join(" | ")}`);
-  if (w.memory.length) lines.push(`Gedächtnis: ${w.memory.slice(-12).join(" | ")}`);
+  // Nur Titel: Notizen und Gemerktes stehen schon im Verlauf (und in der Zusammenfassung) – jede Wiederholung kostet bei jedem Zug.
+  if (open.length) lines.push(`Offene Aufträge: ${open.map((q) => q.title).join(" | ")}`);
   return lines.join("\n");
 }

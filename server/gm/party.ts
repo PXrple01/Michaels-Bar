@@ -8,7 +8,7 @@ import type { Character } from "../../shared/schema";
 import { initWorld, worldSummary, type WorldState } from "../../shared/world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, stripThinking, TOOLSET, type MessageParam, type Narrator, type ToolResult } from "./narrator";
+import { errorEvent, GmError, stripThinking, TOOLSET, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import type { UsageGuard } from "./usage";
@@ -251,7 +251,7 @@ export class PartyService {
         p.story.push({ type: "actions", items: items.filter((i) => i.text) });
         const lines = items.map((i) => `- ${i.name}: ${i.text || "(keine Angabe – handelt passend zur Lage)"}`).join("\n");
         if (p.world!.combat) p.world!.combat.round++;
-        messages = [...p.messages, { role: "user", content: `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${worldSummary(p.world!, this.characters(p))}\n</spielstand>` }];
+        messages = [...p.messages, userTurn(p.held ?? [], `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${worldSummary(p.world!, this.characters(p))}\n</spielstand>`)];
       } else {
         if (!p.pending) throw new PartyError("Gerade ist keine Probe offen.");
         if (p.pending.characterId !== me.character.id) throw new PartyError(`${p.pending.characterName} muss würfeln, nicht du.`);

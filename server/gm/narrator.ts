@@ -49,11 +49,18 @@ export const TOOL_NAME = "probe_anfordern";
 /** Werkzeugstand: Ab 2 gibt es Kampf, Aufträge und Gedächtnis. Ältere Verläufe werden einmalig umgestellt. */
 export const TOOLSET = 2;
 const MAX_LOOPS = 5;
+/** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
+const QUIET_TOOLS = new Set(["merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden"]);
 const COMPACT_AT = 80_000;
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
   "Orte; offene und erledigte Aufträge; Versprechen, Schulden, Geheimnisse und Hinweise; besiegte und noch lebende Gegner; erhaltene und verlorene Gegenstände und Geld; " +
   "den Stand der aktuellen Szene; Ton und Stil der Erzählung. Lebenspunkte stehen ohnehin in jedem <spielstand>.";
+
+/** Nächste Nachricht an Claude: zurückgehaltene Werkzeug-Ergebnisse zuerst, dann der Text. */
+export function userTurn(held: ToolResult[], text: string): MessageParam {
+  return { role: "user", content: held.length ? [...held, { type: "text", text }] : text };
+}
 
 /** Entfernt Denkblöcke – nötig, wenn sich Werkzeuge geändert haben (alte Denkblöcke gelten dann nicht mehr). */
 export function stripThinking(messages: MessageParam[]): MessageParam[] {
@@ -230,7 +237,8 @@ export class Narrator {
       cost += c;
       await this.o.guard.record(msg.usage, this.model);
       const u = msg.usage;
-      console.log(`[Kosten] ${this.model}: Eingabe ${u.input_tokens}, Cache gelesen ${u.cache_read_input_tokens ?? 0}, Cache geschrieben ${u.cache_creation_input_tokens ?? 0}, Ausgabe ${u.output_tokens} → ${(c * 100).toFixed(2)} ct`);
+      const compacted = (u.iterations ?? []).some((i) => i.type === "compaction");
+      console.log(`[Kosten] ${this.model}: Eingabe ${u.input_tokens}, Cache gelesen ${u.cache_read_input_tokens ?? 0}, Cache geschrieben ${u.cache_creation_input_tokens ?? 0}, Ausgabe ${u.output_tokens} (davon Denken ${u.output_tokens_details?.thinking_tokens ?? "?"})${compacted ? ", mit Zusammenfassung" : ""} → ${(c * 100).toFixed(2)} ct`);
 
       if (msg.stop_reason === "refusal") throw new GmError("Der Spielleiter möchte diese Szene so nicht erzählen. Versuch es mit einer anderen Handlung.", "refusal");
       history.push({ role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] });
@@ -250,6 +258,8 @@ export class Narrator {
           }
         }
         if (pending) return { history, pending, held: results, costUsd: cost };
+        const told = msg.content.some((b) => b.type === "text" && /»\s*Vorschläge:/.test(b.text));
+        if (told && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost };
         history.push({ role: "user", content: results });
         continue;
       }

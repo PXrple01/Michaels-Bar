@@ -13,9 +13,16 @@ export interface TokenUsage {
   cache_creation_input_tokens?: number | null;
   cache_read_input_tokens?: number | null;
   cache_creation?: { ephemeral_5m_input_tokens?: number | null; ephemeral_1h_input_tokens?: number | null } | null;
+  /** Server-seitige Schritte; die Zusammenfassung (compaction) steht nicht in den Hauptzahlen. */
+  iterations?: ({ type: string } & Omit<TokenUsage, "iterations">)[] | null;
 }
 
 export function costUsd(u: TokenUsage, model = "claude-opus-5-5"): number {
+  const compaction = (u.iterations ?? []).filter((i) => i.type === "compaction").reduce((sum, i) => sum + tokenCost(i, model), 0);
+  return tokenCost(u, model) + compaction;
+}
+
+function tokenCost(u: Omit<TokenUsage, "iterations">, model: string): number {
   const p = PRICES[model] ?? PRICES["claude-opus-5-5"];
   const write1h = u.cache_creation?.ephemeral_1h_input_tokens ?? 0;
   const write5m = u.cache_creation ? (u.cache_creation.ephemeral_5m_input_tokens ?? 0) : (u.cache_creation_input_tokens ?? 0);
