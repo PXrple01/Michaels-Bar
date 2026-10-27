@@ -8,7 +8,7 @@ import type { Character } from "../../shared/schema";
 import { initWorld, worldSummary, type WorldState } from "../../shared/world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, stripThinking, TOOLSET, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
+import { errorEvent, GmError, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import type { UsageGuard } from "./usage";
@@ -35,6 +35,8 @@ export interface Party {
   /** Werkzeug-Ergebnisse, die mit dem nächsten Probenergebnis an Claude gehen. */
   held: ToolResult[];
   toolset?: number;
+  /** Modell, das zuletzt erzählt hat (siehe SignedState.model). */
+  model?: string;
 }
 
 /** Speicher mit optimistischer Sperre: put schlägt fehl, wenn jemand anderes inzwischen gespeichert hat. */
@@ -236,6 +238,7 @@ export class PartyService {
         p.held = [];
         p.toolset = TOOLSET;
       }
+      if (p.status === "playing" && (p.model ?? LEGACY_MODEL) !== this.o.narrator.model) p.messages = stripThinking(p.messages);
       if (op === "start") {
         if (!me.host) throw new PartyError("Nur der Gastgeber kann das Abenteuer starten.");
         if (p.status !== "lobby") throw new PartyError("Das Abenteuer läuft schon.");
@@ -300,6 +303,7 @@ export class PartyService {
       // 4) Ergebnis übernehmen und Sperre lösen
       const done = await this.update(locked.code, (p) => {
         p.messages = res.history;
+        p.model = this.o.narrator.model;
         p.story.push(...segments);
         p.world = world;
         p.held = res.held;

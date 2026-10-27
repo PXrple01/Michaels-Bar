@@ -6,7 +6,7 @@ import { initWorld, worldSummary, type WorldState } from "../../shared/world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, Narrator, stripThinking, TOOLSET, userTurn, type LlmClient, type MessageParam, type ModelId, type ToolResult } from "./narrator";
+import { errorEvent, GmError, Narrator, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type LlmClient, type MessageParam, type ModelId, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import { characterHash, signState, verifyState } from "./state";
@@ -46,7 +46,11 @@ export class GameMaster {
   private verified(state: SignedState | undefined, c: Character): Saved {
     if (!verifyState(this.o.secret, state, c)) throw new GmError("Der Spielstand passt nicht zur Signatur des Servers (verändert oder zu einer anderen Figur gehörig).", "state");
     const messages = state!.messages as MessageParam[];
-    if (state!.toolset === TOOLSET && state!.world) return { messages, world: state!.world, held: (state!.held ?? []) as ToolResult[] };
+    if (state!.toolset === TOOLSET && state!.world) {
+      // Anderes Modell als beim letzten Zug (z. B. GM_MODEL umgestellt): dessen Denkblöcke kann das neue Modell nicht lesen.
+      const sameModel = (state!.model ?? LEGACY_MODEL) === this.narrator.model;
+      return { messages: sameModel ? messages : stripThinking(messages), world: state!.world, held: (state!.held ?? []) as ToolResult[] };
+    }
     return { messages: stripThinking(messages), world: initWorld([c]), held: [] };
   }
 
@@ -94,7 +98,7 @@ export class GameMaster {
   private async converse(messages: MessageParam[], world: WorldState, c: Character, data: GameData, who: string, emit: (ev: GmEvent) => void) {
     const scene = { characters: [c], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }) };
     const res = await this.narrator.converse(messages, scene, who, (text) => emit({ type: "text", text }));
-    const state = signState(this.o.secret, { messages: res.history, world, held: res.held, toolset: TOOLSET }, characterHash(c));
+    const state = { ...signState(this.o.secret, { messages: res.history, world, held: res.held, toolset: TOOLSET }, characterHash(c)), model: this.narrator.model };
     emit({ type: "done", state, pending: res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
   }
 }

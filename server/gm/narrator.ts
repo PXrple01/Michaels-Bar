@@ -90,6 +90,9 @@ export function userTurn(held: ToolResult[], text: string): MessageParam {
   return { role: "user", content: held.length ? [...held, { type: "text", text }] : text };
 }
 
+/** Spielstände von vor dem Modell-Merken stammen alle von Opus. */
+export const LEGACY_MODEL = "claude-opus-5-5";
+
 /** Entfernt Denkblöcke – nötig, wenn sich Werkzeuge geändert haben (alte Denkblöcke gelten dann nicht mehr). */
 export function stripThinking(messages: MessageParam[]): MessageParam[] {
   return messages.map((m) => {

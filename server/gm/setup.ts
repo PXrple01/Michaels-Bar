@@ -18,7 +18,12 @@ export interface GmEnv {
   REVIEW_MODEL?: string;
 }
 
-const pickModel = (v: string | undefined, fallback: ModelId): ModelId => ((MODELS as readonly string[]).includes(v ?? "") ? (v as ModelId) : fallback);
+const pickModel = (v: string | undefined, fallback: ModelId, name = "GM_MODEL"): ModelId => {
+  const value = v?.trim();
+  if ((MODELS as readonly string[]).includes(value ?? "")) return value as ModelId;
+  if (value) console.warn(`[Claude] ${name}="${value}" ist unbekannt – nutze ${fallback}. Erlaubt: ${MODELS.join(", ")}`);
+  return fallback;
+};
 
 export interface Claude { gm: GameMaster; reviewer: ClassReviewer; party: PartyService }
 
@@ -31,6 +36,6 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   return {
     gm,
     party: new PartyService({ data, narrator: gm.narrator, guard, store: parties, secret }),
-    reviewer: new ClassReviewer({ data, llm, guard, secret, effort, model: pickModel(env.REVIEW_MODEL, model) }),
+    reviewer: new ClassReviewer({ data, llm, guard, secret, effort, model: pickModel(env.REVIEW_MODEL, model, "REVIEW_MODEL") }),
   };
 }

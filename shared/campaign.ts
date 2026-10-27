@@ -42,6 +42,8 @@ export interface SignedState {
   /** Ergebnisse sofort ausgeführter Werkzeuge, die mit dem Probenergebnis zusammen zurückgehen. */
   held?: unknown[];
   toolset?: number;
+  /** Modell, das zuletzt erzählt hat. Wechselt es, werden dessen Denkblöcke entfernt (sie gelten nur für dieses Modell). */
+  model?: string;
 }
 
 export type StoryEntry =

@@ -169,3 +169,22 @@ describe("Aufträge, Gedächtnis, Erfahrung", () => {
     expect(llm.calls[0].context_management?.edits?.[0]).toMatchObject({ type: "compact_20260112" });
   });
 });
+
+describe("Modellwechsel", () => {
+  it("wechselt GM_MODEL, werden die Denkblöcke des alten Modells entfernt – sonst bleiben sie", async () => {
+    const thinking = { role: "assistant", content: [{ type: "thinking", thinking: "x", signature: "s" }, { type: "text", text: "Hallo" }] };
+    const state = signState(SECRET, { messages: [{ role: "user", content: "Start" }, thinking], world: initWorld([character]), held: [], toolset: 2 }, characterHash(character));
+    const sentTypes = async (model: "claude-opus-5-5" | "claude-sonnet-5-5", s: SignedState) => {
+      const llm = new FakeLlm([text("Weiter.")]);
+      const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET, model });
+      const evs: GmEvent[] = [];
+      await gm.run("turn", { character, state: s, action: "Ich gehe." }, "t", (e) => evs.push(e));
+      return { types: (llm.calls[0].messages[1].content as { type: string }[]).map((b) => b.type), done: done(evs) };
+    };
+    // Alter Spielstand ohne Modellangabe stammt von Opus
+    expect((await sentTypes("claude-opus-5-5", state)).types).toEqual(["thinking", "text"]);
+    const switched = await sentTypes("claude-sonnet-5-5", state);
+    expect(switched.types).toEqual(["text"]);
+    expect(switched.done.state.model).toBe("claude-sonnet-5-5");
+  });
+});
