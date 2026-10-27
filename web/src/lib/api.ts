@@ -45,14 +45,6 @@ export const api = {
     characterStore.save(c);
     return c;
   },
-  patchCharacter: async (id: string, patch: { hpCurrent?: number }) => {
-    const c = characterStore.get(id);
-    if (!c) throw new ApiError("Figur nicht gefunden");
-    if (patch.hpCurrent !== undefined) c.hp.current = Math.max(0, Math.min(c.hp.max, Math.round(patch.hpCurrent)));
-    c.updatedAt = new Date().toISOString();
-    characterStore.save(c);
-    return c;
-  },
   deleteCharacter: async (id: string) => characterStore.remove(id),
   roll: (r: FreeRollRequest) => logged(request<RollRecord>("POST", "/api/rolls", r)),
   check: (r: Omit<CheckRequest, "character"> & { characterId: string }) => {

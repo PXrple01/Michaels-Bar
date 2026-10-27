@@ -1,18 +1,22 @@
-// Netlify-Funktion: derselbe Server wie lokal, nur ohne dauerhaften Prozess.
-import { connectLambda } from "@netlify/blobs";
-import serverless from "serverless-http";
-import { createApp } from "../../server/app";
+// Netlify-Funktion für Regeln, Figuren und Würfe (modernes Format: Blobs ist automatisch verbunden).
+import type { Config } from "@netlify/functions";
+import { handleApi } from "../../server/api";
 import { RollLog } from "../../server/dice/log";
-import { BlobRollStore } from "../lib/blobs";
 import type { GameData } from "../../server/rules/loader";
 import gamedata from "../../server/generated/gamedata.json";
+import { BlobRollStore } from "../lib/blobs";
 
-const data = gamedata as unknown as GameData;
-let app: ReturnType<typeof serverless> | null = null;
+const deps = { data: () => gamedata as unknown as GameData, rolls: new RollLog(new BlobRollStore()), accessCode: process.env.ACCESS_CODE };
 
-export const handler: serverless.Handler = (event, context) => {
-  // Lambda-kompatible Funktionen müssen Blobs pro Anfrage mit der Umgebung verbinden.
-  if ((event as { blobs?: string }).blobs) connectLambda(event as Parameters<typeof connectLambda>[0]);
-  app ??= serverless(createApp({ data: () => data, rolls: new RollLog(new BlobRollStore()), accessCode: process.env.ACCESS_CODE }));
-  return app(event, context);
+export default async (req: Request) => {
+  let body: unknown = null;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    try { body = await req.json(); } catch { return Response.json({ error: "Ungültiges JSON" }, { status: 400 }); }
+  }
+  const result = await handleApi(req.method, new URL(req.url).pathname, body, deps);
+  return Response.json(result.body, { status: result.status });
+};
+
+export const config: Config = {
+  path: ["/api/health", "/api/rules", "/api/config", "/api/characters", "/api/rolls", "/api/rolls/check"],
 };

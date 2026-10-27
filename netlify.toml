@@ -5,34 +5,6 @@
 [functions]
   node_bundler = "esbuild"
 
-# Der Spielleiter (/api/campaign/*) ist eine eigene Streaming-Funktion (netlify/functions/gm.ts).
-# Alle übrigen API-Pfade gehen an die normale API-Funktion.
-[[redirects]]
-  from = "/api/rules"
-  to = "/.netlify/functions/api/rules"
-  status = 200
-
-[[redirects]]
-  from = "/api/config"
-  to = "/.netlify/functions/api/config"
-  status = 200
-
-[[redirects]]
-  from = "/api/health"
-  to = "/.netlify/functions/api/health"
-  status = 200
-
-[[redirects]]
-  from = "/api/characters"
-  to = "/.netlify/functions/api/characters"
-  status = 200
-
-[[redirects]]
-  from = "/api/rolls/*"
-  to = "/.netlify/functions/api/rolls/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/api/rolls"
-  to = "/.netlify/functions/api/rolls"
-  status = 200
+# Die Pfade der Funktionen stehen direkt in den Dateien (export const config):
+#   netlify/functions/api.ts → /api/rules, /api/characters, /api/rolls, …
+#   netlify/functions/gm.ts  → /api/campaign/* (Spielleiter, gestreamt)

@@ -65,9 +65,8 @@ export function sheetPage(): Page {
                 <div class="vital-label">${icon("heart")} ${term("tp", "Trefferpunkte")}</div>
                 <div class="hp-bar"><i id="hp-fill" style="width:${(c.hp.current / c.hp.max) * 100}%"></i><span class="hp-wave"></span></div>
                 <div class="hp-ctrl">
-                  <button class="round-btn" data-hp="-1" aria-label="Einen Trefferpunkt abziehen">${icon("minus")}</button>
                   <b><span id="hp-cur">${c.hp.current}</span> / ${c.hp.max}</b>
-                  <button class="round-btn" data-hp="1" aria-label="Einen Trefferpunkt heilen">${icon("plus")}</button>
+                  <span class="hint" style="margin:0">Ändert sich im Abenteuer</span>
                 </div>
               </div>
               <div class="vital shield-v" title="${armor.parts.map((p) => `${p.label} ${formatModifier(p.value)}`).join(", ")}">
@@ -199,17 +198,6 @@ export function sheetPage(): Page {
         void rollWithOverlay(title, () => api.check({ requestId: uuid(), characterId: c.id, check: { type, id: el.dataset.id! }, mode: m, dc: spec.d20 && dc ? dc : undefined }));
       }));
 
-      let hpTimer = 0;
-      $$<HTMLElement>("[data-hp]", root).forEach((b) => b.addEventListener("click", () => {
-        const before = c.hp.current;
-        c.hp.current = Math.max(0, Math.min(c.hp.max, c.hp.current + Number(b.dataset.hp)));
-        countUp($("#hp-cur", root), c.hp.current, 300, before);
-        const fill = $("#hp-fill", root);
-        fill.style.width = `${(c.hp.current / c.hp.max) * 100}%`;
-        fill.classList.toggle("low", c.hp.current / c.hp.max <= 0.3);
-        clearTimeout(hpTimer);
-        hpTimer = window.setTimeout(() => { api.patchCharacter(c.id, { hpCurrent: c.hp.current }).catch((e) => toast((e as Error).message, "error")); }, 400);
-      }));
       $("#hp-fill", root).classList.toggle("low", c.hp.current / c.hp.max <= 0.3);
 
       $("#delete-char", root).addEventListener("click", async () => {
