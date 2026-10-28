@@ -15,7 +15,7 @@ import { memberships, partyApi, PartyApiError, type Membership } from "../lib/pa
 import { go, type Page } from "../lib/router";
 import { confirmDialog, toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
-import { bindSides, fillSide, lageSide, lootText, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
+import { bindSides, fillSide, lageSide, lootText, playLayout, setMapData, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { bindShop, shopCard } from "../lib/shopUi";
@@ -348,6 +348,7 @@ export function partyPage(): Page {
         const waiting = open ? members.filter((m, i) => !v.players[i].acted) : [];
         fillSide(root.querySelector("#side-left"), teamSide(v.world, members, data.rules, waiting));
         fillSide(root.querySelector("#side-right"), lageSide(v.world));
+        setMapData(root, v.world?.map);
       }
 
       /** Unten: die eigenen Fähigkeiten mit Erklärung. */

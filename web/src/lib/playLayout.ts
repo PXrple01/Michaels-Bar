@@ -4,6 +4,7 @@ import { currentChapter, isArc, type WorldState } from "../../../shared/world";
 import { PHASE_NAME } from "../../../shared/time";
 import { itemText, moneyText, type Inventory, type ItemKind } from "../../../shared/inventory";
 import { ATTITUDE_NAME } from "../../../shared/people";
+import { mapBlock, openMap } from "./mapUi";
 import type { Rules } from "../../../shared/schema";
 import { levelTitle, xpProgress } from "../../../shared/levels";
 import { html, type Raw } from "./dom";
@@ -157,6 +158,7 @@ export function lageSide(w: WorldState | null | undefined): Raw {
           ${ch ? html`<b>${ch.titel}</b>` : ""}
           ${aufgabe ? html`<p>${aufgabe}</p>` : ""}
         </div>` : ""}`}
+      ${mapBlock(w?.map)}
       ${w?.people?.length ? html`<details class="world-log side-sec people" ${w.people.length <= 6 ? "open" : ""}>
         <summary>${icon("users")} Personen · ${w.people.length}</summary>
         <ul class="people-list">${[...w.people].sort((a, b) => b.seen - a.seen).map((p) => html`<li class="person att-${p.attitude}">
@@ -195,6 +197,12 @@ export function bindSides(root: HTMLElement): () => void {
     ta.focus();
   };
   root.addEventListener("click", onUse);
+  // Karte groß öffnen (die Daten hängen am Element, siehe fillSide)
+  root.addEventListener("click", (e) => {
+    if (!(e.target as HTMLElement).closest("[data-map-open]")) return;
+    const map = (root as HTMLElement & { _map?: WorldState["map"] })._map;
+    if (map) openMap(map);
+  });
   const onDoc = (e: Event) => {
     if (mq.matches) return;
     if (!(e.target as HTMLElement).closest(".play-bars")) sides.forEach((d) => { d.open = false; });
@@ -203,19 +211,21 @@ export function bindSides(root: HTMLElement): () => void {
   return () => { mq.removeEventListener("change", apply); document.removeEventListener("click", onDoc); };
 }
 
-/** Inhalt einer Seitenleiste ersetzen, ohne den Auf-/Zu-Zustand (auch der inneren Auftragsbuch-Klappe) zu verlieren. */
+/** Inhalt einer Seitenleiste ersetzen, ohne den Auf-/Zu-Zustand der inneren Klappen (Auftragsbuch, Gepäck, Personen) zu verlieren. */
 export function fillSide(el: HTMLElement | null, content: Raw) {
   if (!el) return;
-  const log = el.querySelector<HTMLDetailsElement>(".world-log");
-  const logOpen = log ? log.open : null;
+  const keyOf = (d: Element) => d.className;
+  const open = new Map([...el.querySelectorAll<HTMLDetailsElement>(".side-body details")].map((d) => [keyOf(d), d.open]));
   const scroll = el.querySelector(".side-body")?.scrollTop ?? 0, outer = el.scrollTop;
   el.innerHTML = content.value;
   el.scrollTop = outer;
-  const nl = el.querySelector<HTMLDetailsElement>(".world-log");
-  if (nl && logOpen !== null) nl.open = logOpen;
+  el.querySelectorAll<HTMLDetailsElement>(".side-body details").forEach((d) => { const o = open.get(keyOf(d)); if (o !== undefined) d.open = o; });
   const body = el.querySelector(".side-body");
   if (body) body.scrollTop = scroll;
 }
+
+/** Kartendaten für „groß ansehen“ merken. */
+export function setMapData(root: HTMLElement, map: WorldState["map"]) { (root as HTMLElement & { _map?: WorldState["map"] })._map = map; }
 
 /** Stufe, Titel und Balken bis zur nächsten Stufe. */
 export function levelBadge(level: number, xp: number, rules: Rules): Raw {

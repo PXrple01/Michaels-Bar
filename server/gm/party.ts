@@ -8,6 +8,7 @@ import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
 import { initTime } from "../../shared/time";
 import { upsertPerson } from "../../shared/people";
+import { startPlace, visitPlace } from "../../shared/map";
 import { trade } from "../../shared/shop";
 import { turnSummary } from "./summary";
 import { countChapterTurn, enforceDefeat } from "./world";
@@ -421,6 +422,7 @@ export class PartyService {
         p.world = initWorld(this.characters(p));
         p.world.time = initTime(p.opening.zeit);
         upsertPerson(p.world, { name: p.opening.npc.name, role: p.opening.npc.rolle, note: p.opening.npc.eigenschaft });
+        visitPlace(p.world, startPlace(p.opening.ort));
         p.held = [];
         p.toolset = TOOLSET;
         messages = [{ role: "user", content: kickoffMessage(this.characters(p), data, p.opening, previous) }];

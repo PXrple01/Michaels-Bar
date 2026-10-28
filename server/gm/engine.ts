@@ -8,6 +8,7 @@ import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
 import { initTime } from "../../shared/time";
 import { upsertPerson } from "../../shared/people";
+import { startPlace, visitPlace } from "../../shared/map";
 import { turnSummary } from "./summary";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
@@ -92,6 +93,7 @@ export class GameMaster {
     const world = initWorld([c]);
     world.time = initTime(opening.zeit);
     upsertPerson(world, { name: opening.npc.name, role: opening.npc.rolle, note: opening.npc.eigenschaft });
+    visitPlace(world, startPlace(opening.ort));
     await this.converse([{ role: "user", content: kickoffMessage([c], data, opening, previous) }], world, c, data, who, emit);
   }
 

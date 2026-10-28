@@ -7,6 +7,7 @@ import { ACTS, arcSummary, currentChapter, isArc, worldSummary, type WorldState 
 import { inventorySummary } from "../../shared/inventory";
 import { shopSummary } from "../../shared/shop";
 import { peopleSummary } from "../../shared/people";
+import { mapSummary } from "../../shared/map";
 
 export const ARC_EVERY = 5;
 const hashOf = (s: string) => createHash("sha256").update(s).digest("base64url").slice(0, 12);
@@ -23,7 +24,10 @@ export function turnSummary(w: WorldState, characters: Pick<Character, "id" | "n
   const arcFull = !!arc && (due || !arc.plan || !ch || w.sent!.arc !== arcHash);
   const invFull = !!inv && (due || w.sent!.inv !== invHash);
   const peopleFull = !!people && (due || w.sent!.people !== peopleHash);
-  w.sent = { arc: arcHash, inv: invHash, people: peopleHash, turns: due ? 0 : w.sent!.turns + 1 };
+  const map = mapSummary(w), mapHash = hashOf(map);
+  const mapFull = !!map && (due || w.sent!.map !== mapHash);
+  w.sent = { arc: arcHash, inv: invHash, people: peopleHash, map: mapHash, turns: due ? 0 : w.sent!.turns + 1 };
+  if (map) lines.push(mapFull ? map : `Ort: ${w.map!.current ?? "unterwegs"} (Karte sonst unverändert).`);
   if (people) lines.push(peopleFull ? people : "Personen: unverändert wie im letzten ausführlichen <spielstand>.");
   if (inv) lines.push(invFull ? inv : "Inventar: unverändert wie im letzten ausführlichen <spielstand>.");
   const shop = shopSummary(w);
