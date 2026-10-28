@@ -5,6 +5,7 @@ import { levelsSummary, type LevelState } from "./levels";
 import { upgradesSummary, type Progression } from "./upgrades";
 import { usesSummary, type UsedAbilities } from "./abilityUses";
 import { timeLine, type GameTime } from "./time";
+import type { Inventory } from "./inventory";
 
 export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
 export interface Quest { id: string; title: string; description: string; status: "offen" | "erledigt" | "gescheitert"; notes: string[] }
@@ -26,10 +27,12 @@ export interface WorldState {
   levels?: Record<string, LevelState>;
   /** Eingesetzte begrenzte Fähigkeiten (1× pro Kampf/Rast/Tag) – bis Kampfende bzw. Rast. */
   used?: UsedAbilities;
+  /** Gepäck und Geld je Figur */
+  inventory?: Record<string, Inventory>;
   /** Tag, Tageszeit und Wetter */
   time?: GameTime;
   /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
-  sent?: { arc: string; turns: number };
+  sent?: { arc: string; turns: number; inv?: string };
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */

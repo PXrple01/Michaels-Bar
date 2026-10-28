@@ -2,6 +2,7 @@
 // in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
 import { currentChapter, isArc, type WorldState } from "../../../shared/world";
 import { PHASE_NAME } from "../../../shared/time";
+import { itemText, moneyText, type Inventory, type ItemKind } from "../../../shared/inventory";
 import type { Rules } from "../../../shared/schema";
 import { levelTitle, xpProgress } from "../../../shared/levels";
 import { html, type Raw } from "./dom";
@@ -73,6 +74,7 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
           </div>
         </div>`;
       })}</div>
+      ${w?.inventory ? inventoryBlock(w, members) : ""}
       ${w && me && rules ? levelBadge(w.levels?.[me.id]?.level ?? 1, w.xp[me.id] ?? 0, rules) : ""}
       ${w?.arc && isArc(w.arc) ? html`<div class="side-sec">${arcProgress(w.arc)}</div>` : ""}
       ${w && (side.length || closed.length || w.memory.length) ? html`<details class="world-log side-sec" ${side.length ? "open" : ""}>
@@ -82,6 +84,34 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
         ${w.memory.length ? html`<div class="memory"><div class="eyebrow">Der Spielleiter merkt sich</div><ul>${w.memory.slice().reverse().map((m) => html`<li>${m}</li>`)}</ul></div>` : ""}
       </details>` : ""}
     </div>`;
+}
+
+const KIND_ICON: Record<ItemKind, string> = { waffe: "sword", ruestung: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star" };
+
+/** Gepäck: eigenes zuerst und aufgeklappt; eigene Gegenstände antippen = „Ich benutze …“ ins Eingabefeld. */
+function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
+  const list = [...members].sort((a, b) => Number(b.me) - Number(a.me)).filter((m) => w.inventory![m.id]);
+  if (!list.length) return html``;
+  return html`<details class="world-log side-sec inv-block" open>
+    <summary>${icon("bag")} Gepäck</summary>
+    ${list.map((m) => {
+      const inv = w.inventory![m.id];
+      return html`<div class="inv ${m.me ? "me" : ""}">
+        ${members.length > 1 ? html`<div class="inv-who">${m.me ? "Du" : m.name}</div>` : ""}
+        <div class="inv-items">${inv.items.length ? inv.items.map((i) => html`<${m.me ? "button" : "span"} class="inv-item k-${i.kind}" ${m.me ? html`type="button" data-use-item="${i.name}"` : ""} title="${i.note ?? ""}${m.me ? `${i.note ? " – " : ""}Antippen: benutzen` : ""}">${icon(KIND_ICON[i.kind])}<span>${itemText(i)}</span></${m.me ? "button" : "span"}>`) : html`<small class="muted">nichts</small>`}</div>
+        <div class="inv-money">${icon("coins")} ${moneyText(inv.money)}</div>
+      </div>`;
+    })}
+  </details>`;
+}
+
+/** Was ist neu im eigenen Gepäck? (für den kurzen Beute-Hinweis) */
+export function lootText(before: Inventory | undefined, after: Inventory | undefined): string | null {
+  if (!before || !after) return null;
+  const gained = after.items.map((i) => ({ i, d: i.qty - (before.items.find((b) => b.name.toLowerCase() === i.name.toLowerCase())?.qty ?? 0) })).filter((x) => x.d > 0);
+  const money = after.money - before.money;
+  const parts = [...gained.map(({ i, d }) => itemText({ ...i, qty: d })), ...(money > 0 ? [moneyText(money)] : [])];
+  return parts.length ? `Neu im Gepäck: ${parts.join(", ")}` : null;
 }
 
 /** Der Kernauftrag aus dem Auftragsbuch (Ersatz, solange Claude keinen eigenen genannt hat): der älteste offene Auftrag. */
@@ -144,6 +174,18 @@ export function bindSides(root: HTMLElement): () => void {
     if (d.open) sides.forEach((o) => { if (o !== d) o.open = false; });
   };
   sides.forEach((d) => d.addEventListener("toggle", onToggle));
+  // Gegenstand antippen: „Ich benutze …“ ins Eingabefeld
+  const onUse = (e: Event) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>("[data-use-item]");
+    if (!b) return;
+    const ta = root.querySelector<HTMLTextAreaElement>("#action");
+    if (!ta) return;
+    ta.value = `Ich benutze ${b.dataset.useItem}.`;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+    if (!mq.matches) sides.forEach((d) => { d.open = false; });
+    ta.focus();
+  };
+  root.addEventListener("click", onUse);
   const onDoc = (e: Event) => {
     if (mq.matches) return;
     if (!(e.target as HTMLElement).closest(".play-bars")) sides.forEach((d) => { d.open = false; });

@@ -15,7 +15,7 @@ import { memberships, partyApi, PartyApiError, type Membership } from "../lib/pa
 import { go, type Page } from "../lib/router";
 import { confirmDialog, toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
-import { bindSides, fillSide, lageSide, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
+import { bindSides, fillSide, lageSide, lootText, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
@@ -405,7 +405,9 @@ export function partyPage(): Page {
       function apply(v: PartyView) {
         const changed = !view || v.version !== view.version || v.live !== view.live;
         const levelBefore = myChar ? view?.world?.levels?.[myChar.id]?.level : undefined;
+        const invBefore = myChar ? view?.world?.inventory?.[myChar.id] : undefined;
         view = v;
+        if (myChar) { const loot = lootText(invBefore, v.world?.inventory?.[myChar.id]); if (loot) toast(loot, "success", 5000); }
         if (myChar && levelBefore !== undefined) announceLevel(levelBefore, v.world?.levels?.[myChar.id]?.level ?? levelBefore, data.rules);
         if (!changed && !firstLoad) return;
         renderPlayers();

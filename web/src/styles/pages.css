@@ -1121,3 +1121,16 @@ body.auth main { padding-bottom: 40px; }
 .sky-stars i:nth-child(5) { top: 60%; left: 52%; animation-delay: -1.1s; }
 @keyframes twinkle { 50% { opacity: 0.2; } }
 @media (prefers-reduced-motion: reduce) { .sky-stars i { animation: none; } }
+
+/* Gepäck */
+.inv-block { display: grid; gap: 8px; }
+.inv { display: grid; gap: 6px; margin-top: 8px; }
+.inv-who { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.inv-items { display: flex; flex-wrap: wrap; gap: 5px; }
+.inv-item { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; border-radius: 999px; border: 1px solid var(--line); background: rgba(var(--c-s08), 0.5); color: var(--text-2); font: inherit; font-size: 0.78rem; line-height: 1.3; }
+button.inv-item { cursor: pointer; transition: border-color 0.2s, transform 0.2s var(--ease-spring); }
+button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1px); color: #fff; }
+.inv-item svg { width: 13px; height: 13px; flex: none; }
+.k-waffe svg { color: #fda4af; } .k-ruestung svg { color: #93c5fd; } .k-trank svg { color: #a7f3d0; } .k-werkzeug svg { color: var(--text-2); } .k-schatz svg { color: var(--gold); } .k-gegenstand svg { color: var(--purple-3); }
+.inv-money { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--gold); }
+.inv-money svg { width: 15px; height: 15px; }

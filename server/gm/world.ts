@@ -8,11 +8,12 @@ import { formatModifier, parseNotation, type RollRecord } from "../../shared/dic
 import type { Character } from "../../shared/schema";
 import { resetUses, useAbility } from "../../shared/abilityUses";
 import { advanceTime, ensureTime, timeLine, type TimeStep } from "../../shared/time";
+import { addItem, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, removeItem, toPfennig } from "../../shared/inventory";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 
-export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -63,6 +64,21 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       vergeht: { type: "string", enum: ["kurz", "stunden", "bis_abend", "bis_nacht", "bis_morgen"] },
       wetter: { type: "string", description: "Optional: neues Wetter in wenigen Worten, z. B. „Nieselregen“, „klirrender Frost“" },
     }, ["vergeht"]),
+    tool("gegenstand", "Führt das Gepäck einer Figur (wird den Spielern angezeigt): erhalten (Beute, Geschenk, Fund), verbrauchen (Trank getrunken, Fackel abgebrannt), verlieren (gestohlen, zerbrochen), weitergeben (an eine andere Figur). Was nicht im Gepäck ist, kann nicht verbraucht werden.", {
+      ...(party ? { figur: nameProp(characters, "Wessen Gepäck") } : {}),
+      aktion: { type: "string", enum: ["erhalten", "verbrauchen", "verlieren", "weitergeben"] },
+      name: { type: "string", description: "Kurzer Name, z. B. „Heiltrank“, „Silberner Dolch“" },
+      anzahl: { type: "integer", description: "Standard 1" },
+      art: { type: "string", enum: [...ITEM_KINDS] },
+      notiz: { type: "string", description: "Optional, ein kurzer Satz (z. B. Wirkung: „heilt 1W8+2“)" },
+      ...(party ? { an: nameProp(characters, "Nur bei weitergeben: wer es bekommt") } : {}),
+    }, [...(party ? ["figur"] : []), "aktion", "name"]),
+    tool("geld", "Geld erhalten oder ausgeben (1 Gulden = 20 Groschen = 240 Pfennig). Beim Ausgeben prüft der Server, ob es reicht – sonst klappt der Kauf nicht." + (party ? " Beim Erhalten mit figur „alle“ wird gerecht geteilt." : ""), {
+      ...(party ? { figur: { type: "string", enum: [...characters.map((c) => c.name), "alle"], description: "Wer bekommt bzw. bezahlt" } } : {}),
+      aktion: { type: "string", enum: ["erhalten", "ausgeben"] },
+      gulden: { type: "integer" }, groschen: { type: "integer" }, pfennig: { type: "integer" },
+      grund: { type: "string" },
+    }, [...(party ? ["figur"] : []), "aktion", "grund"]),
     tool("auftrag", "Führt das Auftragsbuch: neuen Auftrag anlegen, Notiz ergänzen, als erledigt oder gescheitert markieren.", {
       aktion: { type: "string", enum: ["neu", "notiz", "erledigt", "gescheitert"] },
       titel: { type: "string", description: "Kurzer Titel, bei Folgeaktionen genau wie beim Anlegen" },
@@ -218,6 +234,46 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       const wetter = text(input.wetter, 60);
       if (wetter) t.weather = wetter;
       return { content: `${newDay ? "Ein neuer Tag beginnt. " : ""}Jetzt: ${timeLine(t)}.${newDay ? " (Fähigkeiten „1× pro Tag“ werden erst durch eine lange Rast wieder frei.)" : ""}` };
+    }
+    case "gegenstand": {
+      ensureInventory(w, ctx.characters, ctx.data.rules);
+      const c = findCharacter(ctx, input.figur);
+      if (!c) return err("Unbekannte Figur.");
+      const inv = w.inventory![c.id];
+      const name = text(input.name, 60);
+      const qty = Math.max(1, Math.min(99, Math.round(Number(input.anzahl) || 1)));
+      if (!name) return err("name fehlt.");
+      if (input.aktion === "erhalten") {
+        const e = addItem(inv, { name, qty, kind: kindOf(input.art), ...(text(input.notiz, 120) ? { note: text(input.notiz, 120) } : {}) });
+        return e ? err(e) : { content: `${c.name} erhält ${qty > 1 ? `${qty}× ` : ""}${name}.` };
+      }
+      const r = removeItem(inv, name, qty);
+      if ("error" in r) return err(`${c.name}: ${r.error}`);
+      if (input.aktion === "weitergeben") {
+        const to = findCharacter(ctx, input.an);
+        if (!to || to.id === c.id) { addItem(inv, { ...r.item, qty }); return err("Unbekannter Empfänger."); }
+        addItem(w.inventory![to.id], { ...r.item, qty });
+        return { content: `${c.name} gibt ${itemText({ ...r.item, qty })} an ${to.name}.` };
+      }
+      return { content: `${c.name}: ${itemText({ ...r.item, qty })} ${input.aktion === "verbrauchen" ? "verbraucht" : "verloren"}.` };
+    }
+    case "geld": {
+      ensureInventory(w, ctx.characters, ctx.data.rules);
+      const pf = toPfennig({ gulden: Number(input.gulden) || 0, groschen: Number(input.groschen) || 0, pfennig: Number(input.pfennig) || 0 });
+      if (pf <= 0) return err("Betrag fehlt (gulden, groschen, pfennig).");
+      if (pf > 240 * 500) return err("So viel Geld auf einmal ist unglaubwürdig (höchstens 500 Gulden).");
+      if (input.aktion === "erhalten" && (ctx.characters.length === 1 || input.figur === "alle")) {
+        const share = Math.floor(pf / ctx.characters.length);
+        ctx.characters.forEach((c, i) => { w.inventory![c.id].money += share + (i === 0 ? pf - share * ctx.characters.length : 0); });
+        return { content: `${ctx.characters.length > 1 ? `Geteilt: je etwa ${moneyText(share)}` : `Erhalten: ${moneyText(pf)}`}. ${ctx.characters.map((c) => `${c.name} hat ${moneyText(w.inventory![c.id].money)}`).join("; ")}.` };
+      }
+      const c = findCharacter(ctx, input.figur);
+      if (!c) return err("Unbekannte Figur (oder „alle“ beim Erhalten).");
+      const inv = w.inventory![c.id];
+      if (input.aktion === "erhalten") { inv.money += pf; return { content: `${c.name} erhält ${moneyText(pf)} und hat jetzt ${moneyText(inv.money)}.` }; }
+      if (inv.money < pf) return err(`${c.name} hat nur ${moneyText(inv.money)} – ${moneyText(pf)} reichen nicht. Der Kauf klappt nicht (oder jemand anderes zahlt).`);
+      inv.money -= pf;
+      return { content: `${c.name} bezahlt ${moneyText(pf)} und hat noch ${moneyText(inv.money)}.` };
     }
     case "faehigkeit_einsetzen": {
       const c = findCharacter(ctx, input.figur);

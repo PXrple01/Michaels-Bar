@@ -12,6 +12,7 @@ import type { GameData } from "../rules/loader";
 import { systemPrompt } from "./prompt";
 import { costUsd, LimitError, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
+import { ensureInventory } from "../../shared/inventory";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -75,8 +76,8 @@ export function requestBase(model: ModelId, effort: "low" | "medium" | "high") {
 export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
-/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo; 11 = Tageszeit und Wetter. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 11;
+/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo; 11 = Tageszeit und Wetter; 12 = Inventar und Geld. Ältere Verläufe werden einmalig umgestellt. */
+export const TOOLSET = 12;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
@@ -85,7 +86,7 @@ const MAX_LOOPS = 5;
 export const TURN_BUDGET_MS = 50_000;
 const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
-const QUIET_TOOLS = new Set(["zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
+const QUIET_TOOLS = new Set(["gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
@@ -318,6 +319,7 @@ export class Narrator {
   async converse(messages: MessageParam[], scene: Scene, who: string, onText: (text: string) => void, opts: { compact?: boolean } = {}): Promise<ConverseResult> {
     const compact = opts.compact !== false;
     const { characters, data, world } = scene;
+    ensureInventory(world, characters, data.rules);
     const history = [...messages];
     const base = requestBase(this.model, this.o.effort ?? "low");
     let cost = 0;

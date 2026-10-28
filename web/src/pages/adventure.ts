@@ -9,7 +9,7 @@ import { campaignStore } from "../lib/campaigns";
 import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
-import { bindSides, fillSide, lageSide, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
+import { bindSides, fillSide, lageSide, lootText, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
@@ -416,7 +416,10 @@ export function playPage(): Page {
         } else if (ev.type === "done") {
           endLive();
           const before = levelOf();
+          const invBefore = save!.state.world?.inventory?.[character.id];
           save!.state = ev.state;
+          const loot = lootText(invBefore, ev.state.world?.inventory?.[character.id]);
+          if (loot) toast(loot, "success", 5000);
           save!.pending = ev.pending;
           announceLevel(before, levelOf(), data.rules);
           budget = ev.budget;
