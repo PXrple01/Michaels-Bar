@@ -25,6 +25,8 @@ export function achievementStats(saved = read()): AchievementStats {
 }
 
 export const unlockedAchievements = () => read()?.unlocked ?? {};
+/** Zuletzt gesehene Stände der Gruppen (Code → Zusammenfassung). */
+export const partyRuns = (): Record<string, RunSummary> => read()?.parties ?? {};
 
 /** Gruppenstand merken (die Gruppe liegt auf dem Server – so zählt sie auch später noch). */
 export function noteParty(view: PartyView) {
