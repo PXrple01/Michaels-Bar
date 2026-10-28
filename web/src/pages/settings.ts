@@ -3,7 +3,8 @@ import { rollWithOverlay } from "../dice3d/roller";
 import { DICE_THEMES } from "../dice3d/textures";
 import { enhance } from "../fx/effects";
 import { api, loadGameData } from "../lib/api";
-import { $$, html, setHTML, uuid } from "../lib/dom";
+import { $$, html, setHTML, uuid, type Raw } from "../lib/dom";
+import { changePassword, downloadExport, dropLegacy, exportData, legacyData, legacySummary, logout, mergeData, onSyncState, parseExport, session, summaryText, syncState, type SyncState } from "../lib/account";
 import { icon } from "../lib/icons";
 import type { Page } from "../lib/router";
 import { settings, updateSettings, useSimpleDice, type DiceThemeId, type PaletteId, type Settings } from "../lib/settings";
@@ -12,7 +13,7 @@ const PALETTES: { id: PaletteId; name: string; text: string; colors: [string, st
   { id: "glut", name: "Glut", text: "Schwarz und Rot – das letzte Feuer der Nacht (Standard)", colors: ["#070404", "#e2381f", "#ffb35c"] },
   { id: "amethyst", name: "Amethyst", text: "Das ursprüngliche Lila – kühl und magisch", colors: ["#07050c", "#8b5cf6", "#c4b5fd"] },
 ];
-import { bindSegmented, segmented, toast, toggleSwitch } from "../lib/ui";
+import { bindSegmented, confirmDialog, segmented, toast, toggleSwitch } from "../lib/ui";
 
 export function settingsPage(): Page {
   return {
@@ -25,8 +26,10 @@ export function settingsPage(): Page {
           <header class="page-head" data-reveal>
             <div class="eyebrow">Ganz nach deinem Geschmack</div>
             <h1>Einstellungen</h1>
-            <p class="lead">Wird nur in diesem Browser gespeichert.</p>
+            <p class="lead">Wird in deinem Konto gespeichert und gilt auf allen Geräten, auf denen du angemeldet bist.</p>
           </header>
+
+          ${accountSection()}
 
           <section class="card set-section" data-reveal>
             <h2>${icon("sparkles")} Farbthema</h2>
@@ -134,7 +137,95 @@ export function settingsPage(): Page {
       root.querySelector("#test-roll")?.addEventListener("click", () => {
         void rollWithOverlay("Probewurf", () => api.roll({ requestId: uuid(), notation: "1W20", label: "Probewurf" }));
       });
+      bindAccount(root);
       enhance(root);
     },
   };
+}
+
+/* ── Konto und Spielstände ── */
+
+function accountSection(): Raw {
+  const s = session();
+  const legacy = legacySummary();
+  const state = syncState();
+  return html`<section class="card set-section account-section" data-reveal>
+    <h2>${icon("user")} Konto &amp; Spielstände</h2>
+    <div class="set-row">
+      <div><b>Angemeldet als ${s?.username ?? "?"}</b><p class="sync-line" id="sync-line">${SYNC_TEXT[state]}</p></div>
+      <button class="btn btn-ghost btn-sm" id="logout">${icon("arrowLeft")} Abmelden</button>
+    </div>
+    ${legacy ? html`<div class="legacy-card">
+      <b>${icon("scroll")} Spielstände von früher gefunden</b>
+      <p>In diesem Browser lagen vor den Konten: ${summaryText(legacy)}. Übernimm sie in dein Konto – vorhandene Figuren und Abenteuer bleiben erhalten.</p>
+      <div class="legacy-actions">
+        <button class="btn btn-sm" id="legacy-import">${icon("download")} In mein Konto übernehmen</button>
+        <button class="btn btn-ghost btn-sm" id="legacy-save">${icon("scroll")} Als Datei sichern</button>
+        <button class="btn btn-ghost btn-sm" id="legacy-drop">${icon("trash")} Verwerfen</button>
+      </div>
+    </div>` : ""}
+    <div class="set-row">
+      <div><b>Spielstände exportieren</b><p>Alle Figuren, eigenen Klassen, Abenteuer mit Geschichte und Gruppen als Datei – zum Sichern oder um sie in ein anderes Konto zu übernehmen.</p></div>
+      <button class="btn btn-ghost btn-sm" id="export">${icon("download")} Exportieren</button>
+    </div>
+    <div class="set-row">
+      <div><b>Spielstände importieren</b><p>Eine exportierte Datei in dieses Konto übernehmen. Was schon da ist, bleibt; gleiche Figuren oder Abenteuer werden auf den neueren Stand gebracht.</p></div>
+      <label class="btn btn-ghost btn-sm file-btn">${icon("plus")} Datei wählen<input type="file" id="import" accept="application/json,.json" hidden /></label>
+    </div>
+    <details class="pw-change">
+      <summary>${icon("lock")} Passwort ändern</summary>
+      <form id="pw-form" class="pw-form">
+        <input class="input" type="password" id="pw-old" autocomplete="current-password" placeholder="Bisheriges Passwort" required />
+        <input class="input" type="password" id="pw-new" autocomplete="new-password" placeholder="Neues Passwort (mindestens 8 Zeichen)" required />
+        <button class="btn btn-sm" type="submit">${icon("check")} Ändern</button>
+      </form>
+      <p class="hint">Andere Geräte werden danach abgemeldet.</p>
+    </details>
+  </section>`;
+}
+
+const SYNC_TEXT: Record<SyncState, string> = { saved: "Alles ist im Konto gespeichert.", saving: "Speichert …", offline: "Gerade keine Verbindung – Änderungen werden gespeichert, sobald sie wieder da ist." };
+
+function bindAccount(root: HTMLElement) {
+  const line = root.querySelector("#sync-line");
+  const off = onSyncState((st) => { if (line?.isConnected) line.textContent = SYNC_TEXT[st]; else off(); });
+  root.querySelector("#logout")?.addEventListener("click", async () => {
+    try { await logout(); }
+    catch (e) {
+      if (!(await confirmDialog("Trotzdem abmelden?", `${(e as Error).message} Meldest du dich trotzdem ab, gehen die letzten Änderungen verloren.`, "Trotzdem abmelden", true))) return;
+      await logout(true);
+    }
+    location.hash = "#/";
+    location.reload();
+  });
+  root.querySelector("#export")?.addEventListener("click", () => downloadExport(exportData()));
+  root.querySelector<HTMLInputElement>("#import")?.addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    try {
+      const sum = mergeData(parseExport(await file.text()));
+      toast(`Übernommen: ${summaryText(sum)}.`, "success", 6000);
+    } catch (err) { toast((err as Error).message, "error", 6000); }
+  });
+  root.querySelector("#legacy-import")?.addEventListener("click", () => {
+    const sum = mergeData(legacyData() ?? {});
+    dropLegacy();
+    toast(`In dein Konto übernommen: ${summaryText(sum)}.`, "success", 6000);
+    root.querySelector(".legacy-card")?.remove();
+  });
+  root.querySelector("#legacy-save")?.addEventListener("click", () => downloadExport(exportData(legacyData()), "alte-spielstaende"));
+  root.querySelector("#legacy-drop")?.addEventListener("click", async () => {
+    if (!(await confirmDialog("Alte Spielstände verwerfen?", "Sie werden aus diesem Browser gelöscht. Hast du sie vorher als Datei gesichert, kannst du sie später noch importieren.", "Verwerfen", true))) return;
+    dropLegacy();
+    root.querySelector(".legacy-card")?.remove();
+  });
+  root.querySelector<HTMLFormElement>("#pw-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const oldPw = root.querySelector<HTMLInputElement>("#pw-old")!.value, newPw = root.querySelector<HTMLInputElement>("#pw-new")!.value;
+    if (newPw.length < 8) return void toast("Das neue Passwort braucht mindestens 8 Zeichen.", "error");
+    try { await changePassword(oldPw, newPw); toast("Passwort geändert.", "success"); (e.target as HTMLFormElement).reset(); }
+    catch (err) { toast((err as Error).message, "error", 6000); }
+  });
 }

@@ -1,4 +1,5 @@
 // Mehrspieler im Browser: Mitgliedschaften merken, Server fragen, Zugangscode bei Bedarf abfragen.
+import { sessionToken } from "./account";
 import type { PartyEvent, PartyJoinResult, PartyOverview, PartyView } from "../../../shared/party";
 import { accessCode, setAccessCode, streamSse } from "./gm";
 import { promptDialog } from "./ui";
@@ -21,7 +22,7 @@ export class PartyApiError extends Error { constructor(message: string, public s
 async function post<T>(op: string, body: unknown, retried = false): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`/api/party/${op}`, { method: "POST", headers: { "content-type": "application/json", "x-access-code": accessCode() }, body: JSON.stringify(body) });
+    res = await fetch(`/api/party/${op}`, { method: "POST", headers: { "content-type": "application/json", "x-access-code": accessCode(), "x-session": sessionToken() }, body: JSON.stringify(body) });
   } catch {
     throw new PartyApiError("Keine Verbindung zum Server.", 0);
   }

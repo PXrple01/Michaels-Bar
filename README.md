@@ -1,7 +1,7 @@
 # The Last Ember
 
 Ein Erzähl-Rollenspiel im mittelalterlichen Europa – im Browser, lokal auf deinem Rechner.
-Stand: **Etappe 1 bis 5** (Regeln, Würfel-Engine, Charakterbogen, fairer 3D-Würfel, Claude als Spielleiter, eigene Klassen, Kampf, Gedächtnis und Aufträge).
+Stand: **fertig** – Regeln, Würfel-Engine, Charakterbogen, fairer 3D-Würfel, Claude als Spielleiter, eigene Klassen, Kampf, Gedächtnis und Aufträge, Gruppen, Konten mit Speicherung, zwei Farbthemen.
 
 ## Starten
 
@@ -50,7 +50,7 @@ npx netlify-cli deploy --build --prod
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | für Abenteuer | Claude als Spielleiter |
 | `GAME_SECRET` | für Abenteuer | Langes Zufallsgeheimnis (≥ 16 Zeichen), signiert die Spielstände |
-| `ACCESS_CODE` | dringend empfohlen | Zugangscode, den Spieler einmal eingeben – sonst kann jeder auf deine Kosten spielen |
+| `ACCESS_CODE` | dringend empfohlen | Einladungscode: Wer ein Konto erstellen will, braucht ihn einmal – sonst kann jeder ein Konto anlegen und auf deine Kosten spielen. Angemeldete brauchen ihn danach nicht mehr. |
 | `MONTHLY_BUDGET_USD` | nein (10) | Harte Kostengrenze pro Monat |
 | `TURNS_PER_HOUR` | nein (60) | Züge pro Stunde und Besucher |
 | `GM_EFFORT` | nein (`low`) | Denktiefe: `low`, `medium`, `high` (höher = langsamer und teurer) |
@@ -65,7 +65,16 @@ Netlify Blobs (Wurf-Protokoll, Budgetzähler) ist automatisch dabei.
 - *Würfe* entstehen in der Netlify Function. Jede Wurf-ID wird in Netlify Blobs gespeichert, sodass niemand neu würfeln kann.
 - *Abenteuer* liegen ebenfalls im Browser. Der Server signiert den Spielverlauf (HMAC); verändert jemand ihn oder tauscht die
   Figur aus, spielt der Server nicht weiter.
-- Konten und Cloud-Speicherung (z. B. mit Supabase) folgen später.
+
+## Konten
+
+- Jede Person meldet sich mit **Benutzername und Passwort** an (keine E-Mail). Ohne Anmeldung zeigt die Seite nur die Anmeldung.
+- Figuren, eigene Klassen, Abenteuer mit ihrer Geschichte, Gruppen und Einstellungen werden **im Konto gespeichert**
+  und stehen auf jedem Gerät bereit. Online liegen sie in Netlify Blobs (Speicher „accounts“), lokal in `saves/accounts/`.
+- Passwörter werden nur als scrypt-Hash gespeichert; nach 10 Fehlversuchen ist ein Name 15 Minuten gesperrt.
+- **Export/Import** in den Einstellungen: alle Spielstände als Datei sichern und in ein (anderes) Konto übernehmen.
+- **Spielstände von vor den Konten** (im Browser gespeichert) werden nach der ersten Anmeldung erkannt und lassen sich mit einem Klick übernehmen.
+- Ein vergessenes Passwort lässt sich nicht zurücksetzen (es gibt keine E-Mail) – daher im Zweifel regelmäßig exportieren.
 
 ## Was schon geht
 
@@ -274,6 +283,6 @@ saves/    Lokales Wurf-Protokoll (nicht im Git)
 tests/    Vitest
 ```
 
-## Nächste Etappen
+## Farbthemen
 
-6. Oberfläche, Speichern/Laden, Kostenlimit
+„Glut“ (schwarz-rot, Standard) und „Amethyst“ (das ursprüngliche Lila) – umschaltbar in den Einstellungen. Alle Farben laufen über Palettenwerte in `web/src/styles/base.css`.

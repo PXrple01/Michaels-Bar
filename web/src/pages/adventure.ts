@@ -81,7 +81,7 @@ export function adventuresPage(): Page {
             <button class="card mode-card tilt selected start-card" data-solo data-reveal="scale" style="--i:0">
               <div class="mode-icon">${icon("user")}</div>
               <h3>Allein spielen</h3>
-              <p>Du und der Spielleiter. Spiele in deinem Tempo – dein Spielstand liegt in diesem Browser.</p>
+              <p>Du und der Spielleiter. Spiele in deinem Tempo – dein Spielstand wird in deinem Konto gespeichert.</p>
               <span class="link-arrow">Figur unten wählen ${icon("arrowRight")}</span>
             </button>
             <a class="card mode-card tilt" href="#/gruppe" data-reveal="scale" style="--i:1">

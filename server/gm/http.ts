@@ -4,6 +4,7 @@ import type { GmEvent } from "../../shared/campaign";
 import type { ReviewEvent } from "../../shared/classreview";
 import type { PartyEvent } from "../../shared/party";
 import type { Claude } from "./setup";
+import { readSession } from "../accounts";
 
 export const GM_KINDS = ["start", "turn", "roll", "upgrade", "choose", "level"] as const;
 export type GmKind = (typeof GM_KINDS)[number];
@@ -70,16 +71,27 @@ export function accessAllowed(accessCode: string | undefined, given: string | nu
   return !accessCode || given === accessCode;
 }
 
-export function mountGm(app: Express, claude: () => Claude, accessCode: string | undefined) {
+/**
+ * Zugang zum Spielleiter: Zugangscode oder angemeldetes Konto (x-session). Angemeldete zählen beim Stundenlimit
+ * als Konto statt als Adresse.
+ */
+export function gate(accessCode: string | undefined, secret: string | undefined, code: string | null | undefined, session: string | null | undefined, ip: string) {
+  const s = secret ? readSession(secret, session) : null;
+  return { ok: accessAllowed(accessCode, code) || !!s, who: s ? `user:${s.id}` : ip };
+}
+
+export function mountGm(app: Express, claude: () => Claude, accessCode: string | undefined, secret?: string) {
+  const gateOf = (req: Request) => gate(accessCode, secret, req.header("x-access-code"), req.header("x-session"), req.ip ?? "local");
   app.post("/api/party/:op", async (req: Request, res) => {
     const op = String(req.params.op);
-    if (!accessAllowed(accessCode, req.header("x-access-code"))) return void res.status(403).json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" });
+    const g = gateOf(req);
+    if (!g.ok) return void res.status(403).json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" });
     if ((PARTY_JSON as readonly string[]).includes(op)) {
       const r = await partyJson(claude(), op as (typeof PARTY_JSON)[number], req.body);
       return void res.status(r.status).json(r.body);
     }
     if (!(PARTY_STREAM as readonly string[]).includes(op)) return void res.status(404).json({ error: "Unbekannter Endpunkt" });
-    await sseExpress(res, (write) => claude().party.run(op as (typeof PARTY_STREAM)[number], req.body ?? {}, req.ip ?? "local", (ev) => write(sse(ev))));
+    await sseExpress(res, (write) => claude().party.run(op as (typeof PARTY_STREAM)[number], req.body ?? {}, g.who, (ev) => write(sse(ev))));
   });
 
   app.post(["/api/campaign/:kind", "/api/classes/review"], async (req: Request, res) => {
@@ -87,9 +99,10 @@ export function mountGm(app: Express, claude: () => Claude, accessCode: string |
     if (kind !== "review" && !GM_KINDS.includes(kind)) return void res.status(404).json({ error: "Unbekannter Endpunkt" });
     await sseExpress(res, async (write) => {
       const emit = (ev: GmEvent | ReviewEvent) => write(sse(ev));
-      if (!accessAllowed(accessCode, req.header("x-access-code"))) emit({ type: "error", message: "Zugangscode fehlt oder ist falsch.", code: "access" });
-      else if (kind === "review") await claude().reviewer.run(req.body, req.ip ?? "local", emit);
-      else await claude().gm.run(kind, req.body, req.ip ?? "local", emit);
+      const g = gateOf(req);
+      if (!g.ok) emit({ type: "error", message: "Zugangscode fehlt oder ist falsch.", code: "access" });
+      else if (kind === "review") await claude().reviewer.run(req.body, g.who, emit);
+      else await claude().gm.run(kind, req.body, g.who, emit);
     });
   });
 }
@@ -122,16 +135,18 @@ async function handleOpenAiRequest(request: globalThis.Request, path: string, cl
 }
 
 /** Für Netlify: beantwortet einen Web-Request mit einem gestreamten Response. */
-export async function handleGmRequest(req: Request | globalThis.Request, claude: Claude, accessCode: string | undefined, who: string): Promise<Response> {
+export async function handleGmRequest(req: Request | globalThis.Request, claude: Claude, accessCode: string | undefined, ip: string, secret?: string): Promise<Response> {
   const request = req as globalThis.Request;
   const path = new URL(request.url).pathname;
-  if (path.startsWith("/v1/")) return handleOpenAiRequest(request, path, claude, who);
-  if (path.startsWith("/api/party/")) return handlePartyRequest(request, path.split("/").pop() ?? "", claude, accessCode, who);
+  if (path.startsWith("/v1/")) return handleOpenAiRequest(request, path, claude, ip);
+  const g = gate(accessCode, secret, request.headers.get("x-access-code"), request.headers.get("x-session"), ip);
+  const who = g.who;
+  if (path.startsWith("/api/party/")) return handlePartyRequest(request, path.split("/").pop() ?? "", claude, g.ok, who);
   const kind = (path === "/api/classes/review" ? "review" : path.split("/").pop()) as GmKind | "review";
   if (request.method !== "POST" || (kind !== "review" && !GM_KINDS.includes(kind))) return new Response("Not found", { status: 404 });
   let body: unknown = null;
   try { body = await request.json(); } catch { /* bleibt null, wird als ungültig gemeldet */ }
-  const allowed = accessAllowed(accessCode, request.headers.get("x-access-code"));
+  const allowed = g.ok;
   return sseResponse(async (write) => {
     const emit = (ev: GmEvent | ReviewEvent) => write(sse(ev));
     if (!allowed) emit({ type: "error", message: "Zugangscode fehlt oder ist falsch.", code: "access" });
@@ -140,9 +155,9 @@ export async function handleGmRequest(req: Request | globalThis.Request, claude:
   });
 }
 
-async function handlePartyRequest(request: globalThis.Request, op: string, claude: Claude, accessCode: string | undefined, who: string): Promise<Response> {
+async function handlePartyRequest(request: globalThis.Request, op: string, claude: Claude, allowed: boolean, who: string): Promise<Response> {
   if (request.method !== "POST") return new Response("Not found", { status: 404 });
-  if (!accessAllowed(accessCode, request.headers.get("x-access-code"))) return Response.json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" }, { status: 403 });
+  if (!allowed) return Response.json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" }, { status: 403 });
   let body: Record<string, unknown> = {};
   try { body = (await request.json()) ?? {}; } catch { /* leer */ }
   if ((PARTY_JSON as readonly string[]).includes(op)) {

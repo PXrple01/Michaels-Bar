@@ -4,6 +4,7 @@ import type { RollRecord } from "../../shared/dice";
 import type { RollStore } from "../../server/dice/log";
 import type { CounterStore } from "../../server/gm/usage";
 import type { Party, PartyStore } from "../../server/gm/party";
+import type { AccountStore, UserRecord } from "../../server/accounts";
 
 export class BlobRollStore implements RollStore {
   private get store() { return getStore({ name: "rolls", consistency: "strong" }); }
@@ -47,4 +48,21 @@ export class BlobPartyStore implements PartyStore {
     return res.modified;
   }
   async delete(code: string) { await this.store.delete(code); }
+}
+
+/** Konten und ihre Spielstände: user/<name> und data/<name>/<schlüssel>. */
+export class BlobAccountStore implements AccountStore {
+  private get store() { return getStore({ name: "accounts", consistency: "strong" }); }
+  private dataKey(id: string, key: string) { return `data/${encodeURIComponent(id)}/${encodeURIComponent(key)}`; }
+  async getUser(id: string) { return ((await this.store.get(`user/${encodeURIComponent(id)}`, { type: "json" })) as UserRecord | null) ?? null; }
+  async createUser(u: UserRecord) { return (await this.store.setJSON(`user/${encodeURIComponent(u.id)}`, u, { onlyIfNew: true })).modified; }
+  async updateUser(u: UserRecord) { await this.store.setJSON(`user/${encodeURIComponent(u.id)}`, u); }
+  async listData(id: string) {
+    const prefix = `data/${encodeURIComponent(id)}/`;
+    const { blobs } = await this.store.list({ prefix });
+    const entries = await Promise.all(blobs.map(async (b) => [decodeURIComponent(b.key.slice(prefix.length)), (await this.store.get(b.key, { type: "text" })) ?? ""] as const));
+    return Object.fromEntries(entries);
+  }
+  async putData(id: string, key: string, value: string) { await this.store.set(this.dataKey(id, key), value); }
+  async deleteData(id: string, key: string) { await this.store.delete(this.dataKey(id, key)); }
 }

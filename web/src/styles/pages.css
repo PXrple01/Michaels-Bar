@@ -1033,3 +1033,49 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .palette-swatch { display: flex; gap: 6px; }
 .palette-swatch i { width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); }
 .palette-swatch i:nth-child(1) { background: var(--a); } .palette-swatch i:nth-child(2) { background: var(--b); box-shadow: 0 0 16px var(--b); } .palette-swatch i:nth-child(3) { background: var(--c); }
+
+/* ───────────── Anmeldung ───────────── */
+body.auth .topbar, body.auth .tabbar { display: none; }
+body.auth main { padding-bottom: 40px; }
+.auth-wrap { min-height: 100dvh; display: grid; place-items: center; padding: 32px var(--gutter); }
+.auth-card { width: min(440px, 100%); display: grid; gap: 14px; justify-items: center; text-align: center; padding: 34px 28px; animation: pop-in 0.7s var(--ease-spring) both; }
+.auth-logo .logo-mark { width: 84px; height: 84px; filter: drop-shadow(0 0 22px rgba(var(--c-accent), 0.7)); animation: logo-breathe 4s ease-in-out infinite; }
+@keyframes logo-breathe { 50% { filter: drop-shadow(0 0 34px rgba(var(--c-accent2), 0.9)); transform: scale(1.04); } }
+.auth-title { margin: 0; font-family: var(--font-display); font-size: clamp(2rem, 8vw, 2.6rem); }
+.auth-title span { background: linear-gradient(180deg, #fff4d6, rgb(var(--c-accent2)) 60%, rgb(var(--c-deep))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.auth-sub { margin: 0; color: var(--muted); font-style: italic; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; padding: 4px; border-radius: 999px; background: rgba(var(--c-s08), 0.6); border: 1px solid var(--line); }
+.auth-tabs button { border: 0; background: transparent; padding: 9px 12px; border-radius: 999px; color: var(--muted); font-weight: 600; cursor: pointer; transition: background 0.25s, color 0.25s; }
+.auth-tabs button.active { background: rgba(var(--c-accent), 0.25); color: #fff; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.auth-form { display: grid; gap: 12px; width: 100%; text-align: left; }
+.auth-form .field { display: grid; gap: 6px; }
+.auth-form .field span { font-size: 0.85rem; color: var(--text-2); font-weight: 600; }
+.auth-form .btn { justify-content: center; }
+.auth-form .hint { display: flex; gap: 8px; align-items: flex-start; font-size: 0.82rem; margin: 0; }
+.auth-form .hint svg { flex: none; width: 16px; height: 16px; margin-top: 2px; color: var(--gold); }
+.auth-error { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: rgba(253, 164, 175, 0.1); border: 1px solid rgba(253, 164, 175, 0.35); color: var(--bad); font-size: 0.9rem; }
+.auth-old { display: grid; gap: 6px; width: 100%; text-align: left; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px dashed rgba(245, 214, 138, 0.4); background: rgba(245, 214, 138, 0.05); }
+.auth-old b { display: flex; align-items: center; gap: 8px; color: var(--gold); }
+.auth-old b svg { width: 16px; height: 16px; }
+.auth-old p { margin: 0; font-size: 0.88rem; }
+.auth-old .btn { justify-self: start; }
+@media (prefers-reduced-motion: reduce) { .auth-logo .logo-mark { animation: none; } }
+
+/* Konto in den Einstellungen */
+.account-section .sync-line { margin: 2px 0 0; font-size: 0.85rem; }
+.legacy-card { display: grid; gap: 8px; margin: 6px 0 14px; padding: 14px 16px; border-radius: var(--radius-sm); border: 1px dashed rgba(245, 214, 138, 0.45); background: rgba(245, 214, 138, 0.06); }
+.legacy-card b { display: flex; align-items: center; gap: 8px; color: var(--gold); }
+.legacy-card b svg { width: 16px; height: 16px; }
+.legacy-card p { margin: 0; }
+.legacy-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.file-btn { cursor: pointer; }
+.pw-change summary { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); list-style: none; }
+.pw-change summary::-webkit-details-marker { display: none; }
+.pw-change summary svg { width: 16px; height: 16px; }
+.pw-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 10px; }
+@media (max-width: 640px) { .pw-form { grid-template-columns: 1fr; } }
+.sync-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); flex: none; transition: background 0.3s, box-shadow 0.3s; }
+.sync-dot.saving { background: var(--gold); box-shadow: 0 0 8px var(--gold); animation: hp-pulse 1s ease-in-out infinite; }
+.sync-dot.offline { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.legacy-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 18px auto 0; padding: 14px 18px; border-radius: var(--radius); border: 1px dashed rgba(245, 214, 138, 0.45); background: rgba(245, 214, 138, 0.07); }
+.legacy-banner p { margin: 0; flex: 1 1 260px; }

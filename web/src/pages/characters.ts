@@ -49,7 +49,7 @@ export function charactersPage(): Page {
             })}
           </div>
           <div class="center" style="margin-top:28px"><a class="btn btn-ghost" href="#/klassen">${icon("wand")} Eigene Klassen bauen</a></div>
-          <p class="hint center" style="margin-top:18px">Deine Figuren werden in diesem Browser gespeichert – auf einem anderen Gerät siehst du sie nicht.</p>
+          <p class="hint center" style="margin-top:18px">Deine Figuren werden in deinem Konto gespeichert – melde dich auf einem anderen Gerät an, und sie sind dort auch.</p>
         </div>`);
       root.addEventListener("click", async (e) => {
         const del = (e.target as HTMLElement).closest<HTMLElement>("[data-delete]");

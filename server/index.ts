@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "./app";
 import { createClaude } from "./gm/setup";
+import { AccountService, FileAccountStore } from "./accounts";
 import { MemoryCounterStore } from "./gm/usage";
 import { MemoryRollStore, RollLog } from "./dice/log";
 import { loadGameData, RulesError, type GameData } from "./rules/loader";
@@ -39,7 +40,10 @@ try {
 
 const rolls = new RollLog(new MemoryRollStore(path.join(root, "saves", "rolls.log")));
 const secret = localSecret();
-const claude = createClaude(process.env, () => data, rolls, new MemoryCounterStore(), secret);
+const counters = new MemoryCounterStore();
+const claude = createClaude(process.env, () => data, rolls, counters, secret);
+// Konten lokal als Dateien in saves/accounts (nicht im Git)
+const accounts = new AccountService({ store: new FileAccountStore(path.join(root, "saves", "accounts")), secret, counters, inviteCode: process.env.ACCESS_CODE?.trim() || undefined });
 const app = createApp({
   data: () => data,
   rolls,
@@ -48,6 +52,7 @@ const app = createApp({
   accessCode: process.env.ACCESS_CODE,
   secret,
   customClassDir: path.join(root, "data", "classes", "custom"),
+  accounts,
 });
 
 app.listen(PORT, HOST, () => {

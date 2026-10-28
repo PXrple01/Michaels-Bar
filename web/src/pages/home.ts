@@ -1,3 +1,4 @@
+import { legacySummary, summaryText } from "../lib/account";
 import { mountHeroDie } from "../dice3d/heroDie";
 import { enhance, splitLetters } from "../fx/effects";
 import { loadGameData } from "../lib/api";
@@ -30,6 +31,7 @@ export function homePage(): Page {
   return {
     async render(root) {
       setHTML(root, html`
+        ${legacySummary() ? html`<div class="container"><div class="legacy-banner">${icon("scroll")}<p><b>Spielstände von früher gefunden:</b> ${summaryText(legacySummary()!)}. Übernimm sie mit einem Klick in dein Konto.</p><a class="btn btn-sm" href="#/einstellungen">${icon("arrowRight")} Zur Übernahme</a></div></div>` : ""}
         <section class="hero container">
           <div class="hero-text">
             <div class="eyebrow">Ein Erzähl-Abenteuer im Mittelalter</div>

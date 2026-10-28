@@ -90,7 +90,7 @@ export function classesPage(): Page {
               </article>`;
             })}
           </div>` : html`<div class="card empty" data-reveal><p>Noch keine eigene Klasse. Wie wäre es mit einem Glockengießer, einer Schmugglerin oder einem Rattenfänger?</p></div>`}
-          <p class="hint center" style="margin-top:24px">Eigene Klassen liegen in diesem Browser. Exportierte Dateien funktionieren auf derselben Seite auch in anderen Browsern.</p>
+          <p class="hint center" style="margin-top:24px">Eigene Klassen werden in deinem Konto gespeichert. Exportierte Klassen-Dateien kannst du auch weitergeben.</p>
         </div>`);
 
       root.addEventListener("click", async (e) => {

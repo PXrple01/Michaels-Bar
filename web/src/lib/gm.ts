@@ -1,4 +1,5 @@
 // Verbindung zum Spielleiter: POST-Anfrage, Antwort als gestreamte Server-Sent Events.
+import { sessionToken } from "./account";
 import type { GmEvent } from "../../../shared/campaign";
 
 const CODE_KEY = "wus.access.v1";
@@ -29,7 +30,7 @@ export async function streamSse<E extends { type: string }>(url: string, body: u
   try {
     res = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-access-code": accessCode() },
+      headers: { "content-type": "application/json", "x-access-code": accessCode(), "x-session": sessionToken() },
       body: JSON.stringify(body),
       signal: abort.signal,
     });

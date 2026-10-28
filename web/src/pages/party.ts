@@ -507,7 +507,7 @@ export function partyPage(): Page {
 
       void poll();
       if (query === "da") toast("Du bist dabei! Warte, bis der Gastgeber startet.", "success");
-      if (!myChar) toast("Deine Figur aus dieser Gruppe liegt nicht in diesem Browser – du kannst zuschauen, aber nicht würfeln.");
+      if (!myChar) toast("Deine Figur aus dieser Gruppe ist nicht in deinem Konto – du kannst zuschauen, aber nicht würfeln.");
     },
   };
 }

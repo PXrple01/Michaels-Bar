@@ -38,7 +38,7 @@ export const api = {
   characters: async () => characterStore.list(),
   character: async (id: string) => {
     const c = characterStore.get(id);
-    if (!c) throw new ApiError("Figur nicht gefunden (gespeichert wird nur in diesem Browser)", [], 404);
+    if (!c) throw new ApiError("Figur nicht gefunden – sie ist nicht in deinem Konto", [], 404);
     return c;
   },
   createCharacter: async (input: CharacterInput) => {

@@ -6,14 +6,22 @@ import type { RollLog } from "./dice/log";
 import type { Claude } from "./gm/setup";
 import { mountGm, mountOpenAi } from "./gm/http";
 import type { GameData } from "./rules/loader";
+import type { AccountService } from "./accounts";
 
-export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string; claude?: () => Claude; accessCode?: string; secret?: string; customClassDir?: string }) {
+export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string; claude?: () => Claude; accessCode?: string; secret?: string; customClassDir?: string; accounts?: AccountService }) {
   const app = express();
   app.disable("x-powered-by");
   // Lange Abenteuer (signierter Verlauf) und OpenAI-Gespräche schicken den ganzen Verlauf mit
-  app.use(express.json({ limit: "2mb" }));
+  // Kontodaten: ein ganzer Browser-Speicher (bis 5 MB) auf einmal
+  app.use(express.json({ limit: "8mb" }));
 
-  if (opts.claude) { mountGm(app, opts.claude, opts.accessCode); mountOpenAi(app, opts.claude); }
+  const accounts = opts.accounts;
+  if (accounts) app.all("/api/account/:op", async (req, res) => {
+    const r = await accounts.handle(req.method, String(req.params.op), req.body, req.header("x-session") ?? null, req.ip ?? "local");
+    res.status(r.status).json(r.body);
+  });
+
+  if (opts.claude) { mountGm(app, opts.claude, opts.accessCode, opts.secret); mountOpenAi(app, opts.claude); }
 
   app.all(/^\/api\/.*/, async (req, res) => {
     const result = await handleApi(req.method, req.path, req.body, opts);
