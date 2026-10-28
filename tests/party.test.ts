@@ -83,13 +83,13 @@ describe("Mehrspieler", () => {
     const v = viewOf(second)!;
     expect(llm.calls).toHaveLength(2);
     expect(llm.calls[1].messages.at(-1)!.content).toContain("Hagen: Ich klopfe.");
-    expect(v.pending).toMatchObject({ characterName: "Agnes", playerId: guest.playerId });
+    expect(v.pendings).toMatchObject([{ characterName: "Agnes", playerId: guest.playerId }]);
 
     expect((await run("roll", { code: host.code, token: host.token })).at(-1)).toMatchObject({ type: "error" });
     const rolled = await run("roll", { code: host.code, token: guest.token });
     expect(rolled.find((e) => e.type === "roll")).toBeTruthy();
     const after = viewOf(rolled)!;
-    expect(after.pending).toBeNull();
+    expect(after.pendings).toEqual([]);
     expect(after.story.map((s) => s.type)).toEqual(["gm", "actions", "gm", "roll", "gm"]);
   });
 

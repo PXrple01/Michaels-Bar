@@ -22,7 +22,7 @@ export const GLOSSARY: Record<string, Term> = {
   patzer: { title: "Patzer (natürliche 1)", short: "Zeigt der W20 eine 1, misslingt es immer – oft mit unangenehmen Folgen." },
   tp: { title: "Trefferpunkte (TP)", short: "Deine Lebenskraft. Wirst du verletzt, sinken sie. Bei 0 TP gehst du zu Boden. Rast und Heilung bringen sie zurück." },
   ruestung: { title: "Rüstungswert", short: "So schwer bist du zu treffen. Ein Angriff muss mindestens diesen Wert erreichen. Grundwert 10 + Rüstung + Geschick." },
-  angriff: { title: "Angriffswurf", short: "W20 + Angriffsbonus. Erreicht das Ergebnis den Rüstungswert des Gegners, triffst du und würfelst Schaden." },
+  angriff: { title: "Angriffswurf", short: "W20 + Angriffsbonus. Erreicht das Ergebnis den Rüstungswert des Gegners, triffst du – der Schaden wird dann gleich mitgewürfelt." },
   schaden: { title: "Schaden", short: "Wie viele Trefferpunkte ein Treffer abzieht. Hängt von der Waffe ab, z. B. 1W8 beim Langschwert." },
   klasse: { title: "Klasse", short: "Der Beruf oder die Berufung deiner Figur, z. B. Ritter oder Kräuterhexe. Sie bestimmt Fähigkeiten, Ausrüstung und Trefferpunkte." },
   stand: { title: "Stand (Herkunft)", short: "Woher deine Figur stammt: Bauernkind, Bürgerkind, Adel … Das gibt dir eine Fertigkeit und Startgeld." },

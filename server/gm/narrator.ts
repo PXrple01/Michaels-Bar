@@ -75,8 +75,8 @@ export function requestBase(model: ModelId, effort: "low" | "medium" | "high") {
 export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
-/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 7;
+/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen, mehrere Proben. Ältere Verläufe werden einmalig umgestellt. */
+export const TOOLSET = 8;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
@@ -147,7 +147,10 @@ export type ToolResult = Anthropic.Beta.BetaToolResultBlockParam;
 
 export interface ConverseResult {
   history: MessageParam[];
+  /** Erste offene Probe (Solo: die einzige). */
   pending: PendingCheck | null;
+  /** Alle offenen Proben – in der Gruppe höchstens eine pro Figur, gewürfelt wird gleichzeitig. */
+  pendings: PendingCheck[];
   /** Ergebnisse der übrigen Werkzeuge aus derselben Antwort wie die Probe – gehen mit dem Wurf zurück. */
   held: ToolResult[];
   costUsd: number;
@@ -172,8 +175,9 @@ export class Narrator {
       name: TOOL_NAME,
       description:
         `Verlangt von ${party ? "einer Spielfigur" : "der Spielfigur"} eine Probe. Der Server würfelt fair, sobald die Person auf „Würfeln“ klickt, und liefert dir das Ergebnis. ` +
-        "art: attribute (reine Attributsprobe), skill (Fertigkeit), attack (Waffenangriff, id = waffe), damage (Waffenschaden, id = waffe, sg = 0). " +
-        "Im Kampf gib bei attack und damage den Gegner in ziel an – dann gilt seine Rüstung als SG und der Schaden wird ihm abgezogen. " +
+        "art: attribute (reine Attributsprobe), skill (Fertigkeit), attack (Waffenangriff, id = waffe), damage (Waffenschaden, id = waffe, sg = 0 – nur außerhalb eines Treffers gegen einen Gegner). " +
+        "Im Kampf gib bei attack den Gegner in ziel an – dann gilt seine Rüstung als SG, und bei einem Treffer würfelt der Server den Schaden gleich mit und zieht ihn ab. " +
+        (party ? "In einer Gruppe darfst du in einer Antwort mehrere Proben verlangen, höchstens eine pro Figur – sie würfeln gleichzeitig. " : "") +
         "Attribute: " + data.rules.attributes.map((a) => `${a.id} (${a.name})`).join(", ") + ". " +
         "Fertigkeiten: " + data.rules.skills.map((s) => `${s.id} (${s.name})`).join(", ") + ".",
       eager_input_streaming: true,
@@ -232,29 +236,79 @@ export class Narrator {
   }
 
   /**
-   * Würfelt die offene Probe und verrechnet sie im Kampf. Die Wurf-ID hängt an der Probe – erneutes Senden liefert denselben Wurf.
-   * `content` ist die nächste Nachricht an Claude: zurückgehaltene Werkzeug-Ergebnisse plus das Probenergebnis.
+   * Würfelt eine offene Probe. Trifft ein Angriff einen Gegner, würfelt der Server den Schaden gleich mit (spart einen ganzen
+   * Modellaufruf). Die Wurf-IDs hängen an der Probe – erneutes Senden liefert dieselben Würfe. Verbucht wird mit applyRolls.
    */
-  async rollPending(pending: PendingCheck, scene: Omit<Scene, "onRoll">, held: ToolResult[] = []): Promise<{ record: RollRecord; content: ToolResult[] }> {
+  async rollRecords(pending: PendingCheck, scene: Omit<Scene, "onRoll">): Promise<{ record: RollRecord; damage: RollRecord | null }> {
     const { characters, data, world } = scene;
     const c = characters.find((x) => x.id === pending.characterId)!;
-    const spec = characterRoll(c, data.rules, data.classes, pending.art, pending.id);
+    const base = `gm-${pending.toolUseId.replace(/[^A-Za-z0-9-]/g, "-")}`.slice(0, 60);
+    const record = await this.rollCheck(c, data, pending.art, pending.id, base, pending.modus, pending.sg, pending.art === "damage" && !!world.critPending[c.id]);
+    const damage = pending.art === "attack" && pending.ziel && record.success
+      ? await this.rollCheck(c, data, "damage", "waffe", `${base}-d`, "normal", null, record.critical === "hit") : null;
+    return { record, damage };
+  }
+
+  /** Würfe im Spielstand verbuchen (Gegner-TP) und das Ergebnis für Claude formulieren. Synchron – passt in eine gesperrte Änderung. */
+  applyRolls(pending: PendingCheck, scene: Omit<Scene, "onRoll">, record: RollRecord, damage: RollRecord | null): { result: ToolResult; extra: RollRecord[] } {
+    const { characters, data, world } = scene;
+    const ctx = { data, characters, world };
+    let text = describeRoll(record) + applyPlayerRoll(ctx, pending.characterId, pending.art, pending.ziel ?? null, record);
+    const extra: RollRecord[] = [];
+    const enemy = damage && world.combat?.enemies.find((e) => e.name === pending.ziel && e.hp > 0);
+    if (damage && enemy) {
+      extra.push(damage);
+      text += ` Schaden: ${describeRoll(damage)}${applyPlayerRoll(ctx, pending.characterId, "damage", enemy.name, damage)}`;
+    }
+    return { result: { type: "tool_result", tool_use_id: pending.toolUseId, content: text }, extra };
+  }
+
+  async rollOne(pending: PendingCheck, scene: Omit<Scene, "onRoll">): Promise<{ record: RollRecord; extra: RollRecord[]; result: ToolResult }> {
+    const { record, damage } = await this.rollRecords(pending, scene);
+    return { record, ...this.applyRolls(pending, scene, record, damage) };
+  }
+
+  private rollCheck(c: Character, data: GameData, art: PendingCheck["art"], id: string, requestId: string, mode: PendingCheck["modus"], dc: number | null, crit: boolean) {
+    const spec = characterRoll(c, data.rules, data.classes, art, id);
     let notation = spec.notation;
-    if (pending.art === "damage" && world.critPending[c.id]) {
+    if (art === "damage" && crit) {
       const p = parseNotation(notation);
       notation = `${p.terms[0].count * 2}W${p.terms[0].sides}${p.modifier ? (p.modifier > 0 ? `+${p.modifier}` : String(p.modifier)) : ""}`;
     }
-    const record = await this.o.rolls.roll({
-      requestId: `gm-${pending.toolUseId.replace(/[^A-Za-z0-9-]/g, "-")}`.slice(0, 64),
-      kind: "check",
+    return this.o.rolls.roll({
+      requestId, kind: "check",
       label: `${c.name}: ${spec.label}${notation !== spec.notation ? " (kritisch)" : ""}`,
-      notation,
-      mode: pending.modus,
-      modifierParts: spec.parts,
-      dc: pending.sg,
+      notation, mode, modifierParts: spec.parts, dc,
     });
-    const text = describeRoll(record) + applyPlayerRoll({ data, characters, world }, c.id, pending.art, pending.ziel ?? null, record);
-    return { record, content: [...held, { type: "tool_result", tool_use_id: pending.toolUseId, content: text }] };
+  }
+
+  /**
+   * Gegnerangriffe, die Claude zusammen mit den Proben angesagt hat: Der Server wertet sie erst aus, nachdem alle gewürfelt haben
+   * (besiegte Gegner greifen nicht mehr an). So erzählt Claude die ganze Runde in einem einzigen Aufruf.
+   */
+  async enemyTurn(messages: MessageParam[], scene: Scene): Promise<ToolResult[]> {
+    const last = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!last || typeof last.content === "string") return [];
+    const out: ToolResult[] = [];
+    for (const b of last.content) {
+      if (b.type !== "tool_use" || b.name !== "gegner_greift_an") continue;
+      const name = String((b.input as { gegner?: unknown })?.gegner ?? "").toLowerCase();
+      const foe = scene.world.combat?.enemies.find((e) => e.name.toLowerCase() === name);
+      if (foe && foe.hp <= 0) { out.push({ type: "tool_result", tool_use_id: b.id, content: `${foe.name} ist besiegt und greift nicht mehr an.` }); continue; }
+      if (!scene.world.combat) { out.push({ type: "tool_result", tool_use_id: b.id, content: "Der Kampf ist schon vorbei – kein Angriff mehr." }); continue; }
+      out.push({ type: "tool_result", tool_use_id: b.id, ...(await runAutoTool(b, { data: scene.data, characters: scene.characters, world: scene.world, rolls: this.o.rolls, onRoll: scene.onRoll })) });
+    }
+    return out;
+  }
+
+  /**
+   * Solo: Probe würfeln, danach die angesagten Gegnerangriffe. `content` ist die nächste Nachricht an Claude:
+   * zurückgehaltene Werkzeug-Ergebnisse, das Probenergebnis und die Gegnerangriffe.
+   */
+  async rollPending(pending: PendingCheck, scene: Omit<Scene, "onRoll"> & { onRoll?: Scene["onRoll"] }, held: ToolResult[] = [], messages: MessageParam[] = []): Promise<{ record: RollRecord; extra: RollRecord[]; content: ToolResult[] }> {
+    const { record, extra, result } = await this.rollOne(pending, scene);
+    const enemies = await this.enemyTurn(messages, { ...scene, onRoll: scene.onRoll ?? (() => {}) });
+    return { record, extra, content: [...held, result, ...enemies] };
   }
 
   /** Erzählt weiter, bis Claude fertig ist oder eine Probe verlangt. Sofort-Werkzeuge werden dabei ausgeführt. */
@@ -300,39 +354,48 @@ export class Narrator {
         usage.input += u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
         usage.output += u.output_tokens;
         const compacted = (u.iterations ?? []).some((i) => i.type === "compaction");
+        // Nach einer Zusammenfassung stehen frühere <spielstand> nicht mehr im Verlauf: nächstes Mal wieder ausführlich
+        if (compacted) delete world.sent;
         console.log(`[Kosten] ${this.model}: Eingabe ${u.input_tokens}, Cache gelesen ${u.cache_read_input_tokens ?? 0}, Cache geschrieben ${u.cache_creation_input_tokens ?? 0}, Ausgabe ${u.output_tokens} (davon Denken ${u.output_tokens_details?.thinking_tokens ?? "?"})${compacted ? ", mit Zusammenfassung" : ""} → ${(c * 100).toFixed(2)} ct`);
 
         if (msg.stop_reason === "refusal") throw new GmError("Der Spielleiter möchte diese Szene so nicht erzählen. Versuch es mit einer anderen Handlung.", "refusal");
         history.push({ role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] });
         const uses = msg.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
         if (uses.length && msg.stop_reason === "tool_use") {
-          const results: ToolResult[] = [];
-          let pending: PendingCheck | null = null;
+          // Reihenfolge: erst Sofort-Werkzeuge (z. B. kampf_beginnen – die Gegner müssen für die Proben schon da sein),
+          // dann die Proben (höchstens eine pro Figur), zuletzt Gegnerangriffe – die warten, bis alle gewürfelt haben.
+          const byId = new Map<string, ToolResult>();
+          const run = async (b: Anthropic.Beta.BetaToolUseBlock) => byId.set(b.id, { type: "tool_result", tool_use_id: b.id, ...(await runAutoTool(b, { data, characters, world, rolls: this.o.rolls, onRoll: scene.onRoll })) });
           for (const b of uses) {
-            if (b.name === TOOL_NAME) {
-              const p: PendingCheck | null = pending ? null : this.pendingFor(b, characters, data, world);
-              if (p) pending = p;
-              else results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: pending ? "Nur eine Probe gleichzeitig – verlange die nächste nach dem Ergebnis." : "INVALID_INPUT: Prüfe figur, art, id (aus der Liste), sg (0–30) und modus." });
-            } else if ((AUTO_TOOLS as readonly string[]).includes(b.name)) {
-              results.push({ type: "tool_result", tool_use_id: b.id, ...(await runAutoTool(b, { data, characters, world, rolls: this.o.rolls, onRoll: scene.onRoll })) });
-            } else {
-              results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: "Unbekanntes Werkzeug." });
-            }
+            if (b.name === TOOL_NAME || b.name === "gegner_greift_an") continue;
+            if ((AUTO_TOOLS as readonly string[]).includes(b.name)) await run(b);
+            else byId.set(b.id, { type: "tool_result", tool_use_id: b.id, is_error: true, content: "Unbekanntes Werkzeug." });
           }
-          if (pending) return { history, pending, held: results, costUsd: cost, usage };
+          const pendings: PendingCheck[] = [];
+          for (const b of uses.filter((x) => x.name === TOOL_NAME)) {
+            const p = this.pendingFor(b, characters, data, world);
+            const error = !p ? "INVALID_INPUT: Prüfe figur, art, id (aus der Liste), sg (0–30) und modus."
+              : pendings.some((x) => x.characterId === p.characterId) ? "Nur eine Probe pro Figur gleichzeitig – verlange die nächste nach dem Ergebnis." : null;
+            if (error) byId.set(b.id, { type: "tool_result", tool_use_id: b.id, is_error: true, content: error });
+            else pendings.push(p!);
+          }
+          // Gegnerzug: mit offenen Proben erst nach den Würfen (siehe enemyTurn), sonst sofort
+          if (!pendings.length) for (const b of uses) if (b.name === "gegner_greift_an") await run(b);
+          const results = uses.map((b) => byId.get(b.id)).filter((r): r is ToolResult => !!r);
+          if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, usage };
           const told = msg.content.some((b) => b.type === "text" && /»\s*Vorschläge:/.test(b.text));
           const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
-          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost, usage };
+          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, usage };
           // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.
           if (deadline - Date.now() < MIN_CALL_MS) {
             console.warn("[Claude] Zeitbudget fast aufgebraucht – Zug endet ohne weiteren Aufruf.");
-            return { history, pending: null, held: results, costUsd: cost, usage };
+            return { history, pending: null, pendings: [], held: results, costUsd: cost, usage };
           }
           history.push({ role: "user", content: results });
           continue;
         }
         if (uses.length) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
-        return { history, pending: null, held: [], costUsd: cost, usage };
+        return { history, pending: null, pendings: [], held: [], costUsd: cost, usage };
       }
       throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");
     } finally {

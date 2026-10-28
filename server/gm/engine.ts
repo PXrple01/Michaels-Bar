@@ -4,7 +4,8 @@ import { emptyProgression, upgradeDue } from "../../shared/upgrades";
 import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared/levels";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
+import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
+import { turnSummary } from "./summary";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
@@ -97,7 +98,7 @@ export class GameMaster {
     if (action.length > MAX_ACTION_LENGTH) throw new GmError(`Bitte kürzer fassen (höchstens ${MAX_ACTION_LENGTH} Zeichen).`, "state");
     if (world.combat) world.combat.round++;
     countChapterTurn(world);
-    await this.converse([...messages, userTurn(held, `${action}\n\n<spielstand>\n${worldSummary(world, [c], data.rules)}\n</spielstand>`)], world, c, data, who, emit);
+    await this.converse([...messages, userTurn(held, `${action}\n\n<spielstand>\n${turnSummary(world, [c], data.rules)}\n</spielstand>`)], world, c, data, who, emit);
   }
 
   private async roll(req: RollRequest, who: string, emit: (ev: GmEvent) => void) {
@@ -107,8 +108,12 @@ export class GameMaster {
     if (world.arc?.finished) throw new GmError("Dieses Abenteuer ist abgeschlossen. Beginne ein neues!", "state");
     const pending = this.pendingFrom(messages, ce, data, world);
     if (!pending) throw new GmError("Gerade ist keine Probe offen.", "state");
-    const { record, content } = await this.narrator.rollPending(pending, { characters: [ce], data, world }, held);
+    // Gegnerangriffe erst nach dem eigenen Wurf (und Schaden) zeigen
+    const enemyRolls: RollRecord[] = [];
+    const { record, extra, content } = await this.narrator.rollPending(pending, { characters: [ce], data, world, onRoll: (r) => enemyRolls.push(r) }, held, messages);
     emit({ type: "roll", record });
+    for (const r of extra) emit({ type: "roll", record: r }); // eigener Schaden – gehört zum Wurf der Figur
+    for (const r of enemyRolls) emit({ type: "autoroll", record: r });
     await this.converse([...messages, { role: "user", content }], world, c, data, who, emit);
   }
 

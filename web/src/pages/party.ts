@@ -220,7 +220,7 @@ export function partyPage(): Page {
         root.querySelector(".play-layout")!.classList.toggle("lobby-mode", v.status !== "playing");
         $("#players", root).hidden = v.status === "playing";
         $("#players", root).innerHTML = html`${v.players.map((p) => {
-          const rolling = v.pending?.playerId === p.id;
+          const rolling = v.pendings.some((c) => c.playerId === p.id);
           const status = v.status === "lobby" ? (p.host ? "Gastgeber" : "bereit") : rolling ? "muss würfeln" : p.acted ? "hat gehandelt" : "überlegt …";
           return html`<div class="pp ${p.id === me.playerId ? "me" : ""} ${p.acted ? "acted" : ""} ${rolling ? "rolling" : ""}">
             <span class="pp-sigil">${sigil(p.sigil)}</span>
@@ -240,9 +240,13 @@ export function partyPage(): Page {
         if (nearBottom || firstLoad) window.scrollTo({ top: document.body.scrollHeight });
       }
 
+      /** Offene Proben: die eigene mit Würfeln-Knopf, darunter, wer sonst noch würfelt (alle gleichzeitig). */
       function pendingCard(): Raw {
-        const p = view!.pending!;
-        if (p.playerId !== me.playerId || !myChar) return html`<div class="card waiting-card">${icon("dice")} <b>${p.characterName}</b> muss eine ${p.label}${MODE_TEXT[p.modus]}${p.sg !== null ? ` (SG ${p.sg})` : ""} würfeln …</div>`;
+        const all = view!.pendings;
+        const p = all.find((c) => c.playerId === me.playerId);
+        const others = all.filter((c) => c !== p);
+        const waiting = others.length ? html`<div class="card waiting-card">${icon("dice")} <span>${others.map((o, i) => html`${i ? (i === others.length - 1 ? " und " : ", ") : ""}<b>${o.characterName}</b>`)} ${others.length > 1 ? "würfeln" : "würfelt"} noch${others.length === 1 ? html` (${others[0].label}${MODE_TEXT[others[0].modus]}${others[0].sg !== null ? `, SG ${others[0].sg}` : ""})` : ""} …${p ? "" : html`<br><small class="muted">Danach erzählt der Spielleiter die ganze Runde.</small>`}</span></div>` : html``;
+        if (!p || !myChar) return waiting;
         const d = dataFor(data, myChar);
         const spec = characterRoll(myChar, d.rules, d.classes, p.art, p.id);
         const mod = spec.parts.reduce((s, x) => s + x.value, 0);
@@ -255,7 +259,7 @@ export function partyPage(): Page {
             <p class="hint">Du würfelst ${spec.notation} ${spec.parts.map((x) => `${formatModifier(x.value)} ${x.label}`).join(" ")}${p.sg !== null ? ` – mindestens ${Math.max(2, Math.min(20, p.sg - mod))} auf dem Würfel.` : "."}</p>
           </div>
           <button class="btn btn-lg magnetic" id="roll-now">${icon("dice")} Würfeln</button>
-        </div>`;
+        </div>${waiting}`;
       }
 
       function renderBelow() {
@@ -277,9 +281,10 @@ export function partyPage(): Page {
           </div>`;
         } else if (v.busy || busyLocal) {
           content = html`<div class="thinking">${icon("feather")} Der Spielleiter erzählt …</div>`;
-        } else if (v.pending) {
+        } else if (v.pendings.length) {
           // Gescheiterter Wurf-Zug: Probe ist wieder offen, erneutes Würfeln ergibt denselben Wurf
-          content = html`${v.failed ? html`<div class="card failed-card"><h3>${icon("info")} Das hat nicht geklappt</h3><p>${v.failed}</p><small class="muted">${v.pending.playerId === me.playerId ? "Würfle einfach noch einmal – das Ergebnis bleibt dasselbe." : `${v.pending.characterName} würfelt noch einmal – das Ergebnis bleibt dasselbe.`}</small></div>` : ""}${pendingCard()}`;
+          const again = v.pendings.find((c) => c.playerId === me.playerId);
+          content = html`${v.failed ? html`<div class="card failed-card"><h3>${icon("info")} Das hat nicht geklappt</h3><p>${v.failed}</p><small class="muted">${again ? "Würfle einfach noch einmal – das Ergebnis bleibt dasselbe." : `${v.pendings.map((c) => c.characterName).join(", ")} würfelt noch einmal – das Ergebnis bleibt dasselbe.`}</small></div>` : ""}${pendingCard()}`;
         } else if (v.world?.arc?.finished) {
           content = endCard(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), { href: "#/gruppe", label: "Neue Gruppe gründen" });
         } else {
@@ -330,10 +335,10 @@ export function partyPage(): Page {
       function renderHud() {
         const v = view!;
         if (v.status !== "playing") return;
-        const open = !v.busy && !busyLocal && !v.pending && !v.world?.arc?.finished;
+        const open = !v.busy && !busyLocal && !v.pendings.length && !v.world?.arc?.finished;
         const members: TeamMember[] = v.players.map((p) => ({
           id: p.characterId, name: p.name, sigil: p.sigil, className: p.className, host: p.host, me: p.id === me.playerId, abilities: p.abilities,
-          status: v.pending?.playerId === p.id ? "muss würfeln" : open ? (p.acted ? "hat gehandelt" : "überlegt …") : undefined,
+          status: v.pendings.some((c) => c.playerId === p.id) ? "muss würfeln" : open ? (p.acted ? "hat gehandelt" : "überlegt …") : undefined,
         }));
         const waiting = open ? members.filter((m, i) => !v.players[i].acted) : [];
         fillSide(root.querySelector("#side-left"), teamSide(v.world, members, data.rules, waiting));
@@ -441,8 +446,8 @@ export function partyPage(): Page {
       }
 
       async function doRoll() {
-        if (!view?.pending) return;
-        const p = view.pending;
+        const p = view?.pendings.find((c) => c.playerId === me.playerId);
+        if (!p) return;
         let resolveRoll!: (r: RollRecord) => void, rejectRoll!: (e: Error) => void;
         const rollP = new Promise<RollRecord>((res, rej) => { resolveRoll = res; rejectRoll = rej; });
         const overlay = rollWithOverlay(`${p.label}${MODE_TEXT[p.modus]}${p.sg !== null ? ` · SG ${p.sg}` : ""}`, () => rollP);

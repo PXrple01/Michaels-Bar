@@ -5,7 +5,8 @@ import { MAX_ACTION_LENGTH } from "../../shared/campaign";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../shared/party";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
+import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
+import { turnSummary } from "./summary";
 import { countChapterTurn, enforceDefeat } from "./world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
@@ -17,7 +18,20 @@ import { effectiveAbilities, emptyProgression, upgradeDue } from "../../shared/u
 import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared/levels";
 import type { UsageGuard } from "./usage";
 
-interface Busy { since: string; op?: "start" | "action" | "roll"; storyLen?: number; pending?: PendingCheck | null }
+interface Busy {
+  since: string;
+  op?: "start" | "action" | "roll";
+  storyLen?: number;
+  /** Zustand vor dem Zug – zum Zurücknehmen bei einem Abbruch */
+  pending?: PendingCheck | null;
+  pendings?: PendingCheck[];
+  rolled?: ToolResult[];
+  world?: WorldState | null;
+}
+
+/** Offene Proben (auch aus Spielständen mit der älteren Einzelform). */
+const openChecks = (p: Party): PendingCheck[] => p.pendings ?? (p.pending ? [p.pending] : []);
+const setChecks = (p: Party, list: PendingCheck[]) => { p.pendings = list; p.pending = null; };
 
 interface PartyPlayer { id: string; tokenHash: string; host: boolean; joinedAt: string; character: Character }
 
@@ -43,6 +57,10 @@ export interface Party {
   world: WorldState | null;
   /** Werkzeug-Ergebnisse, die mit dem nächsten Probenergebnis an Claude gehen. */
   held: ToolResult[];
+  /** Offene Proben – höchstens eine pro Figur, alle würfeln gleichzeitig. (`pending` ist die ältere Einzelform.) */
+  pendings?: PendingCheck[];
+  /** Schon gewürfelte Proben dieser Runde; gehen zusammen an Claude, sobald alle gewürfelt haben. */
+  rolled?: ToolResult[];
   toolset?: number;
   /** Modell, das zuletzt erzählt hat (siehe SignedState.model). */
   model?: string;
@@ -83,7 +101,8 @@ function recover(p: Party): boolean {
   if (!p.busy || !isStale(p.busy)) return false;
   const b = p.busy;
   if (typeof b.storyLen === "number") p.story = p.story.slice(0, b.storyLen);
-  if (b.op === "roll" && b.pending) p.pending = b.pending;
+  if (b.world !== undefined) p.world = b.world;
+  if (b.op === "roll") { setChecks(p, b.pendings ?? (b.pending ? [b.pending] : [])); p.rolled = b.rolled ?? []; }
   if (b.op === "start") { p.status = "lobby"; p.opening = null; p.world = null; }
   p.busy = null;
   p.live = "";
@@ -153,7 +172,7 @@ export class PartyService {
       }),
       opening: party.opening,
       story: party.story,
-      pending: party.pending ? { ...party.pending, playerId: party.players.find((p) => p.character.id === party.pending!.characterId)?.id ?? "" } : null,
+      pendings: openChecks(party).map((c) => ({ ...c, playerId: party.players.find((p) => p.character.id === c.characterId)?.id ?? "" })),
       yourAction: party.actions[you] ?? null,
       busy: !!party.busy && !isStale(party.busy),
       live: party.live,
@@ -264,7 +283,8 @@ export class PartyService {
         if (!ready) { emit({ type: "view", view: await this.state(body) }); return; }
       }
       this.o.narrator.ensureReady();
-      await this.gmTurn(op, body, who, emit);
+      if (op === "roll") await this.rollTurn(body, who, emit);
+      else await this.gmTurn(op, body, who, emit);
     } catch (e) {
       if (e instanceof PartyError) emit({ type: "error", message: e.message, code: e.code });
       else emit(errorEvent(e));
@@ -330,7 +350,7 @@ export class PartyService {
       recover(p);
       if (p.status !== "playing") throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
       if (retry && !p.failed) throw new PartyError("Es gibt nichts zu wiederholen.");
-      if (p.pending) throw new PartyError(`Erst muss ${p.pending.characterName} würfeln.`);
+      if (openChecks(p).length) throw new PartyError(`Erst muss gewürfelt werden (${openChecks(p).map((c) => c.characterName).join(", ")}).`);
       if (p.world?.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
       // Abgegeben ist abgegeben: Eine Handlung lässt sich danach nicht mehr ändern oder zurückziehen.
       if (text && me.id in p.actions) throw new PartyError("Deine Handlung ist schon abgegeben – sie lässt sich nicht mehr ändern.");
@@ -340,31 +360,39 @@ export class PartyService {
     return Object.keys(updated.actions).length > 0 && (all || now || retry);
   }
 
-  private async gmTurn(op: "start" | "action" | "roll", body: Record<string, unknown>, who: string, emit: (ev: PartyEvent) => void) {
+  /** Einmalige Umstellung älterer Gruppen (Werkzeugstand, Modellwechsel). */
+  private migrate(p: Party) {
+    if (p.status !== "playing") return;
+    // Älterer Werkzeugstand: Denkblöcke einmal entfernen; Lebenspunkte usw. bleiben, der Kampagnenbogen kommt dazu
+    if (p.toolset !== TOOLSET || !p.world) {
+      p.messages = stripThinking(p.messages);
+      p.world ??= initWorld(this.characters(p));
+      if (!isArc(p.world.arc)) p.world.arc = initArc();
+      p.held ??= [];
+      p.toolset = TOOLSET;
+    }
+    if ((p.model ?? LEGACY_MODEL) !== this.o.narrator.model) p.messages = stripThinking(p.messages);
+  }
+
+  /** Sperre für einen Spielleiter-Zug – mit allem, was zum Zurücknehmen nötig ist. */
+  private lockFor(p: Party, op: Busy["op"]): Busy {
+    return { since: new Date().toISOString(), op, storyLen: p.story.length, pendings: openChecks(p), rolled: p.rolled ?? [], world: p.world ? structuredClone(p.world) : null };
+  }
+
+  private async gmTurn(op: "start" | "action", body: Record<string, unknown>, who: string, emit: (ev: PartyEvent) => void) {
     const { party: first } = await this.load(body.code);
     const me = this.player(first, body.token);
     let consumed: Record<string, string> = {};
     let messages: MessageParam[] = [];
-    let rollEntry: PartyStoryEntry | null = null;
 
     // 1) Sperre setzen und Eingabe für Claude vorbereiten
-    const lock: Busy = { since: new Date().toISOString(), op };
+    let lock!: Busy;
     const locked = await this.update(first.code, (p) => {
       recover(p);
       if (p.busy) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
-      lock.storyLen = p.story.length;
-      lock.pending = p.pending;
+      lock = this.lockFor(p, op);
       const data = this.dataFor(p);
-      // Gruppen von vor Etappe 5: einmalig auf den neuen Werkzeugstand bringen
-      // Gruppen von älterem Werkzeugstand: Denkblöcke einmal entfernen; Lebenspunkte usw. bleiben, der Kampagnenbogen kommt dazu
-      if (p.status === "playing" && (p.toolset !== TOOLSET || !p.world)) {
-        p.messages = stripThinking(p.messages);
-        p.world ??= initWorld(this.characters(p));
-        if (!isArc(p.world.arc)) p.world.arc = initArc();
-        p.held ??= [];
-        p.toolset = TOOLSET;
-      }
-      if (p.status === "playing" && (p.model ?? LEGACY_MODEL) !== this.o.narrator.model) p.messages = stripThinking(p.messages);
+      this.migrate(p);
       if (op === "start") {
         if (!me.host) throw new PartyError("Nur der Gastgeber kann das Abenteuer starten.");
         if (p.status !== "lobby") throw new PartyError("Das Abenteuer läuft schon.");
@@ -375,8 +403,8 @@ export class PartyService {
         p.held = [];
         p.toolset = TOOLSET;
         messages = [{ role: "user", content: kickoffMessage(this.characters(p), data, p.opening, previous) }];
-      } else if (op === "action") {
-        if (p.pending) throw new PartyError(`Erst muss ${p.pending.characterName} würfeln.`);
+      } else {
+        if (openChecks(p).length) throw new PartyError(`Erst muss gewürfelt werden (${openChecks(p).map((c) => c.characterName).join(", ")}).`);
         consumed = { ...p.actions };
         const items = p.players.map((pl) => ({ playerId: pl.id, name: pl.character.name, text: consumed[pl.id] ?? "" }));
         p.story.push({ type: "actions", items: items.filter((i) => i.text) });
@@ -384,42 +412,85 @@ export class PartyService {
         if (p.world!.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
         if (p.world!.combat) p.world!.combat.round++;
         countChapterTurn(p.world!);
-        messages = [...p.messages, userTurn(p.held ?? [], `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${worldSummary(p.world!, this.characters(p), data.rules)}\n</spielstand>`)];
-      } else {
-        if (!p.pending) throw new PartyError("Gerade ist keine Probe offen.");
-        if (p.pending.characterId !== me.character.id) throw new PartyError(`${p.pending.characterName} muss würfeln, nicht du.`);
-        messages = p.messages;
+        messages = [...p.messages, userTurn(p.held ?? [], `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${turnSummary(p.world!, this.characters(p), data.rules)}\n</spielstand>`)];
       }
       p.busy = lock;
       p.live = "";
       p.failed = null;
     });
-    const mine = (p: Party) => p.busy?.since === lock.since;
+    await this.narrate({ locked, lock, me, messages, consumed, who, emit });
+  }
 
+  /**
+   * Würfeln: Jede Figur würfelt ihre eigene Probe – alle gleichzeitig. Erst nach dem letzten Wurf erzählt Claude,
+   * dann mit allen Ergebnissen und den angesagten Gegnerangriffen auf einmal (ein Modellaufruf statt einer pro Wurf).
+   */
+  private async rollTurn(body: Record<string, unknown>, who: string, emit: (ev: PartyEvent) => void) {
+    const { party } = await this.load(body.code);
+    const me = this.player(party, body.token);
+    const open = openChecks(party);
+    if (!open.length) throw new PartyError("Gerade ist keine Probe offen.");
+    const check = open.find((c) => c.characterId === me.character.id);
+    if (!check) throw new PartyError(`${open.map((c) => c.characterName).join(", ")} ${open.length > 1 ? "müssen" : "muss"} würfeln, nicht du.`);
+    if (party.busy && !isStale(party.busy)) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
+    const data = this.dataFor(party);
+    const world0 = party.world!;
+    const { record, damage } = await this.o.narrator.rollRecords(check, { characters: this.characters(party).map((c) => effectiveCharacter(c, world0)), data, world: world0 });
+    emit({ type: "roll", record });
+
+    // Verbuchen in einer gesperrten Änderung: gleichzeitige Würfe überschreiben sich nicht
+    let lock: Busy | null = null;
+    let extra: RollRecord[] = [];
+    const updated = await this.update(party.code, (p) => {
+      recover(p);
+      lock = null;
+      const now = openChecks(p);
+      if (!now.some((c) => c.toolUseId === check.toolUseId)) throw new PartyError("Dein Wurf ist schon verbucht.");
+      if (p.busy) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
+      const before = this.lockFor(p, "roll");
+      const res = this.o.narrator.applyRolls(check, { characters: this.characters(p).map((c) => effectiveCharacter(c, p.world!)), data, world: p.world! }, record, damage);
+      extra = res.extra;
+      p.story.push({ type: "roll", record, playerId: me.id }, ...res.extra.map((r): PartyStoryEntry => ({ type: "roll", record: r, playerId: "" })));
+      p.rolled = [...(p.rolled ?? []), res.result];
+      setChecks(p, now.filter((c) => c.toolUseId !== check.toolUseId));
+      if (!p.pendings!.length) {
+        // Letzter Wurf: Spielleiter-Zug beginnt (bei einem Abbruch zurück auf den Stand vor diesem Wurf)
+        this.migrate(p);
+        lock = before;
+        p.busy = before;
+        p.live = "";
+        p.failed = null;
+      }
+    });
+    for (const r of extra) emit({ type: "autoroll", record: r });
+    if (!lock) { emit({ type: "view", view: this.view(updated, me.id, await this.o.guard.info()) }); return; }
+    await this.narrate({ locked: updated, lock, me, messages: null, consumed: {}, who, emit });
+  }
+
+  /** Erzählen lassen und das Ergebnis speichern. `messages: null` = nach den Würfen (Ergebnisse und Gegnerzug werden hier angehängt). */
+  private async narrate(o: { locked: Party; lock: Busy; me: PartyPlayer; messages: MessageParam[] | null; consumed: Record<string, string>; who: string; emit: (ev: PartyEvent) => void }) {
+    const { locked, lock, me, consumed, emit } = o;
+    const mine = (p: Party) => p.busy?.since === lock.since;
     const data = this.dataFor(locked);
     const world = locked.world!;
     // Figuren so, wie sie in dieser Kampagne gerade sind (Stufe, zusätzliche Fertigkeit, gesteigerte Attribute)
     const characters = this.characters(locked).map((c) => effectiveCharacter(c, world));
 
     try {
-      // 2) Probe würfeln (nur bei „roll“)
-      if (op === "roll") {
-        const { record, content } = await this.o.narrator.rollPending(locked.pending!, { characters, data, world }, locked.held ?? []);
-        emit({ type: "roll", record });
-        rollEntry = { type: "roll", record, playerId: me.id };
-        await this.update(locked.code, (p) => { p.story.push(rollEntry!); p.pending = null; });
-        messages = [...messages, { role: "user", content }];
-      }
-
-      // 3) Erzählen; der entstehende Text wird regelmäßig gespeichert, damit Mitspieler mitlesen
+      // Erzählen; der entstehende Text wird regelmäßig gespeichert, damit Mitspieler mitlesen.
       // Server-Würfe (Gegnerangriffe, Heilung) teilen die Erzählung in Abschnitte.
       let live = "";
       const segments: PartyStoryEntry[] = [];
       const flush = () => { const t = live.trim(); if (t) segments.push({ type: "gm", text: t }); live = ""; };
       const onRoll = (record: RollRecord) => { flush(); segments.push({ type: "roll", record, playerId: "", auto: true }); emit({ type: "autoroll", record }); };
+      let messages = o.messages;
+      if (!messages) {
+        const enemies = await this.o.narrator.enemyTurn(locked.messages, { characters, data, world, onRoll });
+        messages = [...locked.messages, { role: "user", content: [...(locked.held ?? []), ...(locked.rolled ?? []), ...enemies] }];
+      }
       let lastSave = Date.now();
       let saving: Promise<unknown> = Promise.resolve();
-      const res = await this.o.narrator.converse(messages, { characters, data, world, onRoll }, who, (text) => {
+      const res = await this.o.narrator.converse(messages, { characters, data, world, onRoll }, o.who, (text) => {
         live += text;
         emit({ type: "text", text });
         if (Date.now() - lastSave > LIVE_SAVE_MS) {
@@ -434,7 +505,7 @@ export class PartyService {
       // Ganze Gruppe gefallen und niemand hat sie gerettet: Niederlage, vom Server erzwungen
       const defeated = enforceDefeat(world, characters);
 
-      // 4) Ergebnis übernehmen und Sperre lösen
+      // Ergebnis übernehmen und Sperre lösen
       const done = await this.update(locked.code, (p) => {
         if (!mine(p)) throw new PartyError(INTERRUPTED);
         p.messages = res.history;
@@ -442,7 +513,8 @@ export class PartyService {
         p.story.push(...segments);
         p.world = world;
         p.held = res.held;
-        p.pending = defeated ? null : res.pending;
+        setChecks(p, defeated ? [] : res.pendings);
+        p.rolled = [];
         for (const [id, text] of Object.entries(consumed)) if (p.actions[id] === text) delete p.actions[id];
         p.busy = null;
         p.live = "";

@@ -25,6 +25,8 @@ export interface WorldState {
   levels?: Record<string, LevelState>;
   /** Eingesetzte begrenzte Fähigkeiten (1× pro Kampf/Rast/Tag) – bis Kampfende bzw. Rast. */
   used?: UsedAbilities;
+  /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
+  sent?: { arc: string; turns: number };
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */
@@ -101,7 +103,7 @@ export function initWorld(characters: Pick<Character, "id" | "hp">[]): WorldStat
 }
 
 /** Kurzer Spielstand für Claude – wird jeder Handlung angehängt, damit Zahlen auch nach einer Zusammenfassung stimmen. */
-export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "name">[], rules?: Rules): string {
+export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "name">[], rules?: Rules, opts: { arc?: boolean } = {}): string {
   const hp = characters.map((c) => `${c.name} ${w.hp[c.id] ?? 0}/${w.maxHp[c.id] ?? 0} TP${(w.hp[c.id] ?? 0) <= 0 ? " (kampfunfähig – bewusstlos, aber rettbar)" : ""}`).join(", ");
   const lines = [`Lebenspunkte: ${hp}`];
   if (w.combat && allDown(w, characters)) lines.push(DEFEAT_WARNING);
@@ -114,7 +116,7 @@ export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "
   if (upgrades) lines.push(upgrades);
   const used = usesSummary(w, characters);
   if (used) lines.push(used);
-  if (w.arc) lines.push(arcSummary(w.arc));
+  if (w.arc && opts.arc !== false) lines.push(arcSummary(w.arc));
   return lines.join("\n");
 }
 

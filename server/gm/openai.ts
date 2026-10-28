@@ -180,8 +180,10 @@ export class OpenAiGateway {
         // Zeitlimit der Funktion (Netlify): lieber eine Pause als ein abgebrochener Stream
         if (probe >= MAX_PROBES || Date.now() - t0 > 25_000) { onText("\n\n*(Der Spielleiter macht hier eine Pause – schreib, wie es weitergeht.)*"); break; }
         // Kein Würfeln-Knopf in Chat-Apps: Der Server würfelt die verlangte Probe sofort.
-        const { record, content } = await this.o.narrator.rollPending(res.pending, scene, res.held);
+        const enemyRolls: RollRecord[] = [];
+        const { record, extra, content } = await this.o.narrator.rollPending(res.pending, { ...scene, onRoll: (r) => enemyRolls.push(r) }, res.held, res.history);
         onText(diceLine(record));
+        for (const r of [...extra, ...enemyRolls]) onText(diceLine(r, true));
         msgs = [...res.history, { role: "user", content }];
       }
       if (enforceDefeat(world, [character])) onText(`\n\n*Alle sind gefallen – das Abenteuer endet mit einer Niederlage.*\n\n${world.arc!.epilog}`);

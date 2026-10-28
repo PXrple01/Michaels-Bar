@@ -12,7 +12,7 @@ const LUCK: TutorialStep = {
 };
 const FIGHT: TutorialStep = {
   icon: "sword", title: "Kämpfe",
-  text: "Kommt es zum Kampf, erscheinen rechts die Gegner mit Lebensbalken und Rüstung (auf dem Handy oben unter „Gegner“). Greifst du an, würfelst du – triffst du, würfelst du danach den Schaden. Greifen Gegner an, würfelt der Server für sie, und du siehst den Wurf in der Geschichte.",
+  text: "Kommt es zum Kampf, erscheinen rechts die Gegner mit Lebensbalken und Rüstung (auf dem Handy oben unter „Gegner“). Greifst du an, würfelst du – triffst du, wird der Schaden gleich mitgewürfelt. Danach handeln die Gegner; für sie würfelt der Server, und du siehst die Würfe in der Geschichte. In einer Gruppe würfeln alle gleichzeitig, dann erzählt der Spielleiter die ganze Runde.",
   example: "Du schreibst: „Ich schlage mit dem Schwert nach dem Räuber.“",
 };
 const HP: TutorialStep = {

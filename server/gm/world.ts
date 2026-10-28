@@ -143,7 +143,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       for (const e of enemies) if (total[e.name] > 1) { seen[e.name] = (seen[e.name] ?? 0) + 1; e.name = `${e.name} ${seen[e.name]}`; }
       w.combat = { round: 1, enemies };
       resetUses(w, "kampf"); // neuer Kampf: „1× pro Kampf“ ist wieder frei
-      return { content: `Kampf beginnt (Runde 1). Gegner: ${enemies.map((e) => `${e.name} (${e.hp} TP, Rüstung ${e.armor})`).join(", ")}. Die Figuren handeln zuerst; Angriffe der Figuren verlangst du mit probe_anfordern (art attack, ziel = Gegnername), Gegnerangriffe mit gegner_greift_an.` };
+      return { content: `Kampf beginnt (Runde 1). Gegner: ${enemies.map((e) => `${e.name} (${e.hp} TP, Rüstung ${e.armor})`).join(", ")}. Die Figuren handeln zuerst; Angriffe der Figuren verlangst du mit probe_anfordern (art attack, ziel = Gegnername – den Schaden würfelt der Server bei einem Treffer gleich mit), Gegnerangriffe mit gegner_greift_an in derselben Antwort.` };
     }
     case "kampf_beenden": {
       if (!w.combat) return { content: "Es lief kein Kampf." };
@@ -373,7 +373,7 @@ export function applyPlayerRoll(ctx: Omit<ToolContext, "onRoll" | "rolls">, char
   if (!enemy) return "";
   if (art === "attack") {
     w.critPending[characterId] = record.critical === "hit";
-    return record.success ? ` Treffer gegen ${enemy.name}${record.critical === "hit" ? " – kritisch, der Schaden zählt doppelt" : ""}! Verlange jetzt den Schadenswurf (art damage, ziel ${enemy.name}).` : ` Verfehlt – ${enemy.name} weicht aus.`;
+    return record.success ? ` Treffer gegen ${enemy.name}${record.critical === "hit" ? " – kritisch, der Schaden zählt doppelt" : ""}!` : ` Verfehlt – ${enemy.name} weicht aus.`;
   }
   if (art === "damage") {
     delete w.critPending[characterId];

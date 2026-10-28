@@ -34,7 +34,8 @@ export interface PartyView {
   players: PartyPlayerView[];
   opening: Opening | null;
   story: PartyStoryEntry[];
-  pending: (PendingCheck & { playerId: string }) | null;
+  /** Offene Proben – höchstens eine pro Figur, alle würfeln gleichzeitig. */
+  pendings: (PendingCheck & { playerId: string })[];
   /** Deine eigene, noch nicht erzählte Handlung. */
   yourAction: string | null;
   busy: boolean;

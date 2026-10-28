@@ -98,7 +98,7 @@ describe("Niederlage", () => {
     const v = viewOf(await run("action", { code: host.code, token: guest.token, text: "Ich bete." }))!;
     expect(v.world?.arc).toMatchObject({ finished: true, outcome: "niederlage" });
     expect(v.world?.arc?.epilog).toBeTruthy();
-    expect(v.pending).toBeNull();
+    expect(v.pendings).toEqual([]);
     expect((await run("action", { code: host.code, token: host.token, text: "Weiter!" })).at(-1)).toMatchObject({ type: "error", message: expect.stringMatching(/abgeschlossen/) });
   });
 
