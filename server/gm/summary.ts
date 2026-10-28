@@ -6,6 +6,7 @@ import type { Character, Rules } from "../../shared/schema";
 import { ACTS, arcSummary, currentChapter, isArc, worldSummary, type WorldState } from "../../shared/world";
 import { inventorySummary } from "../../shared/inventory";
 import { shopSummary } from "../../shared/shop";
+import { peopleSummary } from "../../shared/people";
 
 export const ARC_EVERY = 5;
 const hashOf = (s: string) => createHash("sha256").update(s).digest("base64url").slice(0, 12);
@@ -16,11 +17,14 @@ export function turnSummary(w: WorldState, characters: Pick<Character, "id" | "n
   const arc = w.arc && isArc(w.arc) ? w.arc : null;
   const full = arc ? arcSummary(arc) : "";
   const ch = arc ? currentChapter(arc) : null;
-  const arcHash = hashOf(full), invHash = hashOf(inv);
+  const people = peopleSummary(w);
+  const arcHash = hashOf(full), invHash = hashOf(inv), peopleHash = hashOf(people);
   const due = !w.sent || w.sent.turns >= ARC_EVERY - 1;
   const arcFull = !!arc && (due || !arc.plan || !ch || w.sent!.arc !== arcHash);
   const invFull = !!inv && (due || w.sent!.inv !== invHash);
-  w.sent = { arc: arcHash, inv: invHash, turns: due ? 0 : w.sent!.turns + 1 };
+  const peopleFull = !!people && (due || w.sent!.people !== peopleHash);
+  w.sent = { arc: arcHash, inv: invHash, people: peopleHash, turns: due ? 0 : w.sent!.turns + 1 };
+  if (people) lines.push(peopleFull ? people : "Personen: unverändert wie im letzten ausführlichen <spielstand>.");
   if (inv) lines.push(invFull ? inv : "Inventar: unverändert wie im letzten ausführlichen <spielstand>.");
   const shop = shopSummary(w);
   if (shop) lines.push(shop);

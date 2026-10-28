@@ -9,12 +9,13 @@ import type { Character } from "../../shared/schema";
 import { resetUses, useAbility } from "../../shared/abilityUses";
 import { advanceTime, ensureTime, timeLine, type TimeStep } from "../../shared/time";
 import { BONUS_NAME, gearOf, type Ware } from "../../shared/shop";
+import { ATTITUDE_NAME, ATTITUDES, upsertPerson } from "../../shared/people";
 import { addItem, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, removeItem, toPfennig } from "../../shared/inventory";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 
-export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "person", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -91,6 +92,12 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
         bonus: { type: "string", enum: ["angriff", "schaden", "ruestung"], description: "Nur bei art verbesserung" },
       }, required: ["name", "art"] } },
     }, ["aktion"]),
+    tool("person", "Führt das Personenverzeichnis (wird den Spielern angezeigt): neue Nichtspielerfigur anlegen oder ihre Rolle, Haltung zur Gruppe oder eine Notiz aktualisieren. Für jede Person mit Namen, die wichtig werden könnte.", {
+      name: { type: "string" },
+      rolle: { type: "string", description: "Kurz, z. B. „Marktfrau“, „Abt von Sankt Gallus“" },
+      haltung: { type: "string", enum: [...ATTITUDES], description: "Haltung zur Gruppe" },
+      notiz: { type: "string", description: "Ein Satz: was die Spieler über sie wissen oder was zuletzt geschah – keine Geheimnisse, die die Figuren nicht kennen" },
+    }, ["name"]),
     tool("auftrag", "Führt das Auftragsbuch: neuen Auftrag anlegen, Notiz ergänzen, als erledigt oder gescheitert markieren.", {
       aktion: { type: "string", enum: ["neu", "notiz", "erledigt", "gescheitert"] },
       titel: { type: "string", description: "Kurzer Titel, bei Folgeaktionen genau wie beim Anlegen" },
@@ -247,6 +254,12 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       const wetter = text(input.wetter, 60);
       if (wetter) t.weather = wetter;
       return { content: `${newDay ? "Ein neuer Tag beginnt. " : ""}Jetzt: ${timeLine(t)}.${newDay ? " (Fähigkeiten „1× pro Tag“ werden erst durch eine lange Rast wieder frei.)" : ""}` };
+    }
+    case "person": {
+      const name = text(input.name, 60);
+      if (!name) return err("name fehlt.");
+      const { person, created } = upsertPerson(w, { name, role: text(input.rolle, 80), attitude: String(input.haltung ?? ""), note: text(input.notiz, 200) });
+      return { content: `${created ? "Neu im Verzeichnis" : "Aktualisiert"}: ${person.name}${person.role ? ` (${person.role})` : ""}, ${ATTITUDE_NAME[person.attitude]}.` };
     }
     case "laden": {
       if (input.aktion === "schliessen") { w.shop = null; return { content: "Der Laden ist geschlossen." }; }

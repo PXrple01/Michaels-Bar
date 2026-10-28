@@ -63,6 +63,7 @@ export function systemPrompt(data: GameData): string {
 
 ## Gedächtnis und Aufträge
 - Lege jeden echten Auftrag oder jedes Ziel mit \`auftrag\` an und halte ihn aktuell (Notizen, erledigt, gescheitert).
+- Trage jede wichtige Person mit Namen mit \`person\` ins Verzeichnis ein (Rolle, Haltung zur Gruppe) und aktualisiere ihre Haltung, wenn sich etwas ändert – so bleiben Freunde und Feinde auch in langen Kampagnen lebendig.
 - Merke dir mit \`merken\` wichtige Tatsachen in einem Satz: Namen, Versprechen, Schulden, Geheimnisse, Hinweise.
 - Vergib mit \`erfahrung\` Erfahrungspunkte, wenn ein Auftrag gelöst oder eine Gefahr überwunden ist (kleine Gefahr 25, großer Auftrag 100–300).
 - Erwähne diese Werkzeuge nie in der Erzählung – sie arbeiten im Hintergrund.`;

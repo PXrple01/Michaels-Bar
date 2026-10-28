@@ -3,6 +3,7 @@
 import { currentChapter, isArc, type WorldState } from "../../../shared/world";
 import { PHASE_NAME } from "../../../shared/time";
 import { itemText, moneyText, type Inventory, type ItemKind } from "../../../shared/inventory";
+import { ATTITUDE_NAME } from "../../../shared/people";
 import type { Rules } from "../../../shared/schema";
 import { levelTitle, xpProgress } from "../../../shared/levels";
 import { html, type Raw } from "./dom";
@@ -156,6 +157,13 @@ export function lageSide(w: WorldState | null | undefined): Raw {
           ${ch ? html`<b>${ch.titel}</b>` : ""}
           ${aufgabe ? html`<p>${aufgabe}</p>` : ""}
         </div>` : ""}`}
+      ${w?.people?.length ? html`<details class="world-log side-sec people" ${w.people.length <= 6 ? "open" : ""}>
+        <summary>${icon("users")} Personen · ${w.people.length}</summary>
+        <ul class="people-list">${[...w.people].sort((a, b) => b.seen - a.seen).map((p) => html`<li class="person att-${p.attitude}">
+          <span class="att-dot" title="${ATTITUDE_NAME[p.attitude]}"></span>
+          <span class="person-text"><b>${p.name}</b><small>${p.role}${p.role ? " · " : ""}${ATTITUDE_NAME[p.attitude]}</small>${p.notes.length ? html`<em>${p.notes.at(-1)}</em>` : ""}</span>
+        </li>`)}</ul>
+      </details>` : ""}
     </div>`;
 }
 

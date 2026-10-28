@@ -7,6 +7,7 @@ import { usesSummary, type UsedAbilities } from "./abilityUses";
 import { timeLine, type GameTime } from "./time";
 import type { Inventory } from "./inventory";
 import { gearSummary, type Gear, type Shop } from "./shop";
+import type { Person } from "./people";
 
 export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
 export interface Quest { id: string; title: string; description: string; status: "offen" | "erledigt" | "gescheitert"; notes: string[] }
@@ -28,6 +29,8 @@ export interface WorldState {
   levels?: Record<string, LevelState>;
   /** Eingesetzte begrenzte Fähigkeiten (1× pro Kampf/Rast/Tag) – bis Kampfende bzw. Rast. */
   used?: UsedAbilities;
+  /** Personen, denen die Figuren begegnet sind */
+  people?: Person[];
   /** Offener Laden (Händler oder Schmied) */
   shop?: Shop | null;
   /** Verbesserungen durch den Schmied je Figur */
@@ -37,7 +40,7 @@ export interface WorldState {
   /** Tag, Tageszeit und Wetter */
   time?: GameTime;
   /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
-  sent?: { arc: string; turns: number; inv?: string };
+  sent?: { arc: string; turns: number; inv?: string; people?: string };
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */

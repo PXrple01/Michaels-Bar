@@ -1155,3 +1155,15 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 .k-verbesserung .ware-icon svg { color: #fdba74; }
 .inv-gear { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #fdba74; } .inv-gear svg { width: 14px; height: 14px; flex: none; }
 @container (max-width: 420px) { .ware { grid-template-columns: auto 1fr auto; } .ware .btn { grid-column: 1 / -1; justify-self: end; } .shop-head { grid-template-columns: auto 1fr; } .shop-purse { grid-column: 1 / -1; } }
+
+/* Personenverzeichnis */
+.people-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.person { display: grid; grid-template-columns: 10px 1fr; gap: 10px; align-items: start; }
+.att-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--muted); }
+.att-freund .att-dot { background: var(--good); box-shadow: 0 0 8px var(--good); }
+.att-misstrauisch .att-dot { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+.att-feind .att-dot { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.person-text { display: grid; gap: 1px; min-width: 0; }
+.person-text b { font-size: 0.88rem; }
+.person-text small { color: var(--muted); font-size: 0.75rem; }
+.person-text em { color: var(--text-2); font-size: 0.78rem; }
