@@ -959,3 +959,19 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
     background: var(--side-solid); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: 0 18px 50px -14px rgba(0, 0, 0, 0.8); animation: pop-in 0.3s var(--ease-spring) both; }
 }
 @media (prefers-reduced-motion: reduce) { .side[open] > .side-body { animation: none; } }
+
+/* Hinweisfenster der Fähigkeiten-Symbole */
+.ab-chip { padding: 0; font: inherit; }
+.ab-pop { position: fixed; z-index: 200; width: min(280px, calc(100vw - 16px)); display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: rgb(24, 15, 42); border: 1px solid var(--line-strong); box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.85), 0 0 24px -8px rgba(139, 92, 246, 0.6);
+  pointer-events: none; animation: ab-pop-in 0.18s var(--ease-out) both; }
+.ab-pop[hidden] { display: none; }
+.ab-pop-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.95rem; }
+.ab-pop-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.75rem; color: var(--muted); }
+.ab-pop-meta .chip { font-size: 0.72rem; padding: 2px 8px; }
+.ab-pop p { margin: 0; font-size: 0.86rem; color: var(--text-2); line-height: 1.45; }
+.ab-pop-state { font-size: 0.78rem; color: var(--gold); }
+@keyframes ab-pop-in { from { opacity: 0; transform: translateY(4px); } }
+.ab-pop.above { animation-name: ab-pop-in-up; }
+@keyframes ab-pop-in-up { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .ab-pop { animation: none; } }

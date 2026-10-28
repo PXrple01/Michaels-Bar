@@ -42,7 +42,61 @@ export function abilityList(name: string, abilities: AbilityInfo[]): Raw {
   </section>`;
 }
 
-/** Kleine Symbolreihe – Name und Erklärung erscheinen beim Antippen/Darüberfahren. */
+/** Kleine Symbolreihe – Name und Erklärung erscheinen in einem Hinweisfenster (Darüberfahren am PC, Antippen am Handy). */
 export function abilityChips(abilities: AbilityInfo[]): Raw {
-  return html`<span class="ab-chips">${abilities.map((a) => html`<span class="ab-chip t-${a.type} ${a.upgraded ? "upgraded" : ""}" tabindex="0" title="${a.name} (${usesLabel(a.uses)}): ${a.beginnerText}" aria-label="${a.name}: ${a.beginnerText}">${abilityIcon(a.type)}</span>`)}</span>`;
+  ensurePopover();
+  return html`<span class="ab-chips">${abilities.map((a) => html`<button type="button" class="ab-chip t-${a.type} ${a.upgraded ? "upgraded" : ""}"
+    data-ab-name="${a.name}" data-ab-type="${TYPES[a.type] ?? a.type}" data-ab-uses="${usesLabel(a.uses)}" data-ab-text="${a.beginnerText}" ${a.upgraded ? "data-ab-up" : ""}
+    aria-label="${a.name} (${usesLabel(a.uses)}): ${a.beginnerText}">${abilityIcon(a.type)}</button>`)}</span>`;
+}
+
+/* ── Hinweisfenster für die Symbole: ein einziges Element am <body>, damit es nie von Leisten abgeschnitten wird ── */
+
+let pop: HTMLElement | null = null;
+let current: HTMLElement | null = null;
+
+function ensurePopover() {
+  if (pop || typeof document === "undefined") return;
+  pop = document.createElement("div");
+  pop.className = "ab-pop";
+  pop.setAttribute("role", "tooltip");
+  pop.hidden = true;
+  document.body.append(pop);
+  const chipOf = (e: Event) => (e.target as HTMLElement | null)?.closest?.<HTMLElement>(".ab-chip") ?? null;
+  document.addEventListener("pointerover", (e) => { if (e.pointerType === "mouse") { const c = chipOf(e); if (c) show(c); } });
+  document.addEventListener("pointerout", (e) => { if (e.pointerType === "mouse" && chipOf(e) === current && !current?.matches(":focus-visible")) hide(); });
+  document.addEventListener("focusin", (e) => { const c = chipOf(e); if (c && c.matches(":focus-visible")) show(c); });
+  document.addEventListener("focusout", (e) => { if (chipOf(e) === current) hide(); });
+  // Antippen: öffnen bzw. wieder schließen; Tippen daneben schließt
+  document.addEventListener("click", (e) => {
+    const c = chipOf(e);
+    if (c) { if (current === c && (e as PointerEvent).pointerType !== "mouse") hide(); else show(c); return; }
+    hide();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+  addEventListener("scroll", () => hide(), { passive: true, capture: true });
+  addEventListener("hashchange", () => hide());
+}
+
+function show(chip: HTMLElement) {
+  if (!pop) return;
+  current = chip;
+  const d = chip.dataset;
+  pop.innerHTML = html`<div class="ab-pop-head"><b>${d.abName}</b>${"abUp" in d ? html`<span class="chip gold ab-up">${icon("star")} verbessert</span>` : ""}</div>
+    <div class="ab-pop-meta"><span>${d.abType}</span><span class="chip">${d.abUses}</span></div>
+    ${d.abState ? html`<div class="ab-pop-state">${d.abState}</div>` : ""}
+    <p>${d.abText}</p>`.value;
+  pop.hidden = false;
+  const r = chip.getBoundingClientRect();
+  const w = pop.offsetWidth, h = pop.offsetHeight, m = 8;
+  const left = Math.max(m, Math.min(innerWidth - w - m, r.left + r.width / 2 - w / 2));
+  const below = r.bottom + m + h <= innerHeight - m;
+  pop.style.left = `${left}px`;
+  pop.style.top = `${below ? r.bottom + m : Math.max(m, r.top - m - h)}px`;
+  pop.classList.toggle("above", !below);
+}
+
+function hide() {
+  if (pop) pop.hidden = true;
+  current = null;
 }
