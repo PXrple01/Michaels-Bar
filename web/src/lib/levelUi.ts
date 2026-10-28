@@ -2,9 +2,10 @@
 import { effectiveCharacter, levelChoiceDue, levelTitle } from "../../../shared/levels";
 import type { Character, ClassDef, Rules } from "../../../shared/schema";
 import type { WorldState } from "../../../shared/world";
-import { html, type Raw } from "./dom";
+import { html, raw, type Raw } from "./dom";
 import { icon } from "./icons";
 import { toast } from "./ui";
+import { settings } from "./settings";
 
 export { levelChoiceDue };
 
@@ -65,4 +66,27 @@ export function announceLevel(before: number, after: number, rules: Rules) {
     : after >= rules.levels.attributeIncreaseAt && before < rules.levels.attributeIncreaseAt ? " Du darfst deine Attribute steigern."
     : after === rules.levels.max ? " Dein Können steigt auf +3." : " Deine Trefferpunkte steigen.";
   toast(`⭐ Stufe ${after} erreicht – ${levelTitle(after, rules)}!${extra}`, "success", 6000);
+  celebrateLevel(after, levelTitle(after, rules));
+}
+
+/**
+ * Kurzer Auftritt in Lila und Gold: aufsteigende Funken und die große Stufenzahl.
+ * Bei „Animation aus“ oder reduzierter Bewegung nur ein ruhiges Einblenden ohne Funken.
+ */
+export function celebrateLevel(level: number, title: string) {
+  document.querySelector(".level-up")?.remove();
+  const calm = settings().animation === "off" || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const el = document.createElement("div");
+  el.className = `level-up ${calm ? "calm" : ""}`;
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
+  const sparks = calm ? "" : Array.from({ length: 26 }, (_, i) => {
+    const x = Math.round(Math.random() * 100), d = (Math.random() * 0.9).toFixed(2), s = (0.6 + Math.random() * 0.9).toFixed(2), gold = i % 3 !== 0;
+    return `<i style="--x:${x}%;--d:${d}s;--s:${s};--c:${gold ? "var(--gold)" : "var(--purple-2)"}"></i>`;
+  }).join("");
+  el.innerHTML = html`<div class="lu-glow"></div>${raw(sparks)}<div class="lu-card"><span class="lu-label">Stufe</span><span class="lu-num">${level}</span><span class="lu-title">${title}</span></div>`.value;
+  const close = () => { el.classList.add("out"); setTimeout(() => el.remove(), 400); };
+  el.addEventListener("click", close);
+  document.body.append(el);
+  setTimeout(close, calm ? 1800 : 2600);
 }
