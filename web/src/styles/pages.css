@@ -1367,7 +1367,7 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 .hp-empty { margin: 0; }
 .sagas { display: grid; gap: 10px; }
 .saga { display: flex; gap: 14px; align-items: stretch; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(255, 255, 255, 0.02); color: var(--text); text-decoration: none; border-left: 3px solid var(--line-strong); transition: background 0.3s, border-color 0.3s; }
-a.saga:hover { background: rgba(255, 255, 255, 0.05); }
+.saga:hover { background: rgba(255, 255, 255, 0.04); }
 .saga.won { border-left-color: var(--gold); }
 .saga.lost { border-left-color: var(--bad); }
 .saga-img { flex: none; width: clamp(84px, 18vw, 150px); aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; background: rgb(var(--c-s08)); }
@@ -1386,3 +1386,67 @@ a.saga:hover { background: rgba(255, 255, 255, 0.05); }
 .map-frame.has-bg .map-rose { fill: rgba(245, 214, 138, 0.05); stroke: rgba(245, 214, 138, 0.18); }
 .map-frame.has-bg .map-road { stroke: rgba(255, 220, 170, 0.75); }
 .map-frame.has-bg .map-label { stroke: rgba(12, 8, 6, 0.9); }
+.saga-links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 0.86rem; }
+.saga-links a { display: inline-flex; align-items: center; gap: 5px; color: var(--gold); }
+.saga-links a:hover { color: #fff; }
+.saga-links svg { width: 14px; height: 14px; }
+.end-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+
+/* ───────────── Chronik: ein Buch aus Pergament ───────────── */
+.chronicle { max-width: 860px; padding-bottom: 60px; }
+.ch-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 24px 0 18px; }
+.ch-tools small { flex: 1 1 260px; }
+.chronicle-book {
+  --ink: #2b1b10; --ink-2: #5b4330; --paper: #f1e4c8; --paper-2: #e6d3ac; --rule: rgba(91, 67, 48, 0.35);
+  position: relative; padding: clamp(28px, 6vw, 64px) clamp(20px, 6vw, 72px); color: var(--ink); border-radius: 6px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.35), transparent 60%), radial-gradient(ellipse at 50% 100%, rgba(120, 80, 40, 0.18), transparent 60%), linear-gradient(90deg, var(--paper-2), var(--paper) 6%, var(--paper) 94%, var(--paper-2));
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 0 10px #3a1d12, 0 0 0 11px rgba(245, 214, 138, 0.35), 0 40px 80px -30px #000;
+  font-family: Georgia, "Times New Roman", serif;
+}
+.ch-cover { text-align: center; display: grid; justify-items: center; gap: 10px; padding-bottom: 28px; margin-bottom: 28px; border-bottom: 1px solid var(--rule); }
+.ch-orn { color: #8a2c12; font-size: 1.6rem; line-height: 1; }
+.ch-cover .eyebrow { color: #8a2c12; justify-content: center; }
+.ch-cover .eyebrow::before { background: #8a2c12; }
+.ch-cover h1 { margin: 0; font-family: var(--font-display); font-size: clamp(2rem, 5.5vw, 3.4rem); line-height: 1.05; color: var(--ink); }
+.ch-heroes { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 22px; margin-top: 6px; }
+.ch-hero { display: grid; justify-items: center; gap: 2px; }
+.ch-portrait { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; color: #8a2c12; border: 2px solid #8a2c12; background: rgba(138, 44, 18, 0.08); }
+.ch-portrait .avatar > svg { width: 40px; height: 40px; }
+.ch-hero b { font-family: var(--font-head); color: var(--ink); }
+.ch-hero small { color: var(--ink-2); font-size: 0.8rem; }
+.ch-dates { margin: 4px 0 0; color: var(--ink-2); font-style: italic; }
+.ch-plate { margin: 26px 0; display: grid; gap: 8px; break-inside: avoid; page-break-inside: avoid; }
+.ch-plate img { width: 100%; display: block; border-radius: 3px; border: 6px solid #fff9ea; box-shadow: 0 0 0 1px var(--rule), 0 14px 30px -18px rgba(0, 0, 0, 0.6); }
+.ch-plate figcaption { text-align: center; font-style: italic; color: var(--ink-2); font-size: 0.92rem; }
+.ch-front { width: 100%; margin-bottom: 0; }
+.ch-story { display: grid; gap: 6px; }
+.ch-text p { margin: 0 0 0.9em; color: var(--ink); font-size: 1.1rem; line-height: 1.75; text-align: justify; hyphens: auto; }
+.ch-text .speech { color: #7a2410; font-style: italic; }
+.ch-text.first > p:first-child::first-letter { float: left; font-family: var(--font-display); font-size: 3.8em; line-height: 0.82; padding: 6px 10px 0 0; color: #8a2c12; }
+.ch-act { margin: 4px 0 14px; padding: 6px 0 6px 14px; border-left: 3px solid #8a2c12; color: var(--ink-2); font-style: italic; }
+.ch-act b { font-style: normal; color: var(--ink); margin-right: 4px; }
+.ch-roll { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; font-family: var(--font-body); font-size: 0.82rem; color: var(--ink-2); }
+.ch-roll svg { width: 14px; height: 14px; color: #8a2c12; flex: none; }
+.ch-roll.hit { color: #7a5a00; font-weight: 700; }
+.ch-roll.fumble { color: #8a2c12; font-weight: 700; }
+.ch-info { text-align: center; color: var(--ink-2); font-style: italic; font-size: 0.9rem; }
+.ch-chapters, .ch-epilog { margin-top: 34px; padding-top: 24px; border-top: 1px solid var(--rule); break-inside: avoid; }
+.ch-chapters h2, .ch-epilog h2 { display: flex; align-items: center; gap: 10px; font-family: var(--font-head); color: var(--ink); font-size: 1.4rem; }
+.ch-chapters ol { margin: 0; padding-left: 22px; display: grid; gap: 8px; color: var(--ink); line-height: 1.6; }
+.ch-epilog p { color: var(--ink); font-size: 1.1rem; line-height: 1.75; font-style: italic; }
+.ch-facts { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--rule); display: grid; gap: 6px; justify-items: center; text-align: center; font-family: var(--font-body); font-size: 0.86rem; color: var(--ink-2); }
+.ch-end { color: #8a2c12; font-size: 1.6rem; margin-top: 8px; }
+
+/* Druck / PDF: nur das Buch, auf hellem Papier, Bilder nicht zerteilen */
+@media print {
+  @page { margin: 16mm 14mm; }
+  :root { color-scheme: light; }
+  html, body { background: #fff !important; }
+  body > *:not(main), .no-print, #topbar, #tabbar, #toasts, #dice-overlay, #modal-root, .bg-nebula, .bg-sky, .bg-grain, #bg-embers, #cursor-glow { display: none !important; }
+  main, .container.chronicle { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .chronicle-book { box-shadow: none; border-radius: 0; padding: 0; background: #fff; --paper: #fff; }
+  .ch-cover { break-after: page; page-break-after: always; min-height: 80vh; align-content: center; border-bottom: 0; }
+  .ch-text p { font-size: 11.5pt; }
+  * { animation: none !important; transition: none !important; }
+  [data-reveal] { opacity: 1 !important; transform: none !important; filter: none !important; }
+}

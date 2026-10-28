@@ -14,13 +14,13 @@ import { memberships } from "../lib/party";
 import { avatar } from "../lib/portraits";
 import type { Page } from "../lib/router";
 
-interface Saga { kind: "solo" | "gruppe"; title: string; href: string | null; finished: boolean; defeat: boolean; level: number; places: number; day: number; turns: number; crits: number; chapters: number; epilog: string | null; image: string | null; when: string }
+interface Saga { kind: "solo" | "gruppe"; title: string; href: string | null; chronicle: string | null; finished: boolean; defeat: boolean; level: number; places: number; day: number; turns: number; crits: number; chapters: number; epilog: string | null; image: string | null; when: string }
 
 function soloSaga(s: CampaignSave): Saga {
   const w = s.state.world;
   const arc = w?.arc;
   return {
-    kind: "solo", title: s.title, href: `#/abenteuer/${s.id}`,
+    kind: "solo", title: s.title, href: `#/abenteuer/${s.id}`, chronicle: s.started ? `#/chronik/${s.id}` : null,
     finished: !!arc?.finished && arc.outcome !== "niederlage", defeat: arc?.outcome === "niederlage",
     level: w?.levels?.[s.characterId]?.level ?? 1, places: w?.map?.places.length ?? 0, day: w?.time?.day ?? 1,
     turns: s.story.filter((e) => e.type === "player").length,
@@ -42,8 +42,12 @@ function sagaCard(s: Saga, i: number): Raw {
       <span class="saga-top"><b>${s.title}</b>${status}</span>
       <small class="muted">${s.kind === "gruppe" ? "In der Gruppe · " : ""}Stufe ${s.level}${s.chapters ? ` · ${s.chapters} Kapitel` : ""}${s.places ? ` · ${s.places} Orte` : ""}${s.day > 1 ? ` · ${s.day} Tage` : ""}${s.turns ? ` · ${s.turns} Züge` : ""} · ${date(s.when)}</small>
       ${s.epilog ? html`<q class="saga-epilog">${s.epilog.length > 260 ? `${s.epilog.slice(0, 259)}…` : s.epilog}</q>` : ""}
+      <span class="saga-links">
+        ${s.href ? html`<a href="${s.href}">${icon("play")} ${s.finished || s.defeat ? "Nachlesen" : "Weiterspielen"}</a>` : ""}
+        ${s.chronicle ? html`<a href="${s.chronicle}">${icon("book")} Chronik</a>` : ""}
+      </span>
     </span>`;
-  return s.href ? html`<a class="saga ${s.defeat ? "lost" : s.finished ? "won" : ""}" href="${s.href}" style="--i:${i}">${body}</a>` : html`<div class="saga ${s.defeat ? "lost" : s.finished ? "won" : ""}" style="--i:${i}">${body}</div>`;
+  return html`<div class="saga ${s.defeat ? "lost" : s.finished ? "won" : ""}" style="--i:${i}">${body}</div>`;
 }
 
 export function hallPage(): Page {
@@ -62,7 +66,7 @@ export function hallPage(): Page {
           ...campaignStore.list(c.id).map(soloSaga),
           ...memberships.list().filter((m) => m.characterId === c.id).map((m): Saga => {
             const r = runs[m.code];
-            return { kind: "gruppe", title: `Gruppe ${m.code}`, href: `#/gruppe/${m.code}`, finished: !!r?.finished, defeat: !!r?.defeat, level: r?.level ?? 1, places: r?.places ?? 0, day: r?.day ?? 1, turns: r?.turns ?? 0, crits: r?.crits ?? 0, chapters: 0, epilog: null, image: null, when: m.joinedAt };
+            return { kind: "gruppe", title: `Gruppe ${m.code}`, href: `#/gruppe/${m.code}`, chronicle: r ? `#/chronik/gruppe/${m.code}` : null, finished: !!r?.finished, defeat: !!r?.defeat, level: r?.level ?? 1, places: r?.places ?? 0, day: r?.day ?? 1, turns: r?.turns ?? 0, crits: r?.crits ?? 0, chapters: 0, epilog: null, image: null, when: m.joinedAt };
           }),
         ].sort((a, b) => b.when.localeCompare(a.when));
         const won = sagas.filter((s) => s.finished).length, lost = sagas.filter((s) => s.defeat).length;

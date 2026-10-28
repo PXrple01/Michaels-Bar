@@ -22,6 +22,7 @@ import { classEditorPage, classesPage } from "./pages/classes";
 import { partyHomePage, partyPage } from "./pages/party";
 import { achievementsPage } from "./pages/achievements";
 import { hallPage } from "./pages/hall";
+import { chroniclePage } from "./pages/chronicle";
 import { scheduleAchievementCheck } from "./lib/achievements";
 
 const NAV = [
@@ -83,6 +84,8 @@ route("/abenteuer/:id", "adventure", playPage);
 route("/einstellungen", "settings", settingsPage);
 route("/erfolge", "hall", achievementsPage);
 route("/heldenhalle", "hall", hallPage);
+route("/chronik/gruppe/:code", "hall", chroniclePage);
+route("/chronik/:id", "hall", chroniclePage);
 
 applyPalette(settings().palette);
 renderChrome();

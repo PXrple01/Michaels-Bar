@@ -25,7 +25,7 @@ export function arcProgress(arc: Arc): Raw {
 }
 
 /** Am Ende: Epilog, Kapitel mit Rückblick, Aufträge, Erfahrung. */
-export function endCard(w: WorldState, names: { id: string; name: string }[], again: { href: string; label: string }): Raw {
+export function endCard(w: WorldState, names: { id: string; name: string }[], again: { href: string; label: string }, chronicle?: string): Raw {
   const arc = w.arc!;
   const played = arc.chapters.filter((c) => c.done);
   const lost = arc.outcome === "niederlage";
@@ -43,6 +43,9 @@ export function endCard(w: WorldState, names: { id: string; name: string }[], ag
       <div><span>Erfahrung</span><b>${names.map((n) => `${n.name}: ${w.xp[n.id] ?? 0} EP`).join(" · ")}</b></div>
     </div>
     ${played.length ? html`<ol class="end-chapters">${played.map((c) => html`<li><b>${c.titel}</b>${c.detour ? html` <span class="chip">Abzweigung</span>` : ""}${c.rueckblick ? html` – ${c.rueckblick}` : ""}</li>`)}</ol>` : ""}
-    <a class="btn btn-lg magnetic" href="${again.href}">${icon("sparkles")} ${again.label}</a>
+    <div class="end-actions">
+      ${chronicle ? html`<a class="btn btn-lg btn-ghost" href="${chronicle}">${icon("book")} Chronik lesen &amp; als PDF speichern</a>` : ""}
+      <a class="btn btn-lg magnetic" href="${again.href}">${icon("sparkles")} ${again.label}</a>
+    </div>
   </div>`;
 }

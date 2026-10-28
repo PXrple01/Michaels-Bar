@@ -107,6 +107,7 @@ export function adventuresPage(): Page {
                   <p class="muted">${c?.name ?? "Figur fehlt"} · ${s.story.filter((e) => e.type === "player").length} Züge${s.costUsd ? ` · Claude ${costText(s.costUsd)}` : ""}${s.imageUsd ? ` · Bilder ${costText(s.imageUsd)}` : ""}${s.state.world?.arc?.finished ? html` · <span class="chip good">abgeschlossen</span>` : ""}</p>
                   <div class="adv-actions">
                     ${c ? html`<a class="btn btn-sm" href="#/abenteuer/${s.id}">${icon("play")} ${s.state.world?.arc?.finished ? "Nachlesen" : "Weiter"}</a>` : ""}
+                    ${s.started ? html`<a class="btn btn-ghost btn-sm" href="#/chronik/${s.id}" title="Als Buch lesen und als PDF speichern">${icon("book")} Chronik</a>` : ""}
                     <button class="btn btn-ghost btn-sm" data-delete="${s.id}" aria-label="Abenteuer löschen">${icon("trash")}</button>
                   </div>
                 </article>`;
@@ -295,7 +296,7 @@ export function playPage(): Page {
         else if (busy) content = html`<div class="thinking">${icon("feather")} Der Spielleiter erzählt …</div>`;
         else if (!save!.opening) content = html``;
         else if (save!.pending) content = pendingCard(save!.pending);
-        else if (save!.state.world?.arc?.finished) content = endCard(save!.state.world, [character], { href: "#/abenteuer#neues-abenteuer", label: "Neue Kampagne beginnen" });
+        else if (save!.state.world?.arc?.finished) content = endCard(save!.state.world, [character], { href: "#/abenteuer#neues-abenteuer", label: "Neue Kampagne beginnen" }, `#/chronik/${save!.id}`);
         else content = html`
           ${suggestions.length ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
           <form class="composer card" id="composer">
