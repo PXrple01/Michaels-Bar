@@ -447,7 +447,7 @@ export class PartyService {
       const before = this.lockFor(p, "roll");
       const res = this.o.narrator.applyRolls(check, { characters: this.characters(p).map((c) => effectiveCharacter(c, p.world!)), data, world: p.world! }, record, damage);
       extra = res.extra;
-      p.story.push({ type: "roll", record, playerId: me.id }, ...res.extra.map((r): PartyStoryEntry => ({ type: "roll", record: r, playerId: "" })));
+      p.story.push({ type: "roll", record, playerId: me.id }, ...res.extra.map((r): PartyStoryEntry => ({ type: "roll", record: r, playerId: me.id })));
       p.rolled = [...(p.rolled ?? []), res.result];
       setChecks(p, now.filter((c) => c.toolUseId !== check.toolUseId));
       if (!p.pendings!.length) {
@@ -459,7 +459,7 @@ export class PartyService {
         p.failed = null;
       }
     });
-    for (const r of extra) emit({ type: "autoroll", record: r });
+    for (const r of extra) emit({ type: "roll", record: r }); // eigener Schaden – eigene Animation im Browser
     if (!lock) { emit({ type: "view", view: this.view(updated, me.id, await this.o.guard.info()) }); return; }
     await this.narrate({ locked: updated, lock, me, messages: null, consumed: {}, who, emit });
   }

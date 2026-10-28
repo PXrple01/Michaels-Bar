@@ -481,6 +481,7 @@ export function playPage(): Page {
         // Während das Würfel-Overlay offen ist, wird die Erzählung zurückgehalten und danach gezeigt.
         const queued: GmEvent[] = [];
         let overlayOpen = true;
+        let damage: RollRecord | null = null;
         const overlay = rollWithOverlay(`${p.label}${MODE_TEXT[p.modus]}${p.sg !== null ? ` · SG ${p.sg}` : ""}`, () => rollP);
         renderBelow();
         retry = () => void doRoll();
@@ -488,13 +489,18 @@ export function playPage(): Page {
           if (ev.type === "roll") {
             const entry = { type: "roll" as const, record: ev.record };
             save!.story.push(entry); appendEntry(entry); persist();
-            resolveRoll(ev.record);
+            if (ev.record.label.includes("Schaden")) damage = ev.record; // Treffer: Schaden wurde gleich mitgewürfelt
+            else resolveRoll(ev.record);
           } else {
             if (ev.type === "error") rejectRoll(new Error(ev.message));
             if (overlayOpen) queued.push(ev); else handle(ev);
           }
         });
         await overlay;
+        // Eigener Schadenswurf mit eigener Animation – kostet keinen Modellaufruf
+        if (!damage) await new Promise((r) => setTimeout(r, 400)); // kommt der Schaden etwas später, kurz warten
+        const dmg = damage as RollRecord | null; // im Ereignis-Handler gesetzt
+        if (dmg) await rollWithOverlay(`Treffer! ${dmg.label.split(": ").pop()}`, () => Promise.resolve(dmg));
         overlayOpen = false;
         queued.splice(0).forEach(handle);
         await streaming;

@@ -455,12 +455,17 @@ export function partyPage(): Page {
         renderBelow();
         const queued: PartyEvent[] = [];
         let open = true;
+        let damage: RollRecord | null = null;
         const s = partyApi.stream("roll", me, {}, (ev) => {
-          if (ev.type === "roll") { seenRolls.add(ev.record.id); resolveRoll(ev.record); return; }
+          if (ev.type === "roll") { seenRolls.add(ev.record.id); if (ev.record.label.includes("Schaden")) damage = ev.record; else resolveRoll(ev.record); return; }
           if (ev.type === "error") rejectRoll(new Error(ev.message));
           if (open) queued.push(ev); else handle(ev);
         });
         await overlay;
+        // Eigener Schadenswurf mit eigener Animation
+        if (!damage) await new Promise((r) => setTimeout(r, 400)); // kommt der Schaden etwas später, kurz warten
+        const dmg = damage as RollRecord | null; // im Ereignis-Handler gesetzt
+        if (dmg) await rollWithOverlay(`Treffer! ${dmg.label.split(": ").pop()}`, () => Promise.resolve(dmg));
         open = false;
         queued.splice(0).forEach(handle);
         await s;
