@@ -5,7 +5,7 @@ import { enhance } from "../fx/effects";
 import { api, loadGameData } from "../lib/api";
 import { $$, html, setHTML, uuid, type Raw } from "../lib/dom";
 import { characterStore } from "../lib/store";
-import { changePassword, recoverCharacter, recoverList, type RecoverParty, downloadExport, dropLegacy, exportData, legacyData, legacySummary, logout, mergeData, onSyncState, parseExport, session, summaryText, syncState, type SyncState } from "../lib/account";
+import { backupFile, backupNow, listBackups, restoreBackup, type BackupInfo, changePassword, recoverCharacter, recoverList, type RecoverParty, downloadExport, dropLegacy, exportData, legacyData, legacySummary, logout, mergeData, onSyncState, parseExport, session, summaryText, syncState, type SyncState } from "../lib/account";
 import { icon } from "../lib/icons";
 import type { Page } from "../lib/router";
 import { settings, updateSettings, useSimpleDice, type DiceThemeId, type PaletteId, type Settings } from "../lib/settings";
@@ -139,6 +139,7 @@ export function settingsPage(): Page {
         void rollWithOverlay("Probewurf", () => api.roll({ requestId: uuid(), notation: "1W20", label: "Probewurf" }));
       });
       bindAccount(root);
+      void renderBackups(root);
       void mountRecover(root);
       enhance(root);
     },
@@ -174,6 +175,13 @@ function accountSection(): Raw {
       <div><b>Spielstände importieren</b><p>Eine exportierte Datei in dieses Konto übernehmen. Was schon da ist, bleibt; gleiche Figuren oder Abenteuer werden auf den neueren Stand gebracht.</p></div>
       <label class="btn btn-ghost btn-sm file-btn">${icon("plus")} Datei wählen<input type="file" id="import" accept="application/json,.json" hidden /></label>
     </div>
+    <div class="backup-box">
+      <div class="set-row">
+        <div><b>Sicherungen</b><p>Dein Konto sichert jeden Tag beim ersten Speichern automatisch den bisherigen Stand. Die letzten 14 Tage bleiben erhalten. Vor jeder Wiederherstellung wird der aktuelle Stand ebenfalls gesichert – du kannst also immer zurück.</p></div>
+        <button class="btn btn-ghost btn-sm" id="backup-now">${icon("shield")} Jetzt sichern</button>
+      </div>
+      <div class="backup-list" id="backup-list"><p class="muted small">Lade Sicherungen …</p></div>
+    </div>
     <details class="pw-change">
       <summary>${icon("lock")} Passwort ändern</summary>
       <form id="pw-form" class="pw-form">
@@ -184,6 +192,40 @@ function accountSection(): Raw {
       <p class="hint">Andere Geräte werden danach abgemeldet.</p>
     </details>
   </section>`;
+}
+
+const REASON: Record<BackupInfo["reason"], string> = { tag: "Tägliche Sicherung", manuell: "Von dir gesichert", "vor-wiederherstellung": "Vor einer Wiederherstellung" };
+
+/** Liste der Sicherungen mit Wiederherstellen und Herunterladen. */
+async function renderBackups(root: HTMLElement) {
+  const el = root.querySelector<HTMLElement>("#backup-list");
+  if (!el) return;
+  let list: BackupInfo[];
+  try { list = await listBackups(); } catch { el.innerHTML = html`<p class="muted small">Sicherungen konnten nicht geladen werden.</p>`.value; return; }
+  const draw = () => {
+    el.innerHTML = (list.length ? html`${list.map((b) => html`<div class="backup-row">
+      <span class="br-text"><b>${new Date(b.createdAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}</b><small class="muted">${REASON[b.reason]} · ${summaryText(b.counts)}</small></span>
+      <span class="br-actions">
+        <button class="btn btn-ghost btn-sm" data-backup-dl="${b.name}" title="Als Datei herunterladen">${icon("download")}</button>
+        <button class="btn btn-sm" data-backup-restore="${b.name}">${icon("refresh")} Wiederherstellen</button>
+      </span>
+    </div>`)}` : html`<p class="muted small">Noch keine Sicherung – die erste entsteht automatisch, sobald du morgen etwas speicherst, oder jetzt mit „Jetzt sichern“.</p>`).value;
+  };
+  draw();
+  root.querySelector("#backup-now")?.addEventListener("click", async () => {
+    try { list = await backupNow(); draw(); toast("Gesichert.", "success"); } catch (e) { toast((e as Error).message, "error", 6000); }
+  });
+  el.addEventListener("click", async (e) => {
+    const dl = (e.target as HTMLElement).closest<HTMLElement>("[data-backup-dl]");
+    const rs = (e.target as HTMLElement).closest<HTMLElement>("[data-backup-restore]");
+    if (dl) { try { downloadExport(await backupFile(dl.dataset.backupDl!), "sicherung"); } catch (err) { toast((err as Error).message, "error"); } }
+    if (rs) {
+      const b = list.find((x) => x.name === rs.dataset.backupRestore)!;
+      if (!(await confirmDialog("Diese Sicherung wiederherstellen?", `Dein Konto bekommt den Stand vom ${new Date(b.createdAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })} zurück (${summaryText(b.counts)}). Der jetzige Stand wird vorher gesichert.`, "Wiederherstellen"))) return;
+      try { await restoreBackup(b.name); toast("Wiederhergestellt – die Seite lädt neu.", "success"); setTimeout(() => location.reload(), 900); }
+      catch (err) { toast((err as Error).message, "error", 6000); }
+    }
+  });
 }
 
 /** Nur für den Betreiber: Figuren aus Gruppen auf dem Server zurück ins Konto holen. */

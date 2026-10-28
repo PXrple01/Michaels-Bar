@@ -345,3 +345,30 @@ export async function recoverCharacter(code: string, characterId: string) {
   localStorage.setItem("wus.parties.v1", JSON.stringify([{ code: r.code, playerId: r.playerId, token: r.token, characterId: r.character.id, joinedAt: now }, ...parties].slice(0, 20)));
   return r;
 }
+
+/* ── Sicherungen im Konto ── */
+
+export interface BackupInfo { name: string; createdAt: string; reason: "tag" | "manuell" | "vor-wiederherstellung"; counts: MergeSummary }
+
+export async function listBackups(): Promise<BackupInfo[]> { return (await call<{ backups: BackupInfo[] }>("GET", "backups")).backups; }
+
+export async function backupNow(): Promise<BackupInfo[]> {
+  await flush();
+  return (await call<{ backups: BackupInfo[] }>("POST", "backup", {})).backups;
+}
+
+/** Sicherung zurückspielen. Danach lädt die Seite neu und holt den gesicherten Stand. */
+export async function restoreBackup(name: string) {
+  await flush().catch(() => {});
+  await call("POST", "restore", { name });
+  setDirty(new Set()); // nichts Altes über den zurückgespielten Stand schreiben
+}
+
+/** Sicherung als Exportdatei (zum Aufheben auf dem eigenen Gerät). */
+export async function backupFile(name: string): Promise<ExportFile> {
+  const { data } = await call<{ data: Record<string, string> }>("POST", "backup-data", { name });
+  const plain = await unpackAll(data);
+  const parsed: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(plain)) { try { parsed[k] = JSON.parse(v); } catch { /* übergehen */ } }
+  return exportData(parsed);
+}

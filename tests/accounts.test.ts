@@ -126,3 +126,57 @@ describe("Figuren aus Gruppen zurückholen (nur Betreiber)", () => {
     expect((await party.state({ code: host.code, token: body.token })).you).toBe(host.playerId);
   });
 });
+
+describe("Automatische Sicherungen", () => {
+  const chars = (n: number) => JSON.stringify(Array.from({ length: n }, (_, i) => ({ id: `c${i}` })));
+
+  it("das erste Speichern eines Tages sichert den bisherigen Stand – danach nicht mehr am selben Tag", async () => {
+    const store = new MemoryAccountStore();
+    const s = svc(store);
+    const t = ((await call(s, "POST", "register", { username: "Sicher", password: "passwort1" })).body as { token: string }).token;
+    await call(s, "PUT", "data", { key: "wus.characters.v1", value: chars(2) }, t); // Konto war leer: nichts zu sichern
+    await call(s, "PUT", "data", { key: "wus.characters.v1", value: chars(3) }, t); // sichert den Stand mit 2 Figuren
+    await call(s, "PUT", "data", { key: "wus.characters.v1", value: chars(4) }, t); // derselbe Tag: keine neue Sicherung
+    const list = ((await call(s, "GET", "backups", null, t)).body as { backups: { reason: string; counts: { characters: number } }[] }).backups;
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ reason: "tag", counts: { characters: 2 } });
+    // nächster Tag
+    const u = (await store.getUser("sicher"))!;
+    await store.updateUser({ ...u, backupDay: "2000-01-01" });
+    await call(s, "PUT", "data", { key: "wus.characters.v1", value: chars(5) }, t);
+    const after = ((await call(s, "GET", "backups", null, t)).body as { backups: { counts: { characters: number } }[] }).backups;
+    expect(after.map((b) => b.counts.characters)).toContain(4);
+  });
+
+  it("wiederherstellen, herunterladen und manuell sichern", async () => {
+    const s = svc();
+    const t = ((await call(s, "POST", "register", { username: "Zurueck", password: "passwort1" })).body as { token: string }).token;
+    await call(s, "PUT", "data", { key: "wus.characters.v1", value: chars(2) }, t);
+    const manual = await call(s, "POST", "backup", {}, t);
+    expect(manual.status).toBe(200);
+    const name = (manual.body as { backups: { name: string; reason: string }[] }).backups.find((b) => b.reason === "manuell")!.name;
+    await call(s, "PUT", "data", { key: "wus.characters.v1", value: chars(0) }, t); // „Unfall“: alles weg
+    await call(s, "PUT", "data", { key: "wus.classes.v1", value: "[]" }, t);
+    expect((await call(s, "POST", "backup-data", { name }, t)).body).toEqual({ data: { "wus.characters.v1": chars(2) } });
+    const r = await call(s, "POST", "restore", { name }, t);
+    expect(r.status).toBe(200);
+    expect((await call(s, "GET", "data", null, t)).body).toEqual({ data: { "wus.characters.v1": chars(2) } });
+    const list = (r.body as { backups: { reason: string }[] }).backups;
+    expect(list.some((b) => b.reason === "vor-wiederherstellung")).toBe(true);
+    expect((await call(s, "POST", "restore", { name: "gibt-es-nicht" }, t)).status).toBe(404);
+  });
+
+  it("es bleiben höchstens 14 tägliche Sicherungen", async () => {
+    const store = new MemoryAccountStore();
+    const s = svc(store);
+    const t = ((await call(s, "POST", "register", { username: "Viele", password: "passwort1" })).body as { token: string }).token;
+    await call(s, "PUT", "data", { key: "wus.characters.v1", value: chars(1) }, t);
+    for (let d = 0; d < 18; d++) {
+      const u = (await store.getUser("viele"))!;
+      await store.updateUser({ ...u, backupDay: `1999-01-${String(d + 1).padStart(2, "0")}` });
+      await call(s, "PUT", "data", { key: "wus.characters.v1", value: chars(d + 2) }, t);
+    }
+    const list = ((await call(s, "GET", "backups", null, t)).body as { backups: unknown[] }).backups;
+    expect(list.length).toBeLessThanOrEqual(14);
+  });
+});

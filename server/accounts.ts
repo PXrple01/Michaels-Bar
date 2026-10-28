@@ -5,6 +5,7 @@ import { createHmac, randomBytes, scrypt as scryptCb, timingSafeEqual } from "no
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { promisify } from "node:util";
+import { gunzipSync } from "node:zlib";
 import type { CounterStore } from "./gm/usage";
 import { listPartyCharacters, reclaimPlayer, type PartyStore } from "./gm/party";
 
@@ -20,7 +21,14 @@ export interface UserRecord {
   /** Passwort-Version: steigt bei jeder Änderung, alte Sitzungen werden damit ungültig */
   pv: number;
   createdAt: string;
+  /** Tag der letzten automatischen Sicherung (JJJJ-MM-TT) */
+  backupDay?: string;
+  /** Übersicht der Sicherungen (die Daten liegen getrennt) */
+  backups?: BackupInfo[];
 }
+
+export interface BackupInfo { name: string; createdAt: string; reason: "tag" | "manuell" | "vor-wiederherstellung"; counts: BackupCounts }
+export interface BackupCounts { characters: number; campaigns: number; classes: number; parties: number }
 
 export interface AccountStore {
   getUser(id: string): Promise<UserRecord | null>;
@@ -30,6 +38,9 @@ export interface AccountStore {
   listData(id: string): Promise<Record<string, string>>;
   putData(id: string, key: string, value: string): Promise<void>;
   deleteData(id: string, key: string): Promise<void>;
+  getBackup(id: string, name: string): Promise<Record<string, string> | null>;
+  putBackup(id: string, name: string, data: Record<string, string>): Promise<void>;
+  deleteBackup(id: string, name: string): Promise<void>;
 }
 
 export class MemoryAccountStore implements AccountStore {
@@ -41,6 +52,10 @@ export class MemoryAccountStore implements AccountStore {
   async listData(id: string) { return Object.fromEntries(this.data.get(id) ?? []); }
   async putData(id: string, key: string, value: string) { if (!this.data.has(id)) this.data.set(id, new Map()); this.data.get(id)!.set(key, value); }
   async deleteData(id: string, key: string) { this.data.get(id)?.delete(key); }
+  private backups = new Map<string, string>();
+  async getBackup(id: string, name: string) { const v = this.backups.get(`${id}/${name}`); return v ? JSON.parse(v) : null; }
+  async putBackup(id: string, name: string, data: Record<string, string>) { this.backups.set(`${id}/${name}`, JSON.stringify(data)); }
+  async deleteBackup(id: string, name: string) { this.backups.delete(`${id}/${name}`); }
 }
 
 /** Lokal: eine Datei je Konto und je gespeichertem Schlüssel (Ordner saves/accounts). */
@@ -68,7 +83,27 @@ export class FileAccountStore implements AccountStore {
     await writeFile(nodePath.join(this.dataDir(id), `${encodeURIComponent(key)}.json`), value);
   }
   async deleteData(id: string, key: string) { await rm(nodePath.join(this.dataDir(id), `${encodeURIComponent(key)}.json`), { force: true }); }
+  private backupFile(id: string, name: string) { return nodePath.join(this.dir, "backups", id, `${encodeURIComponent(name)}.json`); }
+  async getBackup(id: string, name: string) { try { return JSON.parse(await readFile(this.backupFile(id, name), "utf8")); } catch { return null; } }
+  async putBackup(id: string, name: string, data: Record<string, string>) {
+    await mkdir(nodePath.dirname(this.backupFile(id, name)), { recursive: true });
+    await writeFile(this.backupFile(id, name), JSON.stringify(data));
+  }
+  async deleteBackup(id: string, name: string) { await rm(this.backupFile(id, name), { force: true }); }
 }
+
+/** Gepackte Werte (gz1:…, vom Browser komprimiert) wieder lesbar machen – für die Übersicht der Sicherungen. */
+function unpackValue(v: string): string {
+  return v.startsWith("gz1:") ? gunzipSync(Buffer.from(v.slice(4), "base64")).toString("utf8") : v;
+}
+
+export function countData(data: Record<string, string>): BackupCounts {
+  const n = (k: string) => { try { const v = JSON.parse(unpackValue(data[k] ?? "[]")); return Array.isArray(v) ? v.length : 0; } catch { return 0; } };
+  return { characters: n("wus.characters.v1"), campaigns: n("wus.campaigns.v1"), classes: n("wus.classes.v1"), parties: n("wus.parties.v1") };
+}
+
+const KEEP_DAILY = 14;
+const KEEP_OTHER = 5;
 
 export class AccountError extends Error { constructor(message: string, public status = 400) { super(message); } }
 
@@ -193,8 +228,62 @@ export class AccountService {
     if (body.value.length > MAX_VALUE) throw new AccountError("Zu viele Daten auf einmal (über 5 MB).", 413);
     const existing = await this.o.store.listData(u.id);
     if (!(key in existing) && Object.keys(existing).length >= MAX_KEYS) throw new AccountError("Zu viele gespeicherte Bereiche.", 413);
+    // Erstes Speichern des Tages: vorher den bisherigen Stand sichern
+    const today = new Date().toISOString().slice(0, 10);
+    if (u.backupDay !== today && Object.keys(existing).length) await this.snapshot(u, existing, "tag", `${today}-tag`);
     await this.o.store.putData(u.id, key, body.value);
     return { ok: true };
+  }
+
+  /* ── Sicherungen ── */
+
+  /** Sicherung anlegen und die Übersicht pflegen (14 Tage, dazu die letzten 5 manuellen/vor Wiederherstellung). */
+  private async snapshot(u: UserRecord, data: Record<string, string>, reason: BackupInfo["reason"], name: string) {
+    await this.o.store.putBackup(u.id, name, data);
+    let list = [...(u.backups ?? []).filter((b) => b.name !== name), { name, createdAt: new Date().toISOString(), reason, counts: countData(data) }];
+    const daily = list.filter((b) => b.reason === "tag").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const other = list.filter((b) => b.reason !== "tag").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const drop = [...daily.slice(KEEP_DAILY), ...other.slice(KEEP_OTHER)];
+    for (const b of drop) await this.o.store.deleteBackup(u.id, b.name);
+    list = list.filter((b) => !drop.includes(b)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const fresh = (await this.o.store.getUser(u.id)) ?? u;
+    const next = { ...fresh, backups: list, ...(reason === "tag" ? { backupDay: name.slice(0, 10) } : {}) };
+    await this.o.store.updateUser(next);
+    Object.assign(u, next);
+  }
+
+  async listBackups(token: unknown) { const u = await this.user(token); return { backups: u.backups ?? [] }; }
+
+  async backupNow(token: unknown) {
+    const u = await this.user(token);
+    const data = await this.o.store.listData(u.id);
+    if (!Object.keys(data).length) throw new AccountError("Es gibt noch nichts zu sichern.");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    await this.snapshot(u, data, "manuell", `${stamp}-manuell`);
+    return { backups: u.backups ?? [] };
+  }
+
+  async getBackupData(token: unknown, body: { name?: unknown }) {
+    const u = await this.user(token);
+    const name = String(body?.name ?? "");
+    if (!(u.backups ?? []).some((b) => b.name === name)) throw new AccountError("Diese Sicherung gibt es nicht.", 404);
+    return { data: (await this.o.store.getBackup(u.id, name)) ?? {} };
+  }
+
+  /** Sicherung zurückspielen – der aktuelle Stand wird vorher selbst gesichert (man kann also zurück). */
+  async restore(token: unknown, body: { name?: unknown }) {
+    const u = await this.user(token);
+    const name = String(body?.name ?? "");
+    if (!(u.backups ?? []).some((b) => b.name === name)) throw new AccountError("Diese Sicherung gibt es nicht.", 404);
+    const backup = (await this.o.store.getBackup(u.id, name)) ?? {};
+    const current = await this.o.store.listData(u.id);
+    if (Object.keys(current).length) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      await this.snapshot(u, current, "vor-wiederherstellung", `${stamp}-vor-wiederherstellung`);
+    }
+    for (const k of Object.keys(current)) if (!(k in backup)) await this.o.store.deleteData(u.id, k);
+    for (const [k, v] of Object.entries(backup)) await this.o.store.putData(u.id, k, v);
+    return { ok: true, backups: u.backups ?? [] };
   }
 
   /** HTTP: /api/account/<op> – gleiche Logik für Express und Netlify. */
@@ -208,6 +297,10 @@ export class AccountService {
         : key === "POST password" ? await this.changePassword(session, b)
         : key === "GET data" ? await this.getData(session)
         : key === "PUT data" ? await this.putData(session, b)
+        : key === "GET backups" ? await this.listBackups(session)
+        : key === "POST backup" ? await this.backupNow(session)
+        : key === "POST backup-data" ? await this.getBackupData(session, b)
+        : key === "POST restore" ? await this.restore(session, b)
         : key === "GET recover" ? await this.recoverList(session)
         : key === "POST recover" ? await this.recover(session, b)
         : null;

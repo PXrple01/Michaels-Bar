@@ -1081,3 +1081,10 @@ body.auth main { padding-bottom: 40px; }
 .rp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .rp-players { display: grid; gap: 6px; }
 .rp-player { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+
+/* Sicherungen */
+.backup-box { display: grid; gap: 6px; }
+.backup-list { display: grid; gap: 6px; max-height: 320px; overflow: auto; }
+.backup-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(var(--c-s08), 0.45); }
+.br-text { display: grid; gap: 2px; min-width: 0; }
+.br-actions { display: flex; gap: 6px; }

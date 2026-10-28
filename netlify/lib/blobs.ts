@@ -70,4 +70,8 @@ export class BlobAccountStore implements AccountStore {
   }
   async putData(id: string, key: string, value: string) { await this.store.set(this.dataKey(id, key), value); }
   async deleteData(id: string, key: string) { await this.store.delete(this.dataKey(id, key)); }
+  private backupKey(id: string, name: string) { return `backup/${encodeURIComponent(id)}/${encodeURIComponent(name)}`; }
+  async getBackup(id: string, name: string) { return ((await this.store.get(this.backupKey(id, name), { type: "json" })) as Record<string, string> | null) ?? null; }
+  async putBackup(id: string, name: string, data: Record<string, string>) { await this.store.setJSON(this.backupKey(id, name), data); }
+  async deleteBackup(id: string, name: string) { await this.store.delete(this.backupKey(id, name)); }
 }
