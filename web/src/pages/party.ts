@@ -339,7 +339,7 @@ export function partyPage(): Page {
           if (typing) { oldTa.focus({ preventScroll: true }); oldTa.setSelectionRange(sel![0], sel![1]); }
         }
         renderHud();
-        if (v.budget || v.costUsd) { const b = $("#budget", root), chip = costChip(v.costUsd ?? 0, v.lastTurnCostUsd, v.budget); b.hidden = false; b.textContent = chip.text; b.title = chip.title; }
+        if (v.budget || v.costUsd) { const b = $("#budget", root), chip = costChip({ claudeUsd: v.costUsd ?? 0, imageUsd: v.imageUsd ?? 0, lastUsd: v.lastTurnCostUsd, lastImageUsd: v.lastTurnImageUsd ?? null }, v.budget); b.hidden = false; b.textContent = chip.text; b.title = chip.title; }
         bindBelow();
         enhance(belowEl);
       }

@@ -181,7 +181,7 @@ export class GameMaster {
     applyLevels(world, [c], data.classes, data.rules);
     // Gefallen und niemand hat geholfen: Niederlage, vom Server erzwungen (auch wenn Claude es nicht selbst beendet hat)
     const defeated = enforceDefeat(world, scene.characters);
-    emit({ type: "done", state: this.sign(res.history, world, res.held, c), pending: defeated ? null : res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
+    emit({ type: "done", state: this.sign(res.history, world, res.held, c), pending: defeated ? null : res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd, turnImageUsd: res.imageUsd });
   }
 }
 

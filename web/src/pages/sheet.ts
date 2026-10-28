@@ -1,3 +1,4 @@
+import { costText } from "../../../shared/campaign";
 import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
 import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusForLevel, trainedSkills, type CharacterRollType } from "../../../shared/character";
 import { formatModifier, type RollMode } from "../../../shared/dice";
@@ -211,7 +212,8 @@ export function sheetPage(): Page {
         paintBtn.disabled = true;
         $("#sh-portrait", root).classList.add("painting");
         try {
-          await paintPortrait(c);
+          const { costUsd } = await paintPortrait(c);
+          toast(`Porträt gemalt – Bildkosten ${costText(costUsd)} (fal.ai)`, "success");
           $("#sh-portrait", root).innerHTML = avatar(c.id, cls.sigil).value;
           paintBtn.innerHTML = html`${icon("feather")} Neues Porträt malen`.value;
         } catch (e) { toast(`Porträt: ${(e as Error).message}`, "error"); }

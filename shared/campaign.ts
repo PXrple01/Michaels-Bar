@@ -67,8 +67,10 @@ export interface CampaignSave {
   story: StoryEntry[];
   /** Hat der Spieler schon gehandelt? Vorher darf der Einstieg neu gewürfelt werden. */
   started: boolean;
-  /** Bisherige Kosten dieser Kampagne in Dollar (alle Züge zusammen). */
+  /** Bisherige Claude-Kosten dieser Kampagne in Dollar (alle Züge zusammen). */
   costUsd?: number;
+  /** Bisherige Bildkosten dieser Kampagne in Dollar (fal.ai). */
+  imageUsd?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,12 +78,13 @@ export interface CampaignSave {
 export interface BudgetInfo { spentUsd: number; limitUsd: number }
 
 /** Kosten lesbar: unter einem Dollar in Cent, sonst in Dollar. */
-export const costText = (usd: number) => (usd < 1 ? `${(usd * 100).toFixed(usd < 0.1 ? 1 : 0)} ct` : `${usd.toFixed(2)} $`);
-/** Anzeige oben im Abenteuer: Kosten dieser Kampagne und des letzten Zugs; das Gesamtbudget steht im Hinweis. */
-export function costChip(campaignUsd: number, lastUsd: number | null, budget: BudgetInfo | null): { text: string; title: string } {
+export const costText = (usd: number) => (usd <= 0 ? "0 ct" : usd < 1 ? `${(usd * 100).toFixed(usd < 0.1 ? 1 : 0)} ct` : `${usd.toFixed(2)} $`);
+/** Anzeige oben im Abenteuer: Claude- und Bildkosten dieser Kampagne getrennt, dazu der letzte Zug; das Gesamtbudget steht im Hinweis. */
+export function costChip(c: { claudeUsd: number; imageUsd: number; lastUsd: number | null; lastImageUsd: number | null }, budget: BudgetInfo | null): { text: string; title: string } {
+  const last = c.lastUsd !== null ? ` · Letzter Zug ${costText(c.lastUsd)}${c.lastImageUsd ? ` + Bild ${costText(c.lastImageUsd)}` : ""}` : "";
   return {
-    text: `Diese Kampagne ${costText(campaignUsd)}${lastUsd !== null ? ` · Letzter Zug ${costText(lastUsd)}` : ""}`,
-    title: `Was der Spielleiter (Claude) in diesem Abenteuer bisher gekostet hat.${budget ? ` Gesamtbudget aller Abenteuer: ${budget.spentUsd.toFixed(2)} $ von ${budget.limitUsd.toFixed(0)} $.` : ""}`,
+    text: `Claude ${costText(c.claudeUsd)} · Bilder ${costText(c.imageUsd)}${last}`,
+    title: `Kosten dieser Kampagne: Claude (Spielleiter) ${costText(c.claudeUsd)}, Bilder (fal.ai) ${costText(c.imageUsd)}.${budget ? ` Gesamtbudget aller Abenteuer zusammen: ${budget.spentUsd.toFixed(2)} $ von ${budget.limitUsd.toFixed(0)} $.` : ""}`,
   };
 }
 
@@ -94,7 +97,8 @@ export type GmEvent =
   | { type: "autoroll"; record: RollRecord }
   /** Szenenbild fertig – erscheint nach dem Text dieser Antwort. */
   | ({ type: "image" } & SceneImage)
-  | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo; turnCostUsd?: number }
+  /** turnCostUsd: Claude, turnImageUsd: Bilder dieses Zugs */
+  | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo; turnCostUsd?: number; turnImageUsd?: number }
   /** Verbesserungen erstellt (offer) oder gewählt (offer = null) – neuer signierter Spielstand. */
   | { type: "upgrade"; state: SignedState; offer: UpgradeOffer | null; budget: BudgetInfo; turnCostUsd?: number }
   | { type: "error"; message: string; code?: "no_api_key" | "access" | "budget" | "rate" | "state" | "refusal" | "api" };

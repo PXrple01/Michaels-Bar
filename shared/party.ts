@@ -45,8 +45,11 @@ export interface PartyView {
   version: number;
   budget: BudgetInfo | null;
   lastTurnCostUsd: number | null;
-  /** Kosten dieser Gruppe insgesamt (alle Züge). */
+  /** Claude-Kosten dieser Gruppe insgesamt (alle Züge). */
   costUsd: number;
+  /** Bildkosten (fal.ai) insgesamt und im letzten Zug. */
+  imageUsd: number;
+  lastTurnImageUsd: number | null;
   /** Lebenspunkte, Kampf, Aufträge – erst ab dem Start. */
   world: WorldState | null;
   /** Der letzte Zug ist gescheitert (für alle sichtbar, mit „Erneut versuchen“). */

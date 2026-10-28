@@ -104,7 +104,7 @@ export function adventuresPage(): Page {
                 return html`<article class="card adv-card tilt" data-reveal="scale" style="--i:${i}">
                   <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
                   <h3>${s.title}</h3>
-                  <p class="muted">${c?.name ?? "Figur fehlt"} · ${s.story.filter((e) => e.type === "player").length} Züge${s.costUsd ? ` · ${costText(s.costUsd)}` : ""}${s.state.world?.arc?.finished ? html` · <span class="chip good">abgeschlossen</span>` : ""}</p>
+                  <p class="muted">${c?.name ?? "Figur fehlt"} · ${s.story.filter((e) => e.type === "player").length} Züge${s.costUsd ? ` · Claude ${costText(s.costUsd)}` : ""}${s.imageUsd ? ` · Bilder ${costText(s.imageUsd)}` : ""}${s.state.world?.arc?.finished ? html` · <span class="chip good">abgeschlossen</span>` : ""}</p>
                   <div class="adv-actions">
                     ${c ? html`<a class="btn btn-sm" href="#/abenteuer/${s.id}">${icon("play")} ${s.state.world?.arc?.finished ? "Nachlesen" : "Weiter"}</a>` : ""}
                     <button class="btn btn-ghost btn-sm" data-delete="${s.id}" aria-label="Abenteuer löschen">${icon("trash")}</button>
@@ -177,6 +177,7 @@ export function playPage(): Page {
       let lastError: Extract<GmEvent, { type: "error" }> | null = null;
       let budget: { spentUsd: number; limitUsd: number } | null = null;
       let lastCost: number | null = null;
+      let lastImageCost: number | null = null;
       /** Länge der Geschichte vor dem laufenden Zug – bei Fehlern wird bis hierher zurückgesetzt. */
       let turnMark = 0;
 
@@ -310,7 +311,7 @@ export function playPage(): Page {
         belowEl.innerHTML = html`${content}
           ${!save!.started && save!.opening && !busy ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="reroll">${icon("refresh")} Neuen Einstieg würfeln</button></div>` : ""}`.value;
         const b = $("#budget", root);
-        if (budget || save!.costUsd) { const chip = costChip(save!.costUsd ?? 0, lastCost, budget); b.hidden = false; b.textContent = chip.text; b.title = chip.title; }
+        if (budget || save!.costUsd) { const chip = costChip({ claudeUsd: save!.costUsd ?? 0, imageUsd: save!.imageUsd ?? 0, lastUsd: lastCost, lastImageUsd: lastImageCost }, budget); b.hidden = false; b.textContent = chip.text; b.title = chip.title; }
         bindBelow();
         enhance(belowEl);
       }
@@ -360,7 +361,7 @@ export function playPage(): Page {
           if (ev.type === "upgrade") {
             save!.state = ev.state;
             budget = ev.budget;
-            if (ev.turnCostUsd !== undefined) { lastCost = ev.turnCostUsd; save!.costUsd = (save!.costUsd ?? 0) + ev.turnCostUsd; }
+            if (ev.turnCostUsd !== undefined) { lastCost = ev.turnCostUsd; lastImageCost = null; save!.costUsd = (save!.costUsd ?? 0) + ev.turnCostUsd; }
             persist();
             if (option !== undefined) {
               const chosen = ev.state.world?.progress?.[character.id]?.chosen.at(-1);
@@ -453,7 +454,9 @@ export function playPage(): Page {
           announceLevel(before, levelOf(), data.rules);
           budget = ev.budget;
           lastCost = ev.turnCostUsd ?? null;
+          lastImageCost = ev.turnImageUsd ?? null;
           save!.costUsd = (save!.costUsd ?? 0) + (ev.turnCostUsd ?? 0);
+          save!.imageUsd = (save!.imageUsd ?? 0) + (ev.turnImageUsd ?? 0);
           persist();
           renderWorld();
         } else if (ev.type === "error") {

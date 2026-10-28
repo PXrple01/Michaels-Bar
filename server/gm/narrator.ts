@@ -160,7 +160,10 @@ export interface ConverseResult {
   pendings: PendingCheck[];
   /** Ergebnisse der übrigen Werkzeuge aus derselben Antwort wie die Probe – gehen mit dem Wurf zurück. */
   held: ToolResult[];
+  /** Kosten der Claude-Aufrufe dieses Zugs. */
   costUsd: number;
+  /** Kosten der gemalten Bilder dieses Zugs (fal.ai). */
+  imageUsd: number;
   /** Verbrauchte Tokens aller Aufrufe dieses Zugs (Eingabe inkl. Cache). */
   usage: { input: number; output: number };
 }
@@ -361,7 +364,7 @@ export class Narrator {
     ensureInventory(world, characters, data.rules);
     const history = [...messages];
     const base = requestBase(this.model, this.o.effort ?? "low");
-    let cost = 0;
+    let cost = 0, imageUsd = 0;
     const usage = { input: 0, output: 0 };
     const budget = this.o.turnBudgetMs ?? TURN_BUDGET_MS;
     const deadline = Date.now() + budget;
@@ -412,7 +415,7 @@ export class Narrator {
             if (b.name === "bild") {
               const r = painted ? "Nur ein Bild pro Antwort." : await this.paint(b, scene);
               painted = true;
-              if (typeof r !== "string") cost += r.costUsd;
+              if (typeof r !== "string") imageUsd += r.costUsd;
               byId.set(b.id, { type: "tool_result", tool_use_id: b.id, content: typeof r === "string" ? r : "Das Bild wird den Spielern gezeigt." });
               continue;
             }
@@ -430,20 +433,20 @@ export class Narrator {
           // Gegnerzug: mit offenen Proben erst nach den Würfen (siehe enemyTurn), sonst sofort
           if (!pendings.length) for (const b of uses) if (b.name === "gegner_greift_an") await run(b);
           const results = uses.map((b) => byId.get(b.id)).filter((r): r is ToolResult => !!r);
-          if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, usage };
+          if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, imageUsd, usage };
           const told = msg.content.some((b) => b.type === "text" && splitSuggestions(b.text).suggestions.length > 0);
           const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
-          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, usage };
+          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, usage };
           // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.
           if (deadline - Date.now() < MIN_CALL_MS) {
             console.warn("[Claude] Zeitbudget fast aufgebraucht – Zug endet ohne weiteren Aufruf.");
-            return { history, pending: null, pendings: [], held: results, costUsd: cost, usage };
+            return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, usage };
           }
           history.push({ role: "user", content: results });
           continue;
         }
         if (uses.length) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
-        return { history, pending: null, pendings: [], held: [], costUsd: cost, usage };
+        return { history, pending: null, pendings: [], held: [], costUsd: cost, imageUsd, usage };
       }
       throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");
     } finally {
