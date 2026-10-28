@@ -11,7 +11,7 @@ export function setAccessCode(code: string) {
   try { localStorage.setItem(CODE_KEY, code); } catch { /* nur für diese Sitzung */ }
 }
 
-export function streamGm(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level", body: unknown, onEvent: (ev: GmEvent) => void): Promise<void> {
+export function streamGm(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level" | "shop", body: unknown, onEvent: (ev: GmEvent) => void): Promise<void> {
   return streamSse(`/api/campaign/${kind}`, body, onEvent as (ev: { type: string }) => void);
 }
 

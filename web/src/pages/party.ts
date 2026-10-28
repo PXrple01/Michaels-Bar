@@ -18,6 +18,7 @@ import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
 import { bindSides, fillSide, lageSide, lootText, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
+import { bindShop, shopCard } from "../lib/shopUi";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
 import { abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
@@ -315,6 +316,10 @@ export function partyPage(): Page {
         if (v.status === "playing" && !v.busy && !busyLocal && !v.world?.arc?.finished && (forging || upgradeState(v.world, myCharId) !== "none")) {
           content = html`${upgradeCard(v.world!, myCharId, abilityType, forging)}${content}`;
         }
+        // Offener Laden: jede Person kauft für ihre eigene Figur
+        if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.shop && !v.world.arc?.finished && myCharId) {
+          content = html`${shopCard(v.world, myCharId)}${content}`;
+        }
         // Wahl beim Stufenaufstieg (eigene Figur)
         if (myChar && v.status === "playing" && !v.busy && !busyLocal && !v.world?.arc?.finished && levelChoiceDue(v.world, myChar.id, data.rules)) {
           content = html`${levelChoiceCard(v.world, myChar, dataFor(data, myChar).classes.find((x) => x.id === myChar.classId), data.rules)}${content}`;
@@ -484,6 +489,10 @@ export function partyPage(): Page {
         belowEl.querySelector("#leave")?.addEventListener("click", async () => { try { await partyApi.leave(me); } catch { /* egal */ } memberships.remove(code); go("/gruppe"); });
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
+        bindShop(belowEl, async (action, ref) => {
+          try { apply(await partyApi.shop(me, action, ref)); renderBelow(); if (action === "verkaufen") toast("Verkauft.", "success", 3000); }
+          catch (e) { toast((e as Error).message, "error", 6000); renderBelow(); }
+        });
         bindLevelCard(belowEl, async (choice) => {
           try { apply(await partyApi.level(me, choice)); renderBelow(); toast(choice.skill ? "Neue Fertigkeit gelernt!" : "Attribute gesteigert!", "success", 4000); }
           catch (e) { toast((e as Error).message, "error", 6000); }

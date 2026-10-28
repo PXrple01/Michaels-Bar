@@ -8,12 +8,13 @@ import { formatModifier, parseNotation, type RollRecord } from "../../shared/dic
 import type { Character } from "../../shared/schema";
 import { resetUses, useAbility } from "../../shared/abilityUses";
 import { advanceTime, ensureTime, timeLine, type TimeStep } from "../../shared/time";
+import { BONUS_NAME, gearOf, type Ware } from "../../shared/shop";
 import { addItem, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, removeItem, toPfennig } from "../../shared/inventory";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 
-export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -79,6 +80,17 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       gulden: { type: "integer" }, groschen: { type: "integer" }, pfennig: { type: "integer" },
       grund: { type: "string" },
     }, [...(party ? ["figur"] : []), "aktion", "grund"]),
+    tool("laden", "Öffnet einen Laden (Händler auf dem Markt, Krämer, Schmied …) mit 3–8 Waren und Preisen, passend zur Welt (Brot 1 Pfennig, Heiltrank etwa 2 Groschen, Langschwert 1 Gulden). Ein Schmied bietet zusätzlich Verbesserungen an (art verbesserung, bonus auf angriff, schaden oder ruestung, je +1; je Figur höchstens +2, Preis etwa 1–3 Gulden). Die Spieler kaufen und verkaufen selbst über die Oberfläche; was sie gekauft haben, steht im nächsten <spielstand>. schliessen, sobald die Figuren weitergehen.", {
+      aktion: { type: "string", enum: ["oeffnen", "schliessen"] },
+      name: { type: "string", description: "Name des Ladens bzw. der Person, z. B. „Krämerin Berta“" },
+      art: { type: "string", enum: ["haendler", "schmied"] },
+      waren: { type: "array", items: { type: "object", properties: {
+        name: { type: "string" }, art: { type: "string", enum: [...ITEM_KINDS, "verbesserung"] },
+        gulden: { type: "integer" }, groschen: { type: "integer" }, pfennig: { type: "integer" },
+        notiz: { type: "string", description: "Kurz, z. B. Wirkung" }, vorrat: { type: "integer" },
+        bonus: { type: "string", enum: ["angriff", "schaden", "ruestung"], description: "Nur bei art verbesserung" },
+      }, required: ["name", "art"] } },
+    }, ["aktion"]),
     tool("auftrag", "Führt das Auftragsbuch: neuen Auftrag anlegen, Notiz ergänzen, als erledigt oder gescheitert markieren.", {
       aktion: { type: "string", enum: ["neu", "notiz", "erledigt", "gescheitert"] },
       titel: { type: "string", description: "Kurzer Titel, bei Folgeaktionen genau wie beim Anlegen" },
@@ -163,6 +175,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       const seen: Record<string, number> = {};
       for (const e of enemies) if (total[e.name] > 1) { seen[e.name] = (seen[e.name] ?? 0) + 1; e.name = `${e.name} ${seen[e.name]}`; }
       w.combat = { round: 1, enemies };
+      w.shop = null; // im Kampf wird nicht gehandelt
       resetUses(w, "kampf"); // neuer Kampf: „1× pro Kampf“ ist wieder frei
       return { content: `Kampf beginnt (Runde 1). Gegner: ${enemies.map((e) => `${e.name} (${e.hp} TP, Rüstung ${e.armor})`).join(", ")}. Die Figuren handeln zuerst; Angriffe der Figuren verlangst du mit probe_anfordern (art attack, ziel = Gegnername – den Schaden würfelt der Server bei einem Treffer gleich mit), Gegnerangriffe mit gegner_greift_an in derselben Antwort.` };
     }
@@ -181,7 +194,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       if (!target) return err("Unbekanntes Ziel.");
       if (w.hp[target.id] <= 0) return err(`${target.name} ist bereits kampfunfähig.`);
       const cls = ctx.data.classes.find((c) => c.id === target.classId)!;
-      const ac = armorValue(target, ctx.data.rules, cls).total;
+      const ac = armorValue(target, ctx.data.rules, cls).total + gearOf(w, target.id).ruestung;
       const bonus = Math.max(0, Math.min(LIMITS.attackBonus, Math.round(Number(input.angriffsbonus) || 0)));
       const mode = input.modus === "advantage" || input.modus === "disadvantage" ? input.modus : "normal";
       const atk = await ctx.rolls.roll({ requestId: rid(block.id, "a"), kind: "check", label: `${enemy.name} greift ${target.name} an`, notation: "1W20", mode, modifierParts: bonus ? [{ label: "Angriff", value: bonus }] : [], dc: ac });
@@ -234,6 +247,24 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       const wetter = text(input.wetter, 60);
       if (wetter) t.weather = wetter;
       return { content: `${newDay ? "Ein neuer Tag beginnt. " : ""}Jetzt: ${timeLine(t)}.${newDay ? " (Fähigkeiten „1× pro Tag“ werden erst durch eine lange Rast wieder frei.)" : ""}` };
+    }
+    case "laden": {
+      if (input.aktion === "schliessen") { w.shop = null; return { content: "Der Laden ist geschlossen." }; }
+      if (w.combat) return err("Mitten im Kampf wird nicht gehandelt.");
+      const list = Array.isArray(input.waren) ? input.waren.slice(0, 10) : [];
+      const wares: Ware[] = [];
+      list.forEach((r: Record<string, unknown>, i: number) => {
+        const name = text(r?.name, 50);
+        if (!name) return;
+        const kind = r.art === "verbesserung" ? "verbesserung" : kindOf(r.art);
+        const price = Math.max(1, Math.min(240 * 100, toPfennig({ gulden: Number(r.gulden) || 0, groschen: Number(r.groschen) || 0, pfennig: Number(r.pfennig) || 0 })));
+        const bonus = kind === "verbesserung" && ["angriff", "schaden", "ruestung"].includes(String(r.bonus)) ? { target: r.bonus as "angriff", value: 1 } : undefined;
+        if (kind === "verbesserung" && !bonus) return;
+        wares.push({ id: `w${i}`, name, kind, price, ...(text(r.notiz, 100) ? { note: text(r.notiz, 100) } : {}), ...(Number(r.vorrat) > 0 ? { stock: Math.min(20, Math.round(Number(r.vorrat))) } : {}), ...(bonus ? { bonus } : {}) });
+      });
+      if (!wares.length) return err("waren fehlt (Name, Art und Preis je Ware).");
+      w.shop = { name: text(input.name, 60) || "Händler", kind: input.art === "schmied" ? "schmied" : "haendler", wares, log: [] };
+      return { content: `Laden „${w.shop.name}“ geöffnet: ${wares.map((x) => `${x.name} (${moneyText(x.price, true)}${x.bonus ? `, ${BONUS_NAME[x.bonus.target]} +1` : ""})`).join(", ")}. Die Spieler kaufen über die Oberfläche.` };
     }
     case "gegenstand": {
       ensureInventory(w, ctx.characters, ctx.data.rules);

@@ -13,6 +13,7 @@ import { systemPrompt } from "./prompt";
 import { costUsd, LimitError, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
+import { gearOf } from "../../shared/shop";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -76,8 +77,8 @@ export function requestBase(model: ModelId, effort: "low" | "medium" | "high") {
 export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
-/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo; 11 = Tageszeit und Wetter; 12 = Inventar und Geld. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 12;
+/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo; 11 = Tageszeit und Wetter; 12 = Inventar und Geld; 13 = Händler und Schmied. Ältere Verläufe werden einmalig umgestellt. */
+export const TOOLSET = 13;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
@@ -86,7 +87,7 @@ const MAX_LOOPS = 5;
 export const TURN_BUDGET_MS = 50_000;
 const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
-const QUIET_TOOLS = new Set(["gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
+const QUIET_TOOLS = new Set(["laden", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
@@ -243,9 +244,9 @@ export class Narrator {
     const { characters, data, world } = scene;
     const c = characters.find((x) => x.id === pending.characterId)!;
     const base = `gm-${pending.toolUseId.replace(/[^A-Za-z0-9-]/g, "-")}`.slice(0, 60);
-    const record = await this.rollCheck(c, data, pending.art, pending.id, base, pending.modus, pending.sg, pending.art === "damage" && !!world.critPending[c.id]);
+    const record = await this.rollCheck(c, data, pending.art, pending.id, base, pending.modus, pending.sg, pending.art === "damage" && !!world.critPending[c.id], world);
     const damage = pending.art === "attack" && pending.ziel && record.success
-      ? await this.rollCheck(c, data, "damage", "waffe", `${base}-d`, "normal", null, record.critical === "hit") : null;
+      ? await this.rollCheck(c, data, "damage", "waffe", `${base}-d`, "normal", null, record.critical === "hit", world) : null;
     return { record, damage };
   }
 
@@ -268,8 +269,12 @@ export class Narrator {
     return { record, ...this.applyRolls(pending, scene, record, damage) };
   }
 
-  private rollCheck(c: Character, data: GameData, art: PendingCheck["art"], id: string, requestId: string, mode: PendingCheck["modus"], dc: number | null, crit: boolean) {
+  private rollCheck(c: Character, data: GameData, art: PendingCheck["art"], id: string, requestId: string, mode: PendingCheck["modus"], dc: number | null, crit: boolean, world?: WorldState) {
     const spec = characterRoll(c, data.rules, data.classes, art, id);
+    // Verbesserungen vom Schmied zählen mit
+    const g = gearOf(world, c.id);
+    const extra = art === "attack" ? g.angriff : art === "damage" ? g.schaden : 0;
+    if (extra) spec.parts = [...spec.parts, { label: "Schmied", value: extra }];
     let notation = spec.notation;
     if (art === "damage" && crit) {
       const p = parseNotation(notation);

@@ -1,5 +1,6 @@
 // Solo-Modus: Der Spielstand liegt im Browser und ist vom Server signiert.
-import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest } from "../../shared/campaign";
+import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest } from "../../shared/campaign";
+import { trade } from "../../shared/shop";
 import { emptyProgression, upgradeDue } from "../../shared/upgrades";
 import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared/levels";
 import type { RollRecord } from "../../shared/dice";
@@ -67,10 +68,11 @@ export class GameMaster {
   }
 
   /** Führt eine Aktion aus und meldet alle Ereignisse über `emit`. Fehler werden als Ereignis gemeldet. */
-  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
+  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level" | "shop", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
     try {
       if (kind === "choose") return void (await this.choose(body as UpgradeRequest, emit));
       if (kind === "level") return void (await this.levelChoice(body as LevelRequest, emit));
+      if (kind === "shop") return void (await this.shop(body as ShopRequest, emit));
       this.narrator.ensureReady();
       if (kind === "start") await this.start(body as StartRequest, who, emit);
       else if (kind === "turn") await this.turn(body as TurnRequest, who, emit);
@@ -150,6 +152,15 @@ export class GameMaster {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
     const problem = chooseLevelReward(world, c, data.classes, data.rules, { skill: req.skill, attrs: req.attrs });
+    if (problem) throw new GmError(problem, "state");
+    emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: world.progress?.[c.id]?.offer ?? null, budget: await this.o.guard.info() });
+  }
+
+  /** Im offenen Laden kaufen oder verkaufen – ohne Claude, kostet nichts. Claude erfährt es im nächsten Zug. */
+  private async shop(req: ShopRequest, emit: (ev: GmEvent) => void) {
+    const { c, data } = this.character(req?.character);
+    const { messages, world, held } = this.verified(req.state, c);
+    const problem = trade(world, c, data.rules, req.action, req.ref);
     if (problem) throw new GmError(problem, "state");
     emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: world.progress?.[c.id]?.offer ?? null, budget: await this.o.guard.info() });
   }

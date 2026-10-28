@@ -43,6 +43,7 @@ export const partyApi = {
   overview: (list: Membership[]) => post<{ items: PartyOverview[] }>("overview", { items: list.map((m) => ({ code: m.code, token: m.token })) }),
   remove: (m: Membership) => post<{ deleted: boolean }>("remove", { code: m.code, token: m.token }),
   choose: (m: Membership, option: number) => post<PartyView>("choose", { code: m.code, token: m.token, option }),
+  shop: (m: Membership, action: "kaufen" | "verkaufen", ref: string) => post<PartyView>("shop", { code: m.code, token: m.token, action, ref }),
   level: (m: Membership, choice: { skill?: string; attrs?: Record<string, number> }) => post<PartyView>("level", { code: m.code, token: m.token, ...choice }),
   stream: (op: "start" | "action" | "roll" | "upgrade", m: Membership, extra: Record<string, unknown>, onEvent: (ev: PartyEvent) => void) =>
     streamSse<PartyEvent>(`/api/party/${op}`, { code: m.code, token: m.token, ...extra }, onEvent),

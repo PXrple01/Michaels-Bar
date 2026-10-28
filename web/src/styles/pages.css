@@ -1134,3 +1134,24 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 .k-waffe svg { color: #fda4af; } .k-ruestung svg { color: #93c5fd; } .k-trank svg { color: #a7f3d0; } .k-werkzeug svg { color: var(--text-2); } .k-schatz svg { color: var(--gold); } .k-gegenstand svg { color: var(--purple-3); }
 .inv-money { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--gold); }
 .inv-money svg { width: 15px; height: 15px; }
+
+/* Laden */
+.shop-card { display: grid; gap: 12px; margin-bottom: 16px; padding: 18px 20px; border-color: rgba(245, 214, 138, 0.4); animation: pop-in 0.5s var(--ease-spring) both; }
+.shop-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.shop-head h3 { margin: 0; }
+.shop-icon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: radial-gradient(circle at 30% 30%, var(--gold), #b7791f); }
+.shop-icon svg { width: 22px; height: 22px; color: #2a1a00; }
+.shop-purse { display: inline-flex; align-items: center; gap: 6px; color: var(--gold); font-size: 0.88rem; white-space: nowrap; }
+.shop-purse svg { width: 16px; height: 16px; }
+.shop-wares { display: grid; gap: 6px; }
+.ware { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(var(--c-s08), 0.45); }
+.shop-sell .ware { grid-template-columns: 1fr auto auto; }
+.ware-icon svg { width: 18px; height: 18px; }
+.ware-text { display: grid; min-width: 0; } .ware-text small { color: var(--muted); font-size: 0.78rem; }
+.ware-price { color: var(--gold); font-size: 0.85rem; white-space: nowrap; }
+.shop-sell summary { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); list-style: none; margin-bottom: 8px; }
+.shop-sell summary::-webkit-details-marker { display: none; }
+.shop-sell summary svg { width: 16px; height: 16px; }
+.k-verbesserung .ware-icon svg { color: #fdba74; }
+.inv-gear { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #fdba74; } .inv-gear svg { width: 14px; height: 14px; flex: none; }
+@container (max-width: 420px) { .ware { grid-template-columns: auto 1fr auto; } .ware .btn { grid-column: 1 / -1; justify-self: end; } .shop-head { grid-template-columns: auto 1fr; } .shop-purse { grid-column: 1 / -1; } }

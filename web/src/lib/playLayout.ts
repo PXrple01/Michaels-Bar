@@ -100,6 +100,7 @@ function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
         ${members.length > 1 ? html`<div class="inv-who">${m.me ? "Du" : m.name}</div>` : ""}
         <div class="inv-items">${inv.items.length ? inv.items.map((i) => html`<${m.me ? "button" : "span"} class="inv-item k-${i.kind}" ${m.me ? html`type="button" data-use-item="${i.name}"` : ""} title="${i.note ?? ""}${m.me ? `${i.note ? " – " : ""}Antippen: benutzen` : ""}">${icon(KIND_ICON[i.kind])}<span>${itemText(i)}</span></${m.me ? "button" : "span"}>`) : html`<small class="muted">nichts</small>`}</div>
         <div class="inv-money">${icon("coins")} ${moneyText(inv.money)}</div>
+        ${w.gear?.[m.id] ? html`<div class="inv-gear">${icon("fist")} Vom Schmied: ${(["angriff", "schaden", "ruestung"] as const).filter((k) => w.gear![m.id][k]).map((k) => `${({ angriff: "Angriff", schaden: "Schaden", ruestung: "Rüstung" })[k]} +${w.gear![m.id][k]}`).join(", ")}</div>` : ""}
       </div>`;
     })}
   </details>`;

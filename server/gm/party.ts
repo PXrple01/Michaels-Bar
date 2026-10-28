@@ -7,6 +7,7 @@ import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
 import { initTime } from "../../shared/time";
+import { trade } from "../../shared/shop";
 import { turnSummary } from "./summary";
 import { countChapterTurn, enforceDefeat } from "./world";
 import { resolveCharacter, ValidationError } from "../characters";
@@ -324,6 +325,19 @@ export class PartyService {
       if (!p.world) throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
       const data = this.dataFor(p);
       const problem = chooseLevelReward(p.world, me.character, data.classes, data.rules, { skill: body.skill, attrs: body.attrs });
+      if (problem) throw new PartyError(problem);
+    });
+    return this.view(done, me.id, await this.o.guard.info());
+  }
+
+  /** Im offenen Laden kaufen oder verkaufen – für die eigene Figur, ohne Claude. */
+  async shop(body: { code?: unknown; token?: unknown; action?: unknown; ref?: unknown }): Promise<PartyView> {
+    const { party } = await this.load(body?.code);
+    const me = this.player(party, body?.token);
+    const done = await this.update(party.code, (p) => {
+      if (!p.world) throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
+      if (p.busy && !isStale(p.busy)) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
+      const problem = trade(p.world, me.character, this.dataFor(p).rules, body.action, body.ref);
       if (problem) throw new PartyError(problem);
     });
     return this.view(done, me.id, await this.o.guard.info());

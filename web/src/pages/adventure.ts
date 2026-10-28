@@ -12,6 +12,7 @@ import { setAccessCode, streamGm } from "../lib/gm";
 import { bindSides, fillSide, lageSide, lootText, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
+import { bindShop, shopCard } from "../lib/shopUi";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
 import { effectiveAbilities } from "../../../shared/upgrades";
 import { abilityList } from "../lib/abilities";
@@ -296,6 +297,7 @@ export function playPage(): Page {
           </form>
           <p class="hint center">Enter sendet, Umschalt+Enter macht eine neue Zeile. Du kannst alles versuchen – nicht nur die Ideen.</p>`;
         const world = save!.state.world;
+        if (!lastError && !busy && !save!.pending && world?.shop && !world.arc?.finished) content = html`${shopCard(world, character.id)}${content}`;
         const showUpgrade = !lastError && !busy && !world?.arc?.finished && (forging || upgradeState(world, character.id) !== "none");
         if (showUpgrade) content = html`${upgradeCard(world!, character.id, abilityType, forging)}${content}`;
         if (!lastError && !busy && !world?.arc?.finished && levelChoiceDue(world, character.id, data.rules)) content = html`${levelChoiceCard(world, character, myClassDef(), data.rules)}${content}`;
@@ -377,6 +379,21 @@ export function playPage(): Page {
         renderWorld();
         renderBelow();
       }
+      /** Kaufen/verkaufen im offenen Laden (ohne Claude). */
+      async function doShop(action: "kaufen" | "verkaufen", ref: string) {
+        if (busy) return;
+        await streamGm("shop", { character, state: save!.state, action, ref }, (ev) => {
+          if (!alive) return;
+          if (ev.type === "upgrade") {
+            const before = save!.state.world?.inventory?.[character.id];
+            save!.state = ev.state; persist();
+            const loot = lootText(before, ev.state.world?.inventory?.[character.id]);
+            toast(action === "kaufen" ? (loot ?? "Gekauft – deine Ausrüstung ist jetzt besser.") : "Verkauft.", "success", 4000);
+          } else if (ev.type === "error") toast(ev.message, "error", 6000);
+        });
+        renderWorld();
+        renderBelow();
+      }
       const levelOf = () => save!.state.world?.levels?.[character.id]?.level ?? 1;
 
       function bindBelow() {
@@ -392,6 +409,7 @@ export function playPage(): Page {
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
         bindLevelCard(belowEl, (choice) => void doLevel(choice));
+        bindShop(belowEl, (action, ref) => void doShop(action, ref));
         belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
         belowEl.querySelector("#reroll")?.addEventListener("click", () => void begin(true));
         belowEl.querySelector("#retry")?.addEventListener("click", () => { lastError = null; retry ? retry() : renderBelow(); });

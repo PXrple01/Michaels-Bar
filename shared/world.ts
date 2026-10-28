@@ -6,6 +6,7 @@ import { upgradesSummary, type Progression } from "./upgrades";
 import { usesSummary, type UsedAbilities } from "./abilityUses";
 import { timeLine, type GameTime } from "./time";
 import type { Inventory } from "./inventory";
+import { gearSummary, type Gear, type Shop } from "./shop";
 
 export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
 export interface Quest { id: string; title: string; description: string; status: "offen" | "erledigt" | "gescheitert"; notes: string[] }
@@ -27,6 +28,10 @@ export interface WorldState {
   levels?: Record<string, LevelState>;
   /** Eingesetzte begrenzte Fähigkeiten (1× pro Kampf/Rast/Tag) – bis Kampfende bzw. Rast. */
   used?: UsedAbilities;
+  /** Offener Laden (Händler oder Schmied) */
+  shop?: Shop | null;
+  /** Verbesserungen durch den Schmied je Figur */
+  gear?: Record<string, Gear>;
   /** Gepäck und Geld je Figur */
   inventory?: Record<string, Inventory>;
   /** Tag, Tageszeit und Wetter */
@@ -123,6 +128,8 @@ export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "
   if (upgrades) lines.push(upgrades);
   const used = usesSummary(w, characters);
   if (used) lines.push(used);
+  const gear = gearSummary(w, characters);
+  if (gear) lines.push(gear);
   if (w.arc && opts.arc !== false) lines.push(arcSummary(w.arc));
   return lines.join("\n");
 }
