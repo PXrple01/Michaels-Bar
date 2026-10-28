@@ -101,38 +101,34 @@ function party(replies: Reply[]) {
 }
 const viewOf = (evs: PartyEvent[]) => (evs.find((e) => e.type === "view") as { view: PartyView } | undefined)?.view;
 
-describe("Gruppe: alle würfeln gleichzeitig", () => {
-  it("zwei Proben auf einmal, Claude erzählt erst nach dem letzten Wurf – mit allen Ergebnissen und dem Gegnerzug", async () => {
+describe("Gruppe: eine Probe nach der anderen, Gegnerzug nach dem Wurf", () => {
+  it("eine zweite Probe in derselben Antwort wird abgelehnt; der angesagte Gegnerangriff kommt nach dem Wurf", async () => {
     const { llm, svc, run } = party([
       text("Ihr steht am Tor."),
-      tools("Zwei Söldner stürmen heran!", fight([{ name: "Söldner", trefferpunkte: 40, ruestung: 8 }]), attack("Söldner", "Hagen", "toolu_ph"), attack("Söldner", "Agnes", "toolu_pa"), attack("Söldner", "Agnes", "toolu_pa2"), enemyHits("Söldner", "Agnes", "toolu_eg")),
-      text("Die ganze Runde. » Vorschläge: Weiter | Rückzug"),
+      tools("Zwei Söldner stürmen heran!", fight([{ name: "Söldner", trefferpunkte: 40, ruestung: 8 }]), attack("Söldner", "Hagen", "toolu_ph"), attack("Söldner", "Agnes", "toolu_pa"), enemyHits("Söldner", "Agnes", "toolu_eg")),
+      text("Hagens Hieb. » Vorschläge: Weiter | Rückzug"),
     ]);
     const host = await svc.create({ character: hagen });
     const guest = await svc.join({ code: host.code, character: agnes });
     await run("start", { code: host.code, token: host.token });
     await run("action", { code: host.code, token: host.token, text: "Angriff!" });
     const v = viewOf(await run("action", { code: host.code, token: guest.token, text: "Ich auch!" }))!;
-    expect(v.pendings.map((c) => c.characterName)).toEqual(["Hagen", "Agnes"]); // zweite Probe für Agnes abgelehnt
+    expect(v.pendings.map((c) => c.characterName)).toEqual(["Hagen"]);
+    expect(v.world!.hp[agnes.id]).toBe(agnes.hp.max); // Gegnerangriff wartet noch
+    expect((await run("roll", { code: host.code, token: guest.token })).at(-1)).toMatchObject({ type: "error" }); // Agnes ist nicht dran
 
-    const first = viewOf(await run("roll", { code: host.code, token: host.token }))!;
-    expect(llm.calls).toHaveLength(2); // noch kein Aufruf
-    expect(first.pendings.map((c) => c.characterName)).toEqual(["Agnes"]);
-    expect(first.busy).toBe(false);
-    expect((await run("roll", { code: host.code, token: host.token })).at(-1)).toMatchObject({ type: "error" }); // schon gewürfelt
-
-    const last = viewOf(await run("roll", { code: host.code, token: guest.token }))!;
-    expect(llm.calls).toHaveLength(3); // ein Aufruf für die ganze Runde
-    const ids = results(llm.calls[2]).map((r) => r.tool_use_id);
-    expect(ids).toEqual(expect.arrayContaining(["toolu_ph", "toolu_pa", "toolu_pa2", "toolu_eg"]));
-    expect(last.pendings).toEqual([]);
-    expect(last.story.filter((e) => e.type === "roll" && e.playerId).length).toBe(2);
+    const after = viewOf(await run("roll", { code: host.code, token: host.token }))!;
+    expect(llm.calls).toHaveLength(3); // ein Aufruf nach dem Wurf
+    const sent = results(llm.calls[2]);
+    expect(sent.map((r) => r.tool_use_id)).toEqual(expect.arrayContaining(["toolu_ph", "toolu_pa", "toolu_eg"]));
+    expect(sent.find((r) => r.tool_use_id === "toolu_pa")!.is_error).toBe(true);
+    expect(after.pendings).toEqual([]);
   });
 
-  it("bricht der Zug nach dem letzten Wurf ab, würfelt nur der Letzte noch einmal – mit demselben Ergebnis", async () => {
+  it("bricht der Zug nach dem Wurf ab, wird der Spielstand zurückgenommen – erneutes Würfeln ergibt denselben Wurf", async () => {
     const { llm, svc, run } = party([
       text("Ihr steht am Tor."),
-      tools("Kampf!", fight([{ name: "Söldner", trefferpunkte: 40, ruestung: 8 }]), attack("Söldner", "Hagen"), attack("Söldner", "Agnes")),
+      tools("Kampf!", fight([{ name: "Söldner", trefferpunkte: 40, ruestung: 8 }]), attack("Söldner", "Agnes")),
       new Error("Netz weg"),
       text("Weiter. » Vorschläge: A | B"),
     ]);
@@ -141,21 +137,17 @@ describe("Gruppe: alle würfeln gleichzeitig", () => {
     await run("start", { code: host.code, token: host.token });
     await run("action", { code: host.code, token: host.token, text: "a" });
     await run("action", { code: host.code, token: guest.token, text: "b" });
-    await run("roll", { code: host.code, token: host.token });
     const failed = await run("roll", { code: host.code, token: guest.token });
     const firstRoll = (failed.find((e) => e.type === "roll") as { record: { id: string } }).record.id;
     expect(failed.at(-1)).toMatchObject({ type: "error" });
     const v = await svc.state({ code: host.code, token: guest.token });
     expect(v.pendings.map((c) => c.characterName)).toEqual(["Agnes"]);
     expect(v.failed).toBeTruthy();
-    const hpAfterFail = v.world!.combat!.enemies[0].hp;
+    expect(v.world!.combat!.enemies[0].hp).toBe(40); // Schaden zurückgenommen
     const again = await run("roll", { code: host.code, token: guest.token });
     expect((again.find((e) => e.type === "roll") as { record: { id: string } }).record.id).toBe(firstRoll);
-    const done = viewOf(again)!;
-    expect(done.pendings).toEqual([]);
+    expect(viewOf(again)!.pendings).toEqual([]);
     expect(llm.calls).toHaveLength(4);
-    // Hagens Wurf wurde nicht doppelt verbucht: Agnes' Schaden kommt höchstens einmal dazu
-    expect(done.world!.combat ? done.world!.combat.enemies[0].hp : 0).toBeLessThanOrEqual(hpAfterFail);
   });
 });
 

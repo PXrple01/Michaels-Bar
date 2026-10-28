@@ -75,8 +75,8 @@ export function requestBase(model: ModelId, effort: "low" | "medium" | "high") {
 export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
-/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen, mehrere Proben. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 8;
+/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig. Ältere Verläufe werden einmalig umgestellt. */
+export const TOOLSET = 9;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
@@ -177,7 +177,6 @@ export class Narrator {
         `Verlangt von ${party ? "einer Spielfigur" : "der Spielfigur"} eine Probe. Der Server würfelt fair, sobald die Person auf „Würfeln“ klickt, und liefert dir das Ergebnis. ` +
         "art: attribute (reine Attributsprobe), skill (Fertigkeit), attack (Waffenangriff, id = waffe), damage (Waffenschaden, id = waffe, sg = 0 – nur außerhalb eines Treffers gegen einen Gegner). " +
         "Im Kampf gib bei attack den Gegner in ziel an – dann gilt seine Rüstung als SG, und bei einem Treffer würfelt der Server den Schaden gleich mit und zieht ihn ab. " +
-        (party ? "In einer Gruppe darfst du in einer Antwort mehrere Proben verlangen, höchstens eine pro Figur – sie würfeln gleichzeitig. " : "") +
         "Attribute: " + data.rules.attributes.map((a) => `${a.id} (${a.name})`).join(", ") + ". " +
         "Fertigkeiten: " + data.rules.skills.map((s) => `${s.id} (${s.name})`).join(", ") + ".",
       eager_input_streaming: true,
@@ -363,7 +362,7 @@ export class Narrator {
         const uses = msg.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
         if (uses.length && msg.stop_reason === "tool_use") {
           // Reihenfolge: erst Sofort-Werkzeuge (z. B. kampf_beginnen – die Gegner müssen für die Proben schon da sein),
-          // dann die Proben (höchstens eine pro Figur), zuletzt Gegnerangriffe – die warten, bis alle gewürfelt haben.
+          // dann die Probe (höchstens eine), zuletzt Gegnerangriffe – die warten, bis alle gewürfelt haben.
           const byId = new Map<string, ToolResult>();
           const run = async (b: Anthropic.Beta.BetaToolUseBlock) => byId.set(b.id, { type: "tool_result", tool_use_id: b.id, ...(await runAutoTool(b, { data, characters, world, rolls: this.o.rolls, onRoll: scene.onRoll })) });
           for (const b of uses) {
@@ -375,7 +374,7 @@ export class Narrator {
           for (const b of uses.filter((x) => x.name === TOOL_NAME)) {
             const p = this.pendingFor(b, characters, data, world);
             const error = !p ? "INVALID_INPUT: Prüfe figur, art, id (aus der Liste), sg (0–30) und modus."
-              : pendings.some((x) => x.characterId === p.characterId) ? "Nur eine Probe pro Figur gleichzeitig – verlange die nächste nach dem Ergebnis." : null;
+              : pendings.length ? "Nur eine Probe gleichzeitig – verlange die nächste nach dem Ergebnis." : null;
             if (error) byId.set(b.id, { type: "tool_result", tool_use_id: b.id, is_error: true, content: error });
             else pendings.push(p!);
           }

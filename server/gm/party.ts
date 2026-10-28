@@ -57,7 +57,7 @@ export interface Party {
   world: WorldState | null;
   /** Werkzeug-Ergebnisse, die mit dem nächsten Probenergebnis an Claude gehen. */
   held: ToolResult[];
-  /** Offene Proben – höchstens eine pro Figur, alle würfeln gleichzeitig. (`pending` ist die ältere Einzelform.) */
+  /** Offene Probe als Liste (höchstens eine; `pending` ist die ältere Einzelform). */
   pendings?: PendingCheck[];
   /** Schon gewürfelte Proben dieser Runde; gehen zusammen an Claude, sobald alle gewürfelt haben. */
   rolled?: ToolResult[];
@@ -421,10 +421,7 @@ export class PartyService {
     await this.narrate({ locked, lock, me, messages, consumed, who, emit });
   }
 
-  /**
-   * Würfeln: Jede Figur würfelt ihre eigene Probe – alle gleichzeitig. Erst nach dem letzten Wurf erzählt Claude,
-   * dann mit allen Ergebnissen und den angesagten Gegnerangriffen auf einmal (ein Modellaufruf statt einer pro Wurf).
-   */
+  /** Würfeln: Die genannte Figur würfelt; danach erzählt Claude mit dem Ergebnis und den angesagten Gegnerangriffen. */
   private async rollTurn(body: Record<string, unknown>, who: string, emit: (ev: PartyEvent) => void) {
     const { party } = await this.load(body.code);
     const me = this.player(party, body.token);

@@ -240,12 +240,12 @@ export function partyPage(): Page {
         if (nearBottom || firstLoad) window.scrollTo({ top: document.body.scrollHeight });
       }
 
-      /** Offene Proben: die eigene mit Würfeln-Knopf, darunter, wer sonst noch würfelt (alle gleichzeitig). */
+      /** Offene Probe: die eigene mit Würfeln-Knopf, sonst wer gerade würfelt. */
       function pendingCard(): Raw {
         const all = view!.pendings;
         const p = all.find((c) => c.playerId === me.playerId);
         const others = all.filter((c) => c !== p);
-        const waiting = others.length ? html`<div class="card waiting-card">${icon("dice")} <span>${others.map((o, i) => html`${i ? (i === others.length - 1 ? " und " : ", ") : ""}<b>${o.characterName}</b>`)} ${others.length > 1 ? "würfeln" : "würfelt"} noch${others.length === 1 ? html` (${others[0].label}${MODE_TEXT[others[0].modus]}${others[0].sg !== null ? `, SG ${others[0].sg}` : ""})` : ""} …${p ? "" : html`<br><small class="muted">Danach erzählt der Spielleiter die ganze Runde.</small>`}</span></div>` : html``;
+        const waiting = others.length ? html`<div class="card waiting-card">${icon("dice")} <span>${others.map((o, i) => html`${i ? (i === others.length - 1 ? " und " : ", ") : ""}<b>${o.characterName}</b>`)} ${others.length > 1 ? "würfeln" : "würfelt"} noch${others.length === 1 ? html` (${others[0].label}${MODE_TEXT[others[0].modus]}${others[0].sg !== null ? `, SG ${others[0].sg}` : ""})` : ""} …${p ? "" : html`<br><small class="muted">Danach erzählt der Spielleiter weiter.</small>`}</span></div>` : html``;
         if (!p || !myChar) return waiting;
         const d = dataFor(data, myChar);
         const spec = characterRoll(myChar, d.rules, d.classes, p.art, p.id);
