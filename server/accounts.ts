@@ -21,6 +21,9 @@ export interface UserRecord {
   /** Passwort-Version: steigt bei jeder Änderung, alte Sitzungen werden damit ungültig */
   pv: number;
   createdAt: string;
+  /** Wiederherstellungscode (nur als Hash) – setzt ein vergessenes Passwort zurück */
+  recSalt?: string;
+  recHash?: string;
   /** Tag der letzten automatischen Sicherung (JJJJ-MM-TT) */
   backupDay?: string;
   /** Übersicht der Sicherungen (die Daten liegen getrennt) */
@@ -120,6 +123,14 @@ const REGISTER_PER_DAY = 20;
 
 const b64 = (s: string) => Buffer.from(s).toString("base64url");
 
+/** Wiederherstellungscode: 4 Blöcke à 5 Zeichen, ohne leicht verwechselbare Zeichen (0/O, 1/I/L). */
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+export function newRecoveryCode(): string {
+  const raw = Array.from(randomBytes(20), (x) => CODE_CHARS[x % CODE_CHARS.length]).join("");
+  return raw.match(/.{5}/g)!.join("-");
+}
+const normCode = (c: unknown) => String(c ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
 async function hashPassword(password: string, salt: Buffer): Promise<string> {
   return (await scrypt(password, salt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 })).toString("base64url");
 }
@@ -180,10 +191,42 @@ export class AccountService {
     const regKey = `acct-reg:${who}:${new Date().toISOString().slice(0, 10)}`;
     if ((await this.o.counters.get(regKey)) >= REGISTER_PER_DAY) throw new AccountError("Heute wurden von hier schon zu viele Konten angelegt. Bitte morgen wieder.", 429);
     const salt = randomBytes(16);
-    const user: UserRecord = { id: name.toLowerCase(), name, salt: salt.toString("base64url"), hash: await hashPassword(password, salt), pv: 1, createdAt: new Date().toISOString() };
+    const recoveryCode = newRecoveryCode();
+    const user: UserRecord = { id: name.toLowerCase(), name, salt: salt.toString("base64url"), hash: await hashPassword(password, salt), pv: 1, createdAt: new Date().toISOString(), ...(await this.recoveryFields(recoveryCode)) };
     if (!(await this.o.store.createUser(user))) throw new AccountError("Diesen Benutzernamen gibt es schon. Bitte wähle einen anderen.", 409);
     await this.o.counters.add(regKey, 1);
-    return { token: this.token(user), username: user.name };
+    return { token: this.token(user), username: user.name, recoveryCode };
+  }
+
+  private async recoveryFields(code: string) {
+    const salt = randomBytes(16);
+    return { recSalt: salt.toString("base64url"), recHash: await hashPassword(normCode(code), salt) };
+  }
+
+  /** Neuen Wiederherstellungscode erzeugen (der alte gilt danach nicht mehr). */
+  async newRecovery(token: unknown) {
+    const u = await this.user(token);
+    const recoveryCode = newRecoveryCode();
+    await this.o.store.updateUser({ ...u, ...(await this.recoveryFields(recoveryCode)) });
+    return { recoveryCode };
+  }
+
+  /** Passwort vergessen: mit Benutzername und Wiederherstellungscode ein neues Passwort setzen. Danach gibt es einen neuen Code. */
+  async reset(body: { username?: unknown; code?: unknown; newPassword?: unknown }) {
+    const id = String(body?.username ?? "").trim().toLowerCase();
+    const failKey = `acct-rfail:${id}:${Math.floor(Date.now() / (FAIL_WINDOW_MIN * 60_000))}`;
+    if ((await this.o.counters.get(failKey)) >= FAIL_LIMIT) throw new AccountError(`Zu viele Fehlversuche. Bitte warte ${FAIL_WINDOW_MIN} Minuten.`, 429);
+    const pw = String(body?.newPassword ?? "");
+    if (pw.length < PASSWORD_MIN || pw.length > 200) throw new AccountError(`Das neue Passwort braucht mindestens ${PASSWORD_MIN} Zeichen.`);
+    const u = id ? await this.o.store.getUser(id) : null;
+    const hash = await hashPassword(normCode(body?.code), u?.recSalt ? Buffer.from(u.recSalt, "base64url") : randomBytes(16));
+    const ok = !!u?.recHash && timingSafeEqual(Buffer.from(hash), Buffer.from(u.recHash));
+    if (!ok) { await this.o.counters.add(failKey, 1); throw new AccountError("Benutzername oder Wiederherstellungscode stimmt nicht.", 401); }
+    const salt = randomBytes(16);
+    const recoveryCode = newRecoveryCode();
+    const next = { ...u!, salt: salt.toString("base64url"), hash: await hashPassword(pw, salt), pv: u!.pv + 1, ...(await this.recoveryFields(recoveryCode)) };
+    await this.o.store.updateUser(next);
+    return { token: this.token(next), username: next.name, recoveryCode };
   }
 
   async login(body: { username?: unknown; password?: unknown }) {
@@ -199,7 +242,7 @@ export class AccountService {
     return { token: this.token(u!), username: u!.name };
   }
 
-  async me(token: unknown) { const u = await this.user(token); return { username: u.name }; }
+  async me(token: unknown) { const u = await this.user(token); return { username: u.name, hasRecovery: !!u.recHash }; }
 
   async changePassword(token: unknown, body: { oldPassword?: unknown; newPassword?: unknown }) {
     const u = await this.user(token);
@@ -297,6 +340,8 @@ export class AccountService {
         : key === "POST password" ? await this.changePassword(session, b)
         : key === "GET data" ? await this.getData(session)
         : key === "PUT data" ? await this.putData(session, b)
+        : key === "POST recovery" ? await this.newRecovery(session)
+        : key === "POST reset" ? await this.reset(b)
         : key === "GET backups" ? await this.listBackups(session)
         : key === "POST backup" ? await this.backupNow(session)
         : key === "POST backup-data" ? await this.getBackupData(session, b)

@@ -76,7 +76,8 @@ Netlify Blobs (Wurf-Protokoll, Budgetzähler) ist automatisch dabei.
 - **Export/Import** in den Einstellungen: alle Spielstände als Datei sichern und in ein (anderes) Konto übernehmen.
 - **Spielstände von vor den Konten** (im Browser gespeichert) werden nach der ersten Anmeldung erkannt und lassen sich mit einem Klick übernehmen.
 - **Figuren aus Gruppen zurückholen** (nur Betreiber): Mit `ADMIN_USER` = eigener Benutzername erscheint in den Einstellungen eine Liste aller Gruppen-Figuren auf dem Server; ein Klick holt eine Figur (mit eigener Klasse) ins Konto und gibt wieder Zugang zu ihrer Gruppe.
-- Ein vergessenes Passwort lässt sich nicht zurücksetzen (es gibt keine E-Mail) – daher im Zweifel regelmäßig exportieren.
+- **Wiederherstellungscode:** Bei der Registrierung gibt es einen Code (nur als Hash gespeichert). Damit setzt man unter „Passwort vergessen?“ ein neues Passwort; danach gibt es einen neuen Code. Ältere Konten legen ihn in den Einstellungen an.
+- **Automatische Sicherungen:** Jeden Tag beim ersten Speichern sichert das Konto den bisherigen Stand (14 Tage), dazu „Jetzt sichern“, Wiederherstellen und Herunterladen.
 
 ## Funktionen
 

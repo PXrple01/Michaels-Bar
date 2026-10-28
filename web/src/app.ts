@@ -1,7 +1,8 @@
 // Die eigentliche App – wird erst geladen, wenn jemand angemeldet ist (siehe main.ts).
 import { $, html, raw } from "./lib/dom";
 import { applyPalette, logoSvg } from "./lib/palette";
-import { onSyncState, summaryText, syncState, takeImported } from "./lib/account";
+import { hasRecovery, onSyncState, summaryText, syncState, takeCodeToShow, takeImported } from "./lib/account";
+import { showRecoveryCode } from "./lib/recoveryUi";
 import { toast } from "./lib/ui";
 import { icon } from "./lib/icons";
 import { route, startRouter } from "./lib/router";
@@ -110,3 +111,17 @@ void Promise.race([document.fonts.load('700 64px "Cinzel"'), new Promise((r) => 
 // Erste Anmeldung mit Spielständen von früher: kurz zeigen, was ins Konto übernommen wurde
 const imported = takeImported();
 if (imported) setTimeout(() => toast(`Deine bisherigen Spielstände sind jetzt in deinem Konto: ${summaryText(imported)}.`, "success", 8000), 800);
+
+// Neuer Wiederherstellungscode (nach Registrierung oder Zurücksetzen): einmal groß zeigen
+const code = takeCodeToShow();
+if (code) setTimeout(() => void showRecoveryCode(code), 400);
+// Konten von vor dem Code: einmal am Tag daran erinnern
+else if (hasRecovery() === false) {
+  const day = new Date().toISOString().slice(0, 10);
+  try {
+    if (localStorage.getItem("wus.recovery.remind") !== day) {
+      localStorage.setItem("wus.recovery.remind", day);
+      setTimeout(() => toast("Tipp: Lege dir unter Einstellungen → Konto einen Wiederherstellungscode an – falls du dein Passwort einmal vergisst.", "info", 9000), 1500);
+    }
+  } catch { /* egal */ }
+}

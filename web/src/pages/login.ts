@@ -1,10 +1,12 @@
 // Anmeldeseite: Benutzername und Passwort – mehr braucht es nicht. Erscheint, solange niemand angemeldet ist.
-import { AccountApiError, downloadExport, exportData, login, register, SYNC_KEYS } from "../lib/account";
+import { AccountApiError, downloadExport, exportData, login, register, resetPassword, SYNC_KEYS } from "../lib/account";
 import { $, html, raw, setHTML } from "../lib/dom";
 import { icon } from "../lib/icons";
 import { applyPalette, logoSvg } from "../lib/palette";
 import { settings } from "../lib/settings";
 import { startEmbers } from "../fx/effects";
+
+const LABEL = { login: "Anmelden", register: "Konto erstellen", reset: "Neues Passwort setzen" } as const;
 
 /** Spielstände aus der Zeit vor den Konten, die noch in diesem Browser liegen. */
 function oldSaves(): { characters: number; campaigns: number; classes: number } | null {
@@ -22,7 +24,7 @@ export async function showLogin() {
   startEmbers($<HTMLCanvasElement>("#bg-embers"), () => settings().backgroundFx, () => settings().palette);
   const invite = await fetch("/api/config").then((r) => r.json()).then((c) => !!c.accessRequired).catch(() => false);
   const old = oldSaves();
-  let mode: "login" | "register" = "login";
+  let mode: "login" | "register" | "reset" = "login";
   const root = $("#app");
 
   const render = () => {
@@ -36,14 +38,18 @@ export async function showLogin() {
           <button role="tab" class="${mode === "register" ? "active" : ""}" aria-selected="${mode === "register"}" data-mode="register">Konto erstellen</button>
         </div>
         <form class="auth-form" id="auth-form" novalidate>
+          ${mode === "reset" ? html`<p class="hint">${icon("info")} Passwort vergessen? Mit deinem Wiederherstellungscode setzt du ein neues. Danach bekommst du einen neuen Code.</p>` : ""}
           <label class="field"><span>Benutzername</span><input class="input" id="auth-user" autocomplete="username" maxlength="24" required placeholder="z. B. Hedwig" /></label>
-          <label class="field"><span>Passwort</span><input class="input" id="auth-pass" type="password" autocomplete="${mode === "login" ? "current-password" : "new-password"}" required placeholder="${mode === "register" ? "mindestens 8 Zeichen" : ""}" /></label>
+          ${mode === "reset" ? html`<label class="field"><span>Wiederherstellungscode</span><input class="input rc-input" id="auth-code" autocomplete="off" required placeholder="XXXXX-XXXXX-XXXXX-XXXXX" /></label>` : ""}
+          <label class="field"><span>${mode === "reset" ? "Neues Passwort" : "Passwort"}</span><input class="input" id="auth-pass" type="password" autocomplete="${mode === "login" ? "current-password" : "new-password"}" required placeholder="${mode !== "login" ? "mindestens 8 Zeichen" : ""}" /></label>
+          ${mode === "reset" ? html`<label class="field"><span>Neues Passwort wiederholen</span><input class="input" id="auth-pass2" type="password" autocomplete="new-password" required /></label>` : ""}
           ${mode === "register" ? html`
             <label class="field"><span>Passwort wiederholen</span><input class="input" id="auth-pass2" type="password" autocomplete="new-password" required /></label>
             ${invite ? html`<label class="field"><span>Einladungscode</span><input class="input" id="auth-invite" autocomplete="off" required placeholder="Hast du von der Person, die dir die Seite gezeigt hat" /></label>` : ""}
-            <p class="hint">${icon("info")} Es gibt keine E-Mail-Adresse – merke dir dein Passwort gut, es lässt sich nicht zurücksetzen.</p>` : ""}
+            <p class="hint">${icon("info")} Es gibt keine E-Mail-Adresse. Nach dem Erstellen bekommst du einen Wiederherstellungscode – nur mit ihm lässt sich ein vergessenes Passwort zurücksetzen.</p>` : ""}
           <p class="auth-error" id="auth-error" role="alert" hidden></p>
-          <button class="btn btn-lg magnetic" type="submit" id="auth-submit">${icon(mode === "login" ? "arrowRight" : "sparkles")} ${mode === "login" ? "Anmelden" : "Konto erstellen"}</button>
+          <button class="btn btn-lg magnetic" type="submit" id="auth-submit">${icon(mode === "login" ? "arrowRight" : mode === "reset" ? "lock" : "sparkles")} ${LABEL[mode]}</button>
+          ${mode === "login" ? html`<button type="button" class="link-btn" data-mode="reset">Passwort vergessen?</button>` : mode === "reset" ? html`<button type="button" class="link-btn" data-mode="login">Zurück zur Anmeldung</button>` : ""}
         </form>
         ${old ? html`<div class="auth-old">
           <b>${icon("scroll")} Spielstände von früher gefunden</b>
@@ -67,21 +73,24 @@ export async function showLogin() {
       const fail = (m: string) => { err.textContent = m; err.hidden = false; };
       err.hidden = true;
       if (!user || !pass) return fail("Bitte Benutzername und Passwort eingeben.");
-      if (mode === "register") {
+      if (mode !== "login") {
         if (pass.length < 8) return fail("Das Passwort braucht mindestens 8 Zeichen.");
         if (pass !== $<HTMLInputElement>("#auth-pass2", root).value) return fail("Die beiden Passwörter sind nicht gleich.");
       }
+      const codeIn = root.querySelector<HTMLInputElement>("#auth-code")?.value.trim() ?? "";
+      if (mode === "reset" && !codeIn) return fail("Bitte gib deinen Wiederherstellungscode ein.");
       const btn = $<HTMLButtonElement>("#auth-submit", root);
       btn.disabled = true;
-      btn.textContent = mode === "login" ? "Melde an …" : "Erstelle Konto …";
+      btn.textContent = mode === "login" ? "Melde an …" : mode === "reset" ? "Setze zurück …" : "Erstelle Konto …";
       try {
         if (mode === "login") await login(user, pass);
+        else if (mode === "reset") await resetPassword(user, codeIn, pass);
         else await register(user, pass, root.querySelector<HTMLInputElement>("#auth-invite")?.value.trim());
         location.reload();
       } catch (ex) {
         fail(ex instanceof AccountApiError || ex instanceof Error ? ex.message : "Das hat nicht geklappt.");
         btn.disabled = false;
-        btn.innerHTML = html`${icon(mode === "login" ? "arrowRight" : "sparkles")} ${mode === "login" ? "Anmelden" : "Konto erstellen"}`.value;
+        btn.innerHTML = html`${icon(mode === "login" ? "arrowRight" : mode === "reset" ? "lock" : "sparkles")} ${LABEL[mode]}`.value;
       }
     });
   };

@@ -22,7 +22,7 @@ describe("Konten", () => {
     const login = await call(s, "POST", "login", { username: "HAGEN", password: "geheim123" });
     expect(login.status).toBe(200);
     const token = (login.body as { token: string }).token;
-    expect((await call(s, "GET", "me", null, token)).body).toEqual({ username: "Hagen" });
+    expect((await call(s, "GET", "me", null, token)).body).toEqual({ username: "Hagen", hasRecovery: true });
     expect((await call(s, "GET", "me", null, token + "x")).status).toBe(401);
     expect((await call(s, "GET", "me", null, null)).status).toBe(401);
   });
@@ -178,5 +178,38 @@ describe("Automatische Sicherungen", () => {
     }
     const list = ((await call(s, "GET", "backups", null, t)).body as { backups: unknown[] }).backups;
     expect(list.length).toBeLessThanOrEqual(14);
+  });
+});
+
+describe("Wiederherstellungscode", () => {
+  it("bei der Registrierung gibt es einen Code; mit ihm lässt sich ein vergessenes Passwort zurücksetzen", async () => {
+    const store = new MemoryAccountStore();
+    const s = svc(store);
+    const reg = (await call(s, "POST", "register", { username: "Vergesslich", password: "altesPasswort" })).body as { token: string; recoveryCode: string };
+    expect(reg.recoveryCode).toMatch(/^[A-Z2-9]{5}(-[A-Z2-9]{5}){3}$/);
+    expect(JSON.stringify(await store.getUser("vergesslich"))).not.toContain(reg.recoveryCode.replace(/-/g, ""));
+    expect((await call(s, "POST", "reset", { username: "vergesslich", code: "AAAAA-BBBBB-CCCCC-DDDDD", newPassword: "neuesPasswort" })).status).toBe(401);
+    // Kleinbuchstaben und ohne Striche geht auch
+    const r = await call(s, "POST", "reset", { username: "vergesslich", code: reg.recoveryCode.toLowerCase().replace(/-/g, " "), newPassword: "neuesPasswort" });
+    expect(r.status).toBe(200);
+    const next = r.body as { token: string; recoveryCode: string };
+    expect(next.recoveryCode).not.toBe(reg.recoveryCode);
+    expect((await call(s, "GET", "me", null, reg.token)).status).toBe(401); // alte Sitzungen abgemeldet
+    expect((await call(s, "POST", "login", { username: "vergesslich", password: "neuesPasswort" })).status).toBe(200);
+    // Der alte Code gilt nicht mehr
+    expect((await call(s, "POST", "reset", { username: "vergesslich", code: reg.recoveryCode, newPassword: "drittesPasswort" })).status).toBe(401);
+  });
+
+  it("angemeldet einen neuen Code erzeugen; Konten ohne Code können nicht zurückgesetzt werden", async () => {
+    const store = new MemoryAccountStore();
+    const s = svc(store);
+    const t = ((await call(s, "POST", "register", { username: "Altkonto", password: "passwort1" })).body as { token: string }).token;
+    const u = (await store.getUser("altkonto"))!;
+    await store.updateUser({ ...u, recHash: undefined, recSalt: undefined }); // wie ein Konto von vor dem Code
+    expect((await call(s, "GET", "me", null, t)).body).toMatchObject({ hasRecovery: false });
+    expect((await call(s, "POST", "reset", { username: "altkonto", code: "x", newPassword: "passwort2" })).status).toBe(401);
+    const code = ((await call(s, "POST", "recovery", {}, t)).body as { recoveryCode: string }).recoveryCode;
+    expect((await call(s, "GET", "me", null, t)).body).toMatchObject({ hasRecovery: true });
+    expect((await call(s, "POST", "reset", { username: "altkonto", code, newPassword: "passwort2" })).status).toBe(200);
   });
 });

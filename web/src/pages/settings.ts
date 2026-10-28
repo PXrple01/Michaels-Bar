@@ -5,7 +5,8 @@ import { enhance } from "../fx/effects";
 import { api, loadGameData } from "../lib/api";
 import { $$, html, setHTML, uuid, type Raw } from "../lib/dom";
 import { characterStore } from "../lib/store";
-import { backupFile, backupNow, listBackups, restoreBackup, type BackupInfo, changePassword, recoverCharacter, recoverList, type RecoverParty, downloadExport, dropLegacy, exportData, legacyData, legacySummary, logout, mergeData, onSyncState, parseExport, session, summaryText, syncState, type SyncState } from "../lib/account";
+import { showRecoveryCode } from "../lib/recoveryUi";
+import { hasRecovery, newRecoveryCode, setHasRecovery, backupFile, backupNow, listBackups, restoreBackup, type BackupInfo, changePassword, recoverCharacter, recoverList, type RecoverParty, downloadExport, dropLegacy, exportData, legacyData, legacySummary, logout, mergeData, onSyncState, parseExport, session, summaryText, syncState, type SyncState } from "../lib/account";
 import { icon } from "../lib/icons";
 import type { Page } from "../lib/router";
 import { settings, updateSettings, useSimpleDice, type DiceThemeId, type PaletteId, type Settings } from "../lib/settings";
@@ -182,6 +183,10 @@ function accountSection(): Raw {
       </div>
       <div class="backup-list" id="backup-list"><p class="muted small">Lade Sicherungen …</p></div>
     </div>
+    <div class="set-row recovery-row ${hasRecovery() === false ? "missing" : ""}">
+      <div><b>Wiederherstellungscode</b><p>${hasRecovery() === false ? "Du hast noch keinen. Ohne ihn lässt sich ein vergessenes Passwort nicht zurücksetzen – leg jetzt einen an." : "Damit setzt du auf der Anmeldeseite unter „Passwort vergessen?“ ein neues Passwort. Verloren? Erstelle einfach einen neuen."}</p></div>
+      <button class="btn ${hasRecovery() === false ? "" : "btn-ghost"} btn-sm" id="new-recovery">${icon("lock")} ${hasRecovery() === false ? "Code anlegen" : "Neuen Code erstellen"}</button>
+    </div>
     <details class="pw-change">
       <summary>${icon("lock")} Passwort ändern</summary>
       <form id="pw-form" class="pw-form">
@@ -277,6 +282,16 @@ function bindAccount(root: HTMLElement) {
     location.reload();
   });
   root.querySelector("#export")?.addEventListener("click", () => downloadExport(exportData()));
+  root.querySelector("#new-recovery")?.addEventListener("click", async () => {
+    if (hasRecovery() && !(await confirmDialog("Neuen Code erstellen?", "Dein bisheriger Wiederherstellungscode gilt danach nicht mehr.", "Neuen Code erstellen"))) return;
+    try {
+      const first = hasRecovery() === false;
+      const code = await newRecoveryCode();
+      setHasRecovery(true);
+      await showRecoveryCode(code, first);
+      root.querySelector(".recovery-row")?.classList.remove("missing");
+    } catch (e) { toast((e as Error).message, "error", 6000); }
+  });
   root.querySelector<HTMLInputElement>("#import")?.addEventListener("change", async (e) => {
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];

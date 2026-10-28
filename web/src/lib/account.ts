@@ -153,7 +153,7 @@ export async function boot(): Promise<Session | null> {
   const s = session();
   if (!s) return null;
   try {
-    await call("GET", "me", undefined, s.token);
+    info = await call<{ hasRecovery: boolean }>("GET", "me", undefined, s.token);
   } catch (e) {
     if (e instanceof AccountApiError && e.status === 401) { put(SESSION, null); return null; }
     // Offline: mit dem Browser-Stand weiterspielen, wenn er diesem Konto gehört
@@ -218,9 +218,35 @@ export async function login(username: string, password: string) {
   await adopt(r.token, r.username);
 }
 export async function register(username: string, password: string, inviteCode?: string) {
-  const r = await call<{ token: string; username: string }>("POST", "register", { username, password, inviteCode }, "");
+  const r = await call<{ token: string; username: string; recoveryCode: string }>("POST", "register", { username, password, inviteCode }, "");
   await adopt(r.token, r.username);
+  showCodeAfterReload(r.recoveryCode);
 }
+
+/* ── Wiederherstellungscode ── */
+
+const SHOW_CODE = "wus.recovery.show";
+/** Code nach dem Neuladen einmal groß anzeigen (sessionStorage: nur dieser Tab, nie im Konto gespeichert). */
+const showCodeAfterReload = (code: string) => { try { sessionStorage.setItem(SHOW_CODE, code); } catch { /* egal */ } };
+export function takeCodeToShow(): string | null {
+  try { const c = sessionStorage.getItem(SHOW_CODE); sessionStorage.removeItem(SHOW_CODE); return c; } catch { return null; }
+}
+
+/** Passwort vergessen: mit Wiederherstellungscode ein neues Passwort setzen (es gibt dann einen neuen Code). */
+export async function resetPassword(username: string, code: string, newPassword: string) {
+  const r = await call<{ token: string; username: string; recoveryCode: string }>("POST", "reset", { username, code, newPassword }, "");
+  await adopt(r.token, r.username);
+  showCodeAfterReload(r.recoveryCode);
+}
+
+export async function newRecoveryCode(): Promise<string> {
+  return (await call<{ recoveryCode: string }>("POST", "recovery", {})).recoveryCode;
+}
+
+let info: { hasRecovery: boolean } | null = null;
+/** Hat das Konto einen Wiederherstellungscode? (null = unbekannt, z. B. offline) */
+export const hasRecovery = () => info?.hasRecovery ?? null;
+export const setHasRecovery = (v: boolean) => { info = { hasRecovery: v }; };
 export async function changePassword(oldPassword: string, newPassword: string) {
   const r = await call<{ token: string; username: string }>("POST", "password", { oldPassword, newPassword });
   put(SESSION, JSON.stringify({ token: r.token, username: r.username }));
