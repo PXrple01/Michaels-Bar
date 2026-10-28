@@ -297,10 +297,11 @@ export function partyPage(): Page {
         const el = $("#my-abilities", root);
         const mine = view?.players.find((p) => p.id === me.playerId);
         if (!mine) return;
-        const key = JSON.stringify(mine.abilities.map((a) => a.name));
-        if (el.dataset.key === key) return; // nur neu zeichnen, wenn sich etwas geändert hat (z. B. nach einer Verbesserung)
+        const used = view?.world?.used?.[mine.characterId] ?? {};
+        const key = JSON.stringify([mine.abilities.map((a) => a.name), used]);
+        if (el.dataset.key === key) return; // nur neu zeichnen, wenn sich etwas geändert hat (Verbesserung, Einsatz, Rast)
         el.dataset.key = key;
-        el.innerHTML = abilityList(mine.name, mine.abilities).value;
+        el.innerHTML = abilityList(mine.name, mine.abilities, view?.world, mine.characterId).value;
       }
 
       const abilityType = (id: string) => (myChar ? dataFor(data, myChar).classes.find((x) => x.id === myChar.classId)?.abilities.find((a) => a.id === id)?.type : undefined) ?? "unterstuetzung";

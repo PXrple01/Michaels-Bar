@@ -68,7 +68,7 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
             <small class="tm-sub">${m.className}${m.status ? ` · ${m.status}` : ""}</small>
             ${w ? html`<div class="tm-hp">${bar(hp, max)}<small>${hp}/${max} TP</small></div>` : ""}
             ${down ? html`<small class="tm-down">${allDown ? "gefallen" : "bewusstlos – kann gerettet werden"}</small>` : ""}
-            ${abilityChips(m.abilities)}
+            ${abilityChips(m.abilities, w, m.id)}
           </div>
         </div>`;
       })}</div>

@@ -147,7 +147,7 @@ export class PartyService {
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
         return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions,
-          abilities: effectiveAbilities(cls?.abilities ?? [], party.world?.progress?.[p.character.id]).map((x) => ({ name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded })) };
+          abilities: effectiveAbilities(cls?.abilities ?? [], party.world?.progress?.[p.character.id]).map((x) => ({ id: x.id, name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded })) };
       }),
       opening: party.opening,
       story: party.story,

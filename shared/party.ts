@@ -23,7 +23,7 @@ export interface PartyPlayerView {
   /** Hat in dieser Runde schon gehandelt? */
   acted: boolean;
   /** Fähigkeiten der Figur – damit alle sehen, was das Team kann. */
-  abilities: { name: string; type: string; uses: string; text: string; beginnerText: string; upgraded?: boolean }[];
+  abilities: { id: string; name: string; type: string; uses: string; text: string; beginnerText: string; upgraded?: boolean }[];
 }
 
 /** Was jeder Mitspieler sieht – ohne Geheimnisse wie Tokens oder den rohen API-Verlauf. */

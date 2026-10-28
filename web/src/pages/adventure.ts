@@ -202,6 +202,7 @@ export function playPage(): Page {
         const me: TeamMember = { id: character.id, name: character.name, sigil: cls?.sigil ?? "shield", className: cls?.name ?? character.classId, me: true, abilities: effectiveAbilities(cls?.abilities ?? [], w?.progress?.[character.id]) };
         fillSide(root.querySelector("#side-left"), teamSide(w, [me], data.rules));
         fillSide(root.querySelector("#side-right"), lageSide(w));
+        renderAbilities();
       };
 
       function renderOpening(animate: boolean) {
@@ -338,7 +339,7 @@ export function playPage(): Page {
       const abilityType = (id: string) => myClassDef()?.abilities.find((a) => a.id === id)?.type ?? "unterstuetzung";
       function renderAbilities() {
         const abilities = effectiveAbilities(myClassDef()?.abilities ?? [], save!.state.world?.progress?.[character.id]);
-        $("#my-abilities", root).innerHTML = abilityList(character.name, abilities).value;
+        $("#my-abilities", root).innerHTML = abilityList(character.name, abilities, save!.state.world, character.id).value;
       }
 
       /** Ohne Auswahl: Verbesserungen erstellen lassen (Claude). Mit Auswahl: eine davon übernehmen (ohne Claude). */

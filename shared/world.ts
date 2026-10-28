@@ -3,6 +3,7 @@
 import type { Character, Rules } from "./schema";
 import { levelsSummary, type LevelState } from "./levels";
 import { upgradesSummary, type Progression } from "./upgrades";
+import { usesSummary, type UsedAbilities } from "./abilityUses";
 
 export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
 export interface Quest { id: string; title: string; description: string; status: "offen" | "erledigt" | "gescheitert"; notes: string[] }
@@ -22,6 +23,8 @@ export interface WorldState {
   progress?: Record<string, Progression>;
   /** Stufen je Figur (nur in dieser Kampagne). */
   levels?: Record<string, LevelState>;
+  /** Eingesetzte begrenzte Fähigkeiten (1× pro Kampf/Rast/Tag) – bis Kampfende bzw. Rast. */
+  used?: UsedAbilities;
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */
@@ -109,6 +112,8 @@ export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "
   if (rules) { const lv = levelsSummary(w, characters, rules); if (lv) lines.push(lv); }
   const upgrades = upgradesSummary(w, characters);
   if (upgrades) lines.push(upgrades);
+  const used = usesSummary(w, characters);
+  if (used) lines.push(used);
   if (w.arc) lines.push(arcSummary(w.arc));
   return lines.join("\n");
 }

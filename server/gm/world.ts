@@ -6,11 +6,12 @@ import { z } from "zod";
 import { armorValue, modifier } from "../../shared/character";
 import { formatModifier, parseNotation, type RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
+import { resetUses, useAbility } from "../../shared/abilityUses";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 
-export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -53,6 +54,10 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       grund: { type: "string" },
     }, [...(party ? ["ziel"] : []), "wuerfel", "grund"]),
     tool("rast", "Die Gruppe rastet. kurz: jede Figur heilt einen Trefferwürfel + Konstitution. lang (eine Nacht): volle Trefferpunkte.", { art: { type: "string", enum: ["kurz", "lang"] } }, ["art"]),
+    tool("faehigkeit_einsetzen", "Eine Figur setzt eine aktive Fähigkeit ihrer Klasse ein (nicht nötig bei passiven). Der Server prüft, ob sie noch verfügbar ist (1× pro Kampf: bis Kampfende; 1× pro Rast: bis zur nächsten Rast; 1× pro Tag: bis zur langen Rast), und verbucht den Einsatz. Ist sie verbraucht, kommt ein Fehler zurück – dann gelingt der Einsatz nicht.", {
+      ...(party ? { figur: nameProp(characters, "Wer die Fähigkeit einsetzt") } : {}),
+      faehigkeit: { type: "string", description: "Name der Fähigkeit, genau wie auf dem Figurenbogen" },
+    }, [...(party ? ["figur"] : []), "faehigkeit"]),
     tool("auftrag", "Führt das Auftragsbuch: neuen Auftrag anlegen, Notiz ergänzen, als erledigt oder gescheitert markieren.", {
       aktion: { type: "string", enum: ["neu", "notiz", "erledigt", "gescheitert"] },
       titel: { type: "string", description: "Kurzer Titel, bei Folgeaktionen genau wie beim Anlegen" },
@@ -111,6 +116,7 @@ function checkCombatEnd(ctx: ToolContext): string {
   const w = ctx.world;
   if (w.combat && w.combat.enemies.every((e) => e.hp <= 0)) {
     w.combat = null;
+    resetUses(w, "kampf");
     return " Alle Gegner sind besiegt – der Kampf ist vorbei.";
   }
   return "";
@@ -136,11 +142,13 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       const seen: Record<string, number> = {};
       for (const e of enemies) if (total[e.name] > 1) { seen[e.name] = (seen[e.name] ?? 0) + 1; e.name = `${e.name} ${seen[e.name]}`; }
       w.combat = { round: 1, enemies };
+      resetUses(w, "kampf"); // neuer Kampf: „1× pro Kampf“ ist wieder frei
       return { content: `Kampf beginnt (Runde 1). Gegner: ${enemies.map((e) => `${e.name} (${e.hp} TP, Rüstung ${e.armor})`).join(", ")}. Die Figuren handeln zuerst; Angriffe der Figuren verlangst du mit probe_anfordern (art attack, ziel = Gegnername), Gegnerangriffe mit gegner_greift_an.` };
     }
     case "kampf_beenden": {
       if (!w.combat) return { content: "Es lief kein Kampf." };
       w.combat = null;
+      resetUses(w, "kampf");
       return { content: "Der Kampf ist beendet." };
     }
     case "gegner_greift_an": {
@@ -178,6 +186,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
     }
     case "rast": {
       if (w.combat) return err("Mitten im Kampf kann niemand rasten.");
+      resetUses(w, input.art === "lang" ? "lang" : "kurz");
       if (input.art === "lang") {
         for (const c of ctx.characters) w.hp[c.id] = w.maxHp[c.id];
         return { content: `Lange Rast: Alle sind wieder bei vollen Kräften. ${ctx.characters.map((c) => hpLine(ctx, c)).join("; ")}` };
@@ -192,6 +201,12 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
         parts.push(hpLine(ctx, c));
       }
       return { content: `Kurze Rast. ${parts.join("; ")}` };
+    }
+    case "faehigkeit_einsetzen": {
+      const c = findCharacter(ctx, input.figur);
+      if (!c) return err("Unbekannte Figur.");
+      const r = useAbility(w, c, ctx.data.classes, String(input.faehigkeit ?? ""));
+      return r.error ? err(r.text) : { content: r.text };
     }
     case "auftrag": {
       const title = String(input.titel ?? "").trim().slice(0, 80);

@@ -848,7 +848,14 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .ab.upgraded { border-color: rgba(245, 214, 138, 0.45); box-shadow: 0 0 0 1px rgba(245, 214, 138, 0.12), 0 8px 26px -14px rgba(245, 214, 138, 0.6); }
 .ab-up { font-size: 0.68rem; vertical-align: middle; }
 .ab-up svg { width: 11px; height: 11px; }
-.ab-chip.upgraded { border-color: var(--gold); box-shadow: 0 0 8px rgba(245, 214, 138, 0.45); }
+/* Aktiv (bewusst einsetzen) = goldener Rand; passiv = schlicht. Verbraucht = ausgegraut. Verbessert = kleiner Stern-Punkt. */
+.ab-chip { position: relative; }
+.ab-chip.active { border-color: rgba(245, 214, 138, 0.85); box-shadow: 0 0 6px rgba(245, 214, 138, 0.3); }
+.ab-chip.upgraded::after { content: ""; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 6px rgba(245, 214, 138, 0.8); }
+.ab-chip.used { filter: grayscale(1); opacity: 0.4; border-color: var(--line); box-shadow: none; }
+.ab.used { opacity: 0.6; }
+.ab-state { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--gold); }
+.ab-state svg { width: 13px; height: 13px; }
 @media (max-width: 640px) { .upgrade-card.due { grid-template-columns: auto 1fr; } .upgrade-card.due .btn { grid-column: 1 / -1; justify-self: stretch; } }
 @media (prefers-reduced-motion: reduce) { .upgrade-card.due .up-icon, .upgrade-card.forging .up-icon svg { animation: none; } }
 .up-path { display: grid; gap: 10px; padding: 12px; border-radius: var(--radius); border: 1px dashed var(--line-strong); }
@@ -964,7 +971,7 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .ab-chip { padding: 0; font: inherit; }
 .ab-pop { position: fixed; z-index: 200; width: min(280px, calc(100vw - 16px)); display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--radius-sm);
   background: rgb(24, 15, 42); border: 1px solid var(--line-strong); box-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.85), 0 0 24px -8px rgba(139, 92, 246, 0.6);
-  pointer-events: none; animation: ab-pop-in 0.18s var(--ease-out) both; }
+  pointer-events: none; animation: ab-pop-in 0.18s var(--ease-out); }
 .ab-pop[hidden] { display: none; }
 .ab-pop-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.95rem; }
 .ab-pop-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.75rem; color: var(--muted); }

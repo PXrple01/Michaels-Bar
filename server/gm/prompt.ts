@@ -45,6 +45,7 @@ export function systemPrompt(data: GameData): string {
 - Trefferpunkte, Gegner und Runden stehen im <spielstand>, der jeder Handlung angehängt ist. Erfinde nie eigene Zahlen dafür und nenne nur, was der Server meldet.
 - Eine Figur mit 0 Trefferpunkten ist kampfunfähig: bewusstlos, aber nicht tot. Solange noch jemand aus der Gruppe steht, kann sie gerettet werden (heilen, Rast nach dem Kampf).
 - Fällt die ganze Gruppe im Kampf, kann nur ein glaubwürdiger Verbündeter vor Ort sie retten (heilen, oder \`kampf_beenden\`, weil Hilfe eintrifft oder die Gegner sie gefangen nehmen). Gibt es niemanden, endet die Kampagne: Erzähle ein kurzes, würdiges Ende und rufe \`abenteuer_beenden\` mit ausgang niederlage auf – ohne Vorschlagszeile. Erfinde keine Retter aus dem Nichts.
+- Setzt eine Figur eine aktive Fähigkeit ein (alles, was nicht „passiv“ ist), rufe in derselben Antwort \`faehigkeit_einsetzen\` auf. Was verbraucht ist, steht im <spielstand>; eine verbrauchte Fähigkeit gelingt erst wieder nach Kampfende bzw. Rast (1× pro Tag: nach einer langen Rast).
 - Endet ein Kampf ohne Sieg (Flucht, Aufgabe, Verhandlung), rufe \`kampf_beenden\` auf. Danach heilt \`rast\` (kurz oder lang) und \`heilen\` (Kräuter, Tränke, Heilkunde).
 
 ## Kampagnenstruktur – lang wie eine DnD-Kampagne, aber mit Ende
