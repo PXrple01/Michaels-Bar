@@ -9,7 +9,8 @@ import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/pages.css";
 
-import { $, html } from "./lib/dom";
+import { $, html, raw } from "./lib/dom";
+import { applyPalette, logoSvg } from "./lib/palette";
 import { icon } from "./lib/icons";
 import { route, startRouter } from "./lib/router";
 import { onSettings, settings, updateSettings } from "./lib/settings";
@@ -37,13 +38,13 @@ const NAV = [
 ];
 
 function logoMark() {
-  return html`<svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ddd6fe"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><polygon points="32,3 57,17.5 57,46.5 32,61 7,46.5 7,17.5" fill="#0d0a14" stroke="url(#lg)" stroke-width="2.5"/><polygon points="32,15 47,41 17,41" fill="none" stroke="url(#lg)" stroke-width="2"/><path d="M32 3v12M57 17.5 47 41M7 17.5 17 41M32 61 17 41M32 61l15-20" stroke="url(#lg)" stroke-width="1.2" opacity=".6"/><text x="32" y="36.5" font-family="Cinzel,serif" font-weight="700" font-size="12" text-anchor="middle" fill="#ede9fe">20</text></svg>`;
+  return raw(logoSvg(settings().palette));
 }
 
 function renderChrome() {
   const sound = settings().sound;
   $("#topbar").innerHTML = html`
-    <a class="logo" href="#/">${logoMark()}<span>Michaels <span class="amp">Bar</span></span></a>
+    <a class="logo" href="#/">${logoMark()}<span>The Last <span class="amp">Ember</span></span></a>
     <nav class="nav" aria-label="Hauptnavigation">
       ${NAV.map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.label}</span></a>`)}
     </nav>
@@ -74,9 +75,11 @@ route("/klassen/:id/:mode", "chars", classEditorPage);
 route("/abenteuer/:id", "adventure", playPage);
 route("/einstellungen", "settings", settingsPage);
 
+applyPalette(settings().palette);
 renderChrome();
 let lastTheme = settings().diceTheme;
 onSettings((s) => {
+  applyPalette(s.palette);
   renderChrome();
   setActive(activeNav);
   document.body.classList.toggle("calm", !s.backgroundFx);
@@ -92,7 +95,7 @@ addEventListener("scroll", () => {
   lastY = y;
 }, { passive: true });
 
-startEmbers($<HTMLCanvasElement>("#bg-embers"), () => settings().backgroundFx);
+startEmbers($<HTMLCanvasElement>("#bg-embers"), () => settings().backgroundFx, () => settings().palette);
 startCursorGlow($("#cursor-glow"));
 initTooltips();
 

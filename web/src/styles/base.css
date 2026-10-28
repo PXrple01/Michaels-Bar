@@ -6,23 +6,105 @@
   inherits: false;
 }
 
+/* Farbpaletten: „Glut“ (Standard, schwarz-rot) und „Amethyst“ (das ursprüngliche Lila). Alle Farben laufen über diese Werte. */
 :root {
-  --bg: #07050c;
-  --bg-2: #0d0916;
-  --bg-3: #140e22;
-  --surface: rgba(22, 14, 38, 0.62);
-  --surface-strong: rgba(30, 19, 52, 0.85);
-  --line: rgba(167, 139, 250, 0.16);
-  --line-strong: rgba(167, 139, 250, 0.38);
-  --purple: #8b5cf6;
-  --purple-2: #a78bfa;
-  --purple-3: #c4b5fd;
-  --purple-deep: #5b21b6;
-  --purple-ink: #2e1065;
-  --glow: #b67cff;
-  --text: #efeaff;
-  --text-2: #cfc6ea;
-  --muted: #9a90bb;
+  --c-accent: 226, 56, 36;
+  --c-accent2: 250, 120, 72;
+  --c-accent3: 255, 184, 148;
+  --c-deep: 150, 26, 18;
+  --c-inkp: 54, 11, 8;
+  --c-violet: 204, 44, 28;
+  --c-indigo: 114, 19, 14;
+  --c-grape: 176, 34, 22;
+  --c-lilac: 255, 218, 200;
+  --c-lilac2: 255, 226, 210;
+  --c-orchid: 255, 140, 88;
+  --c-glow: 255, 104, 52;
+  --c-plum: 198, 46, 26;
+  --c-pale: 255, 238, 228;
+  --c-s36: 42, 16, 13;
+  --c-s15: 18, 8, 7;
+  --c-s30: 36, 13, 11;
+  --c-s22: 26, 10, 9;
+  --c-s20: 23, 9, 8;
+  --c-s14: 16, 7, 6;
+  --c-s13: 15, 7, 6;
+  --c-s10: 12, 5, 5;
+  --c-s18: 21, 8, 7;
+  --c-s25: 30, 10, 8;
+  --c-s46: 54, 18, 14;
+  --c-s40: 48, 16, 12;
+  --c-s20b: 24, 9, 8;
+  --c-s24: 28, 10, 9;
+  --c-s07: 7, 4, 4;
+  --c-s03: 3, 2, 2;
+  --c-s08: 10, 5, 4;
+  --c-bg2: 15, 7, 6;
+  --c-bg3: 24, 10, 9;
+  --c-bgl: 14, 8, 7;
+  --c-neb: 40, 10, 7;
+  --c-text: 250, 238, 232;
+  --c-text2: 226, 206, 198;
+  --c-muted: 178, 150, 140;
+}
+:root[data-palette="amethyst"] {
+  --c-accent: 139, 92, 246;
+  --c-accent2: 167, 139, 250;
+  --c-accent3: 196, 181, 253;
+  --c-deep: 91, 33, 182;
+  --c-inkp: 46, 16, 101;
+  --c-violet: 124, 58, 237;
+  --c-indigo: 76, 29, 149;
+  --c-grape: 109, 40, 217;
+  --c-lilac: 221, 214, 254;
+  --c-lilac2: 233, 213, 255;
+  --c-orchid: 192, 132, 252;
+  --c-glow: 182, 124, 255;
+  --c-plum: 147, 51, 234;
+  --c-pale: 237, 233, 254;
+  --c-s36: 36, 23, 62;
+  --c-s15: 15, 10, 26;
+  --c-s30: 30, 19, 52;
+  --c-s22: 22, 14, 38;
+  --c-s20: 20, 13, 36;
+  --c-s14: 14, 9, 25;
+  --c-s13: 13, 9, 22;
+  --c-s10: 10, 6, 18;
+  --c-s18: 18, 11, 32;
+  --c-s25: 25, 12, 45;
+  --c-s46: 46, 28, 80;
+  --c-s40: 40, 22, 70;
+  --c-s20b: 20, 12, 36;
+  --c-s24: 24, 15, 42;
+  --c-s07: 7, 5, 12;
+  --c-s03: 3, 2, 6;
+  --c-s08: 8, 5, 15;
+  --c-bg2: 13, 9, 22;
+  --c-bg3: 20, 14, 34;
+  --c-bgl: 13, 10, 20;
+  --c-neb: 26, 15, 48;
+  --c-text: 239, 234, 255;
+  --c-text2: 207, 198, 234;
+  --c-muted: 154, 144, 187;
+}
+
+:root {
+  --bg: rgb(var(--c-s07));
+  --bg-2: rgb(var(--c-s13));
+  --bg-3: rgb(var(--c-bg3));
+  --surface: rgba(var(--c-s22), 0.62);
+  --surface-strong: rgba(var(--c-s30), 0.85);
+  --line: rgba(var(--c-accent2), 0.16);
+  --line-strong: rgba(var(--c-accent2), 0.38);
+  --purple: rgb(var(--c-accent));
+  --purple-2: rgb(var(--c-accent2));
+  --purple-3: rgb(var(--c-accent3));
+  --purple-deep: rgb(var(--c-deep));
+  --purple-ink: rgb(var(--c-inkp));
+  --glow: rgb(var(--c-glow));
+  --text: rgb(var(--c-text));
+  --text-2: rgb(var(--c-text2));
+  --muted: rgb(var(--c-muted));
   --good: #a7f3d0;
   --bad: #fda4af;
   --gold: #f5d68a;
@@ -65,7 +147,7 @@ a { color: var(--purple-3); text-decoration: none; }
 a:hover { color: #fff; }
 button, input, select, textarea { font: inherit; color: inherit; }
 img, svg, canvas { display: block; max-width: 100%; }
-::selection { background: rgba(139, 92, 246, 0.45); color: #fff; }
+::selection { background: rgba(var(--c-accent), 0.45); color: #fff; }
 
 :focus-visible { outline: 2px solid var(--purple-2); outline-offset: 3px; border-radius: 6px; }
 
@@ -78,14 +160,14 @@ img, svg, canvas { display: block; max-width: 100%; }
 /* ── Lebendiger Hintergrund ── */
 #bg-embers { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
 
-.bg-nebula { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: radial-gradient(ellipse at 50% 120%, #1a0f30 0%, var(--bg) 60%); }
+.bg-nebula { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: radial-gradient(ellipse at 50% 120%, rgb(var(--c-neb)) 0%, var(--bg) 60%); }
 .bg-nebula i {
   position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.55; mix-blend-mode: screen;
   animation: nebula 28s ease-in-out infinite alternate;
 }
-.bg-nebula i:nth-child(1) { width: 60vmax; height: 60vmax; left: -15vmax; top: -20vmax; background: radial-gradient(circle, rgba(109, 40, 217, 0.55), transparent 65%); }
-.bg-nebula i:nth-child(2) { width: 50vmax; height: 50vmax; right: -18vmax; top: 20vh; background: radial-gradient(circle, rgba(76, 29, 149, 0.6), transparent 65%); animation-duration: 34s; animation-delay: -8s; }
-.bg-nebula i:nth-child(3) { width: 45vmax; height: 45vmax; left: 20vw; bottom: -25vmax; background: radial-gradient(circle, rgba(147, 51, 234, 0.35), transparent 65%); animation-duration: 40s; animation-delay: -16s; }
+.bg-nebula i:nth-child(1) { width: 60vmax; height: 60vmax; left: -15vmax; top: -20vmax; background: radial-gradient(circle, rgba(var(--c-grape), 0.55), transparent 65%); }
+.bg-nebula i:nth-child(2) { width: 50vmax; height: 50vmax; right: -18vmax; top: 20vh; background: radial-gradient(circle, rgba(var(--c-indigo), 0.6), transparent 65%); animation-duration: 34s; animation-delay: -8s; }
+.bg-nebula i:nth-child(3) { width: 45vmax; height: 45vmax; left: 20vw; bottom: -25vmax; background: radial-gradient(circle, rgba(var(--c-plum), 0.35), transparent 65%); animation-duration: 40s; animation-delay: -16s; }
 @keyframes nebula {
   0% { transform: translate3d(0, 0, 0) scale(1); }
   50% { transform: translate3d(6vw, 4vh, 0) scale(1.15); }
@@ -105,7 +187,7 @@ img, svg, canvas { display: block; max-width: 100%; }
 #cursor-glow {
   position: fixed; left: 0; top: 0; width: 420px; height: 420px; margin: -210px 0 0 -210px; border-radius: 50%;
   pointer-events: none; z-index: 0; opacity: 0; transition: opacity 0.6s;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.13), transparent 60%);
+  background: radial-gradient(circle, rgba(var(--c-accent), 0.13), transparent 60%);
   will-change: transform;
 }
 body.has-pointer #cursor-glow { opacity: 1; }
@@ -133,3 +215,14 @@ body.calm #bg-embers { display: none; }
 
 /* Standardgröße für Symbole ohne eigene Regel (ohne Spezifität, damit jede Komponente sie überschreibt) */
 :where(svg.ico) { width: 1.25em; height: 1.25em; flex: none; vertical-align: -0.2em; }
+
+/* ───────────── Glut: das letzte Feuer der Nacht ───────────── */
+/* Ein Glutbett am unteren Rand, das langsam atmet, darüber Rauch statt Nebel. */
+:root[data-palette="glut"] .bg-nebula { background: radial-gradient(ellipse 120% 60% at 50% 115%, rgba(150, 30, 10, 0.55) 0%, rgba(60, 10, 5, 0.35) 35%, var(--bg) 70%); }
+:root[data-palette="glut"] .bg-nebula::after { content: ""; position: absolute; left: -10%; right: -10%; bottom: -18vh; height: 45vh; background: radial-gradient(ellipse at 50% 100%, rgba(255, 110, 40, 0.28), rgba(200, 40, 15, 0.12) 40%, transparent 70%); filter: blur(30px); animation: hearth 6s ease-in-out infinite; }
+:root[data-palette="glut"] .bg-nebula i { mix-blend-mode: screen; opacity: 0.4; }
+:root[data-palette="glut"] .bg-nebula i:nth-child(1) { background: radial-gradient(circle, rgba(120, 18, 10, 0.55), transparent 65%); }
+:root[data-palette="glut"] .bg-nebula i:nth-child(2) { background: radial-gradient(circle, rgba(70, 12, 8, 0.6), transparent 65%); }
+:root[data-palette="glut"] .bg-nebula i:nth-child(3) { background: radial-gradient(circle, rgba(255, 90, 30, 0.22), transparent 65%); }
+@keyframes hearth { 0%, 100% { opacity: 0.75; transform: scaleY(1); } 35% { opacity: 1; transform: scaleY(1.08); } 55% { opacity: 0.6; transform: scaleY(0.96); } 80% { opacity: 0.9; transform: scaleY(1.04); } }
+body.calm .bg-nebula::after { animation: none; }

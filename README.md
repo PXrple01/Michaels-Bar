@@ -1,4 +1,4 @@
-# Michaels Bar
+# The Last Ember
 
 Ein Erzähl-Rollenspiel im mittelalterlichen Europa – im Browser, lokal auf deinem Rechner.
 Stand: **Etappe 1 bis 5** (Regeln, Würfel-Engine, Charakterbogen, fairer 3D-Würfel, Claude als Spielleiter, eigene Klassen, Kampf, Gedächtnis und Aufträge).

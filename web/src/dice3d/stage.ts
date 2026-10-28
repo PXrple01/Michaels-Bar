@@ -1,6 +1,7 @@
 // Die 3D-Bühne: Tisch, Licht, Schatten, Würfel und Effekte.
 // Gerendert wird nur, solange gewürfelt wird oder ein Effekt läuft – danach steht die Schleife still.
 import * as THREE from "three";
+import { paletteColor } from "../lib/palette";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { DiceThemeId } from "../lib/settings";
 import { playCrit, playFumble, playImpact, playSettle } from "./audio";
@@ -44,10 +45,10 @@ function feltTexture(): THREE.Texture {
   c.width = c.height = s;
   const g = c.getContext("2d")!;
   const base = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  base.addColorStop(0, "rgba(34,20,58,1)");
-  base.addColorStop(0.62, "rgba(18,11,32,1)");
-  base.addColorStop(0.86, "rgba(10,6,18,0.85)");
-  base.addColorStop(1, "rgba(7,5,12,0)");
+  base.addColorStop(0, paletteColor("s40", 1));
+  base.addColorStop(0.62, paletteColor("s18", 1));
+  base.addColorStop(0.86, paletteColor("s10", 0.85));
+  base.addColorStop(1, paletteColor("s07", 0));
   g.fillStyle = base;
   g.fillRect(0, 0, s, s);
   // Filzstruktur
@@ -59,7 +60,7 @@ function feltTexture(): THREE.Texture {
   g.putImageData(img, 0, 0);
   // Arkaner Kreis in der Mitte
   g.translate(s / 2, s / 2);
-  g.strokeStyle = "rgba(167,139,250,0.10)";
+  g.strokeStyle = paletteColor("accent2", 0.1);
   g.lineWidth = 3;
   for (const r of [s * 0.3, s * 0.27, s * 0.12]) { g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke(); }
   g.lineWidth = 2;
@@ -71,7 +72,7 @@ function feltTexture(): THREE.Texture {
     g.stroke();
   }
   g.font = `${s * 0.024}px Cinzel, serif`;
-  g.fillStyle = "rgba(196,181,253,0.13)";
+  g.fillStyle = paletteColor("accent3", 0.13);
   g.textAlign = "center";
   const runes = "ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟ";
   for (let k = 0; k < runes.length; k++) {

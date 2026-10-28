@@ -7,6 +7,7 @@ import { getDieModel, type DieFace, type DieModel } from "./geometry";
 export interface DiceTheme { name: string; body: string; body2: string; ink: string; inkGlow: string; edge: string; roughness: number; clearcoat: number; marble: number }
 
 export const DICE_THEMES: Record<DiceThemeId, DiceTheme> = {
+  glut:        { name: "Glut",        body: "#120605", body2: "#3d0e08", ink: "#ffbf8f", inkGlow: "#ff5a24", edge: "#c8321c", roughness: 0.24, clearcoat: 1, marble: 0.55 },
   obsidian:    { name: "Obsidian",    body: "#0b0812", body2: "#1e1433", ink: "#c4a5ff", inkGlow: "#8b5cf6", edge: "#7c3aed", roughness: 0.22, clearcoat: 1, marble: 0.35 },
   amethyst:    { name: "Amethyst",    body: "#4c1d95", body2: "#7c3aed", ink: "#fbf7ff", inkGlow: "#e9d5ff", edge: "#c4b5fd", roughness: 0.18, clearcoat: 1, marble: 0.8 },
   mitternacht: { name: "Mitternacht", body: "#0f0b24", body2: "#2b2266", ink: "#e5e7ff", inkGlow: "#a5b4fc", edge: "#818cf8", roughness: 0.25, clearcoat: 0.9, marble: 0.5 },

@@ -46,7 +46,7 @@ describe("OpenAI-kompatible Schnittstelle", () => {
     const { gw } = setup([]);
     expect((await gw.handle("GET", "/v1/models", "Bearer falsch", null, "t")).status).toBe(401);
     const models = (await gw.handle("GET", "/v1/models", `Bearer ${KEY}`, null, "t")) as { json: any };
-    expect(models.json.data.map((m: { id: string }) => m.id)).toEqual(["michaels-bar", "michaels-bar-einfach"]);
+    expect(models.json.data.map((m: { id: string }) => m.id)).toEqual(["the-last-ember", "the-last-ember-einfach"]);
   });
 
   it("neues Abenteuer: Figur und Startimpuls gehen an Claude – derselbe Anfang ergibt denselben Startimpuls", async () => {
@@ -54,7 +54,7 @@ describe("OpenAI-kompatible Schnittstelle", () => {
     const r = await chat({ messages: [{ role: "system", content: "Antworte kurz." }, { role: "user", content: "Lass uns spielen!" }] });
     expect(r.status).toBe(200);
     expect(answer(r)).toContain("Der Regen prasselt.");
-    expect(answer(r)).toMatch(/<!-- michaels-bar:[\w-]+\.[\w-]+ -->$/);
+    expect(answer(r)).toMatch(/<!-- the-last-ember:[\w-]+\.[\w-]+ -->$/);
     const kickoff = llm.calls[0].messages[0].content as string;
     expect(kickoff).toContain("Wanderer");
     expect(kickoff).toContain("Antworte kurz.");
@@ -85,7 +85,7 @@ describe("OpenAI-kompatible Schnittstelle", () => {
     await chat({ messages: history });
     const sent = llm.calls[1].messages.at(-1)!.content as string;
     expect(sent).toContain("Kampf (Runde 1): Räuber 7/7 TP");
-    expect(JSON.stringify(llm.calls[1].messages)).not.toContain("michaels-bar:"); // Kommentar geht nicht an Claude
+    expect(JSON.stringify(llm.calls[1].messages)).not.toContain("the-last-ember:"); // Kommentar geht nicht an Claude
     const forged = answer(first).replace(/\.([\w-]+) -->$/, ".AAAA -->");
     await chat({ messages: [history[0], { role: "assistant", content: forged }, history[2]] });
     expect(llm.calls[2].messages.at(-1)!.content).not.toContain("Kampf");

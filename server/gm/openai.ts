@@ -17,15 +17,17 @@ import type { UsageGuard } from "./usage";
 
 /** Zwei Modelle: mit Spielstand (unsichtbarer Kommentar) oder ohne – falls eine App Kommentare sichtbar anzeigt. */
 export const OAI_MODELS = {
-  "michaels-bar": { state: true, description: "Spielleiter mit Spielstand (Lebenspunkte, Kampf, Aufträge)" },
-  "michaels-bar-einfach": { state: false, description: "Spielleiter ohne Spielstand – für Apps, die HTML-Kommentare sichtbar anzeigen" },
+  "the-last-ember": { state: true, description: "Spielleiter mit Spielstand (Lebenspunkte, Kampf, Aufträge)" },
+  "the-last-ember-einfach": { state: false, description: "Spielleiter ohne Spielstand – für Apps, die HTML-Kommentare sichtbar anzeigen" },
 } as const;
 type OaiModel = keyof typeof OAI_MODELS;
+/** Alte Namen von vor der Umbenennung funktionieren weiter. */
+const OAI_ALIASES: Record<string, OaiModel> = { "michaels-bar": "the-last-ember", "michaels-bar-einfach": "the-last-ember-einfach" };
 
 const MAX_MESSAGES = 400;
 const MAX_CHARS = 300_000; // etwa 75 000 Tokens – danach bitte ein neues Gespräch beginnen
 const MAX_PROBES = 4;
-const MARKER = /\n*<!-- michaels-bar:([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+) -->\s*$/;
+const MARKER = /\n*<!-- (?:the-last-ember|michaels-bar):([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+) -->\s*$/;
 
 export type OaiResult =
   | { status: number; json: unknown }
@@ -65,7 +67,7 @@ export class OpenAiGateway {
 
   marker(world: WorldState, characterId: string): string {
     const payload = Buffer.from(JSON.stringify({ w: world, c: characterId })).toString("base64url");
-    return `\n\n<!-- michaels-bar:${payload}.${this.sign(payload)} -->`;
+    return `\n\n<!-- the-last-ember:${payload}.${this.sign(payload)} -->`;
   }
 
   /** Liest den Spielstand aus einer Antwort – nur mit gültiger Signatur. */
@@ -103,14 +105,15 @@ export class OpenAiGateway {
     if (a.length !== b.length || !timingSafeEqual(a, b)) return oaiError(401, "Ungültiger API-Schlüssel.", "authentication_error", "invalid_api_key");
 
     if (method === "GET" && path === "/v1/models") {
-      return { status: 200, json: { object: "list", data: Object.entries(OAI_MODELS).map(([id, m]) => ({ id, object: "model", created: 1767225600, owned_by: "michaels-bar", description: m.description })) } };
+      return { status: 200, json: { object: "list", data: Object.entries(OAI_MODELS).map(([id, m]) => ({ id, object: "model", created: 1767225600, owned_by: "the-last-ember", description: m.description })) } };
     }
     if (method === "POST" && path === "/v1/chat/completions") return this.chat((body ?? {}) as Record<string, unknown>, `oai:${who}`);
     return oaiError(404, `Unbekannter Endpunkt ${method} ${path}`, "invalid_request_error", "unknown_url");
   }
 
   private async chat(req: Record<string, unknown>, who: string): Promise<OaiResult> {
-    const modelId = String(req.model ?? "michaels-bar") as OaiModel;
+    const asked = String(req.model ?? "the-last-ember");
+    const modelId = (OAI_ALIASES[asked] ?? asked) as OaiModel;
     if (!(modelId in OAI_MODELS)) return oaiError(404, `Unbekanntes Modell „${String(req.model)}“. Verfügbar: ${Object.keys(OAI_MODELS).join(", ")}`, "invalid_request_error", "model_not_found");
     const withState = OAI_MODELS[modelId].state;
     if (!Array.isArray(req.messages) || !req.messages.length) return oaiError(400, "messages fehlt oder ist leer.");

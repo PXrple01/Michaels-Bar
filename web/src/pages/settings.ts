@@ -6,7 +6,12 @@ import { api, loadGameData } from "../lib/api";
 import { $$, html, setHTML, uuid } from "../lib/dom";
 import { icon } from "../lib/icons";
 import type { Page } from "../lib/router";
-import { settings, updateSettings, useSimpleDice, type DiceThemeId, type Settings } from "../lib/settings";
+import { settings, updateSettings, useSimpleDice, type DiceThemeId, type PaletteId, type Settings } from "../lib/settings";
+
+const PALETTES: { id: PaletteId; name: string; text: string; colors: [string, string, string] }[] = [
+  { id: "glut", name: "Glut", text: "Schwarz und Rot – das letzte Feuer der Nacht (Standard)", colors: ["#070404", "#e2381f", "#ffb35c"] },
+  { id: "amethyst", name: "Amethyst", text: "Das ursprüngliche Lila – kühl und magisch", colors: ["#07050c", "#8b5cf6", "#c4b5fd"] },
+];
 import { bindSegmented, segmented, toast, toggleSwitch } from "../lib/ui";
 
 export function settingsPage(): Page {
@@ -24,13 +29,23 @@ export function settingsPage(): Page {
           </header>
 
           <section class="card set-section" data-reveal>
+            <h2>${icon("sparkles")} Farbthema</h2>
+            <div class="palette-grid">
+              ${PALETTES.map((p) => html`<button class="palette-card ${s.palette === p.id ? "selected" : ""}" data-palette="${p.id}">
+                <span class="palette-swatch" style="--a:${p.colors[0]};--b:${p.colors[1]};--c:${p.colors[2]}"><i></i><i></i><i></i></span>
+                <b>${p.name}</b><small>${p.text}</small>
+              </button>`)}
+            </div>
+          </section>
+
+          <section class="card set-section" data-reveal>
             <h2>${icon("dice")} Würfelfarbe</h2>
             <div class="theme-grid">
               ${(Object.entries(DICE_THEMES) as [DiceThemeId, (typeof DICE_THEMES)[DiceThemeId]][]).map(([id, t]) => html`
                 <button class="theme-card ${s.diceTheme === id ? "selected" : ""}" data-theme="${id}" style="--body:${t.body};--body2:${t.body2};--ink:${t.ink};--edge:${t.edge}">
                   <span class="theme-gem"><span>20</span></span>
                   <b>${t.name}</b>
-                  ${id === "obsidian" ? html`<small>Standard</small>` : ""}
+                  ${id === "glut" ? html`<small>Standard</small>` : ""}
                 </button>`)}
             </div>
             <button class="btn btn-ghost btn-sm" id="test-roll">${icon("play")} Probewurf</button>
@@ -84,12 +99,16 @@ export function settingsPage(): Page {
             <div class="api-grid">
               <div><span>Adresse (Base URL)</span><code id="api-base">${location.origin}/v1</code><button class="btn btn-ghost btn-sm" data-copy="api-base">${icon("scroll")} Kopieren</button></div>
               <div><span>API-Schlüssel</span><b>Der Wert von <code>OPENAI_COMPAT_KEY</code></b><small>Lege ihn in den Netlify-Umgebungsvariablen an (beliebiger langer Text). Ohne ihn ist die Schnittstelle aus.</small></div>
-              <div><span>Modell</span><b><code>michaels-bar</code></b><small>Mit Lebenspunkten, Kampf und Aufträgen. Zeigt deine App seltsamen Text wie <code>&lt;!-- michaels-bar:… --&gt;</code>, nimm <code>michaels-bar-einfach</code>.</small></div>
+              <div><span>Modell</span><b><code>the-last-ember</code></b><small>Mit Lebenspunkten, Kampf und Aufträgen. Zeigt deine App seltsamen Text wie <code>&lt;!-- the-last-ember:… --&gt;</code>, nimm <code>the-last-ember-einfach</code>. Die alten Namen <code>michaels-bar</code> funktionieren weiter.</small></div>
             </div>
             <p class="hint">Proben würfelt der Server dort sofort selbst – fair wie hier. Gespielt wird mit dem Söldner „Wanderer“; eine eigene Figur schickst du mit dem Feld <code>character</code> mit (auf dem Charakterbogen: „Für Chat-Apps kopieren“). Jeder Zug zählt zum selben Monatsbudget.</p>
           </section>
         </div>`);
 
+      $$<HTMLElement>("[data-palette]", root).forEach((b) => b.addEventListener("click", () => {
+        updateSettings({ palette: b.dataset.palette as PaletteId });
+        $$("[data-palette]", root).forEach((x) => x.classList.toggle("selected", x === b));
+      }));
       $$<HTMLElement>("[data-theme]", root).forEach((b) => b.addEventListener("click", () => {
         updateSettings({ diceTheme: b.dataset.theme as DiceThemeId });
         $$("[data-theme]", root).forEach((x) => x.classList.toggle("selected", x === b));

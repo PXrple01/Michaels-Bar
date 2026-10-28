@@ -1,8 +1,11 @@
 // Einstellungen des Spielers, im Browser gespeichert (localStorage, mit Fallback).
 
-export type DiceThemeId = "obsidian" | "amethyst" | "mitternacht" | "knochen";
+export type DiceThemeId = "glut" | "obsidian" | "amethyst" | "mitternacht" | "knochen";
+/** Farbthema der ganzen Seite: „Glut“ (schwarz-rot, Standard) oder „Amethyst“ (das ursprüngliche Lila). */
+export type PaletteId = "glut" | "amethyst";
 
 export interface Settings {
+  palette: PaletteId;
   diceTheme: DiceThemeId;
   animation: "full" | "short" | "off";
   quality: "auto" | "high" | "simple";
@@ -16,7 +19,8 @@ export interface Settings {
 const KEY = "wus.settings.v1";
 
 const defaults = (): Settings => ({
-  diceTheme: "obsidian",
+  palette: "glut",
+  diceTheme: "glut",
   animation: matchMedia("(prefers-reduced-motion: reduce)").matches ? "short" : "full",
   quality: "auto",
   sound: true,

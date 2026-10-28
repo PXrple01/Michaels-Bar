@@ -2,7 +2,7 @@
 import { prefersReducedMotion } from "../lib/dom";
 
 /* ── Aufsteigende Glut im Hintergrund ── */
-export function startEmbers(canvas: HTMLCanvasElement, enabled: () => boolean) {
+export function startEmbers(canvas: HTMLCanvasElement, enabled: () => boolean, palette: () => string = () => "amethyst") {
   const ctx = canvas.getContext("2d")!;
   let w = 0, h = 0, dpr = 1;
   interface P { x: number; y: number; r: number; vy: number; vx: number; life: number; max: number; hue: number; tw: number }
@@ -10,7 +10,8 @@ export function startEmbers(canvas: HTMLCanvasElement, enabled: () => boolean) {
   const spawn = (initial = false): P => ({
     x: Math.random() * w, y: initial ? Math.random() * h : h + 10, r: 0.6 + Math.random() * 2.2,
     vy: 0.15 + Math.random() * 0.55, vx: (Math.random() - 0.5) * 0.25, life: 0, max: 600 + Math.random() * 900,
-    hue: 258 + Math.random() * 40, tw: Math.random() * Math.PI * 2,
+    // Glut: rote bis orange Funken, ab und zu ein heller goldener; Amethyst: lila
+    hue: palette() === "glut" ? (Math.random() < 0.12 ? 42 : 4 + Math.random() * 30) : 258 + Math.random() * 40, tw: Math.random() * Math.PI * 2,
   });
   const resize = () => {
     dpr = Math.min(devicePixelRatio, 1.5);
