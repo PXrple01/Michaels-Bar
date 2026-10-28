@@ -222,6 +222,7 @@ export function partyPage(): Page {
             <p>Schick deinen Freunden diesen Code oder Link. Sie brauchen eine eigene Figur.</p>
             <div class="invite"><span class="party-code big">${code}</span><button class="btn btn-ghost btn-sm" id="copy">${icon("scroll")} Link kopieren</button></div>
             <p class="muted small">${v.players.length} von ${MAX_PARTY_SIZE} Plätzen belegt</p>
+            ${v.failed ? html`<p class="hint">${icon("info")} Der letzte Start hat nicht geklappt: ${v.failed}</p>` : ""}
             ${amHost
               ? html`<button class="btn btn-lg magnetic glow-border" id="start" ${busyLocal || v.busy ? "disabled" : ""}>${icon("sparkles")} Abenteuer starten</button>${v.players.length === 1 ? html`<p class="hint">Du kannst auch allein starten – aber zu zweit macht es mehr Spaß.</p>` : ""}`
               : html`<p class="thinking">${icon("feather")} Warte, bis der Gastgeber das Abenteuer startet …</p>`}
@@ -230,14 +231,18 @@ export function partyPage(): Page {
         } else if (v.busy || busyLocal) {
           content = html`<div class="thinking">${icon("feather")} Der Spielleiter erzählt …</div>`;
         } else if (v.pending) {
-          content = pendingCard();
+          // Gescheiterter Wurf-Zug: Probe ist wieder offen, erneutes Würfeln ergibt denselben Wurf
+          content = html`${v.failed ? html`<div class="card failed-card"><h3>${icon("info")} Das hat nicht geklappt</h3><p>${v.failed}</p><small class="muted">${v.pending.playerId === me.playerId ? "Würfle einfach noch einmal – das Ergebnis bleibt dasselbe." : `${v.pending.characterName} würfelt noch einmal – das Ergebnis bleibt dasselbe.`}</small></div>` : ""}${pendingCard()}`;
         } else if (v.world?.arc?.finished) {
           content = endCard(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), { href: "#/gruppe", label: "Neue Gruppe gründen" });
         } else {
           const last = [...v.story].reverse().find((e) => e.type === "gm");
           const suggestions = last?.type === "gm" ? splitSuggestions(last.text).suggestions : [];
           const waiting = v.players.filter((p) => !p.acted).map((p) => p.name);
-          content = html`
+          // Letzter Zug gescheitert: Die Handlungen sind noch da – jeder kann die Runde neu erzählen lassen
+          const failed = v.failed && v.players.some((p) => p.acted)
+            ? html`<div class="card failed-card"><h3>${icon("info")} Das hat nicht geklappt</h3><p>${v.failed}</p><small class="muted">Eure Handlungen sind gespeichert.</small><button class="btn btn-sm" id="retry">${icon("refresh")} Erneut versuchen</button></div>` : "";
+          content = html`${failed}
             ${suggestions.length && !v.yourAction ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
             ${v.yourAction
               ? html`<div class="card locked-action">${icon("lock")}<div><div class="eyebrow">Deine Handlung ist abgegeben</div><p>„${v.yourAction}“</p><small class="muted">${waiting.length ? html`Der Spielleiter erzählt, sobald ${waiting.join(", ")} ${waiting.length > 1 ? "abgegeben haben" : "abgegeben hat"}.` : "Gleich geht es weiter."}</small></div></div>`
@@ -443,6 +448,7 @@ export function partyPage(): Page {
         });
         belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
         belowEl.querySelector("#now")?.addEventListener("click", () => void stream("action", { text: "", now: true }));
+        belowEl.querySelector("#retry")?.addEventListener("click", () => void stream("action", { text: "", retry: true }));
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
         if (ta && !ta.dataset.bound) {
           ta.dataset.bound = "1";

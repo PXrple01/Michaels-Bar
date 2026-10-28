@@ -45,6 +45,8 @@ export interface PartyView {
   lastTurnCostUsd: number | null;
   /** Lebenspunkte, Kampf, Aufträge – erst ab dem Start. */
   world: WorldState | null;
+  /** Der letzte Zug ist gescheitert (für alle sichtbar, mit „Erneut versuchen“). */
+  failed: string | null;
 }
 
 export interface PartyJoinResult { code: string; playerId: string; token: string; view: PartyView }

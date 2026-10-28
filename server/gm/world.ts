@@ -6,7 +6,7 @@ import { z } from "zod";
 import { armorValue, modifier } from "../../shared/character";
 import { formatModifier, parseNotation, type RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import { ACTS, currentChapter, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
+import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 
@@ -67,7 +67,10 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       titel: { type: "string" }, ziel: { type: "string", description: "Woran man merkt, dass die Abzweigung abgeschlossen ist" },
       rueckweg: { type: "string", description: "Wie die Geschichte danach zur Hauptlinie zurückfindet" },
     }, ["titel", "ziel", "rueckweg"]),
-    tool("abenteuer_beenden", "Beendet die Kampagne im letzten Kapitel des Finales: Erzähle vorher die Entscheidung, den Ausgang und einen Epilog. Danach geht die Geschichte nicht weiter.", { epilog: { type: "string", description: "Zwei, drei Sätze: Wie geht es für die Figuren aus?" } }, ["epilog"]),
+    tool("abenteuer_beenden", "Beendet die Kampagne. sieg: im letzten Kapitel des Finales – erzähle vorher die Entscheidung, den Ausgang und einen Epilog. niederlage: nur wenn alle Figuren kampfunfähig sind und niemand sie retten kann – erzähle vorher ein kurzes, würdiges Ende. Danach geht die Geschichte nicht weiter.", {
+      epilog: { type: "string", description: "Zwei, drei Sätze: Wie geht es für die Figuren aus?" },
+      ausgang: { type: "string", enum: ["sieg", "niederlage"] },
+    }, ["epilog"]),
   ];
 }
 
@@ -151,7 +154,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       ctx.onRoll(dmg);
       const amount = Math.max(1, dmg.total);
       w.hp[target.id] = Math.max(0, w.hp[target.id] - amount);
-      return { content: `${enemy.name} trifft ${target.name}${atk.critical === "hit" ? " kritisch (doppelte Schadenswürfel)" : ""}: ${atk.total} gegen Rüstung ${ac}, Schaden ${dmgExpr} = ${amount}. ${hpLine(ctx, target)}` };
+      return { content: `${enemy.name} trifft ${target.name}${atk.critical === "hit" ? " kritisch (doppelte Schadenswürfel)" : ""}: ${atk.total} gegen Rüstung ${ac}, Schaden ${dmgExpr} = ${amount}. ${hpLine(ctx, target)}${allDown(w, ctx.characters) ? ` ${DEFEAT_WARNING}` : ""}` };
     }
     case "heilen": {
       const target = findCharacter(ctx, input.ziel);
@@ -271,10 +274,16 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
     case "abenteuer_beenden": {
       const arc = arcOf(w);
       if (arc.finished) return { content: "Die Kampagne ist bereits beendet." };
+      if (input.ausgang === "niederlage") {
+        if (!allDown(w, ctx.characters)) return err("Eine Niederlage gibt es nur, wenn alle Figuren kampfunfähig sind. Solange jemand steht, geht die Geschichte weiter.");
+        finishDefeat(w, text(input.epilog, 600) || null);
+        return { content: "Die Kampagne endet mit einer Niederlage. Schreib keine weiteren Vorschläge – die Geschichte endet hier." };
+      }
       const ch = currentChapter(arc);
       if (!ch || arc.current !== arc.chapters.length - 1 || ch.act !== 2) return err(`Noch nicht: Das Ende kommt im letzten Kapitel des Finales. Jetzt läuft „${ch?.titel ?? "noch kein Kapitel"}“.`);
       ch.done = true;
       arc.finished = true;
+      arc.outcome = "sieg";
       arc.epilog = text(input.epilog, 600) || null;
       w.combat = null;
       return { content: "Die Kampagne ist abgeschlossen. Schreib keine weiteren Vorschläge – die Geschichte endet hier." };
@@ -290,6 +299,28 @@ const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 function arcOf(w: WorldState): Arc {
   if (!isArc(w.arc)) w.arc = initArc();
   return w.arc;
+}
+
+function finishDefeat(w: WorldState, epilog: string | null) {
+  const arc = arcOf(w);
+  arc.finished = true;
+  arc.outcome = "niederlage";
+  arc.epilog = epilog;
+  w.combat = null;
+}
+
+export const defaultDefeatEpilog = (solo: boolean) => solo
+  ? "Du bist gefallen. Deine Geschichte erzählt man sich noch lange – als Warnung, und als Lied von Mut gegen eine Übermacht."
+  : "Die Gruppe ist gefallen. Ihre Geschichte erzählt man sich noch lange – als Warnung, und als Lied von Mut gegen eine Übermacht.";
+
+/**
+ * Nach jedem Zug: Liegen alle Figuren mitten im Kampf am Boden und hat niemand sie gerettet, endet die Kampagne als Niederlage –
+ * auch wenn Claude es nicht selbst beendet hat. Gibt true zurück, wenn der Server das Ende erzwungen hat.
+ */
+export function enforceDefeat(w: WorldState, characters: Pick<Character, "id">[]): boolean {
+  if (arcOf(w).finished || !w.combat || !allDown(w, characters)) return false;
+  finishDefeat(w, defaultDefeatEpilog(characters.length === 1));
+  return true;
 }
 
 /** Vor jeder Spieler-Handlung: Züge im Kapitel zählen – nur für den Hinweis bei sehr langen Kapiteln, kein harter Schnitt. */

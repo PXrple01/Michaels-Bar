@@ -19,7 +19,8 @@ type StreamParams = Parameters<Anthropic["beta"]["messages"]["stream"]>[0];
 
 /** Schnittstelle zum Modell – in Tests durch eine Attrappe ersetzbar. */
 export interface LlmClient {
-  stream(params: StreamParams, onText: (text: string) => void): Promise<Message>;
+  /** `signal` bricht den Aufruf ab (Zeitlimit des Zugs). */
+  stream(params: StreamParams, onText: (text: string) => void, signal?: AbortSignal): Promise<Message>;
 }
 
 export class AnthropicLlm implements LlmClient {
@@ -27,21 +28,21 @@ export class AnthropicLlm implements LlmClient {
   /** Lehnt die API das Ersatzmodell (fallbacks) ab, wird es für diese Instanz nicht mehr mitgeschickt. */
   private noFallback = false;
   constructor(apiKey: string, options: Omit<NonNullable<ConstructorParameters<typeof Anthropic>[0]>, "apiKey"> = {}) { this.client = new Anthropic({ apiKey, maxRetries: 2, ...options }); }
-  async stream(params: StreamParams, onText: (text: string) => void): Promise<Message> {
+  async stream(params: StreamParams, onText: (text: string) => void, signal?: AbortSignal): Promise<Message> {
     if (this.noFallback) params = withoutFallback(params);
     try {
-      return await this.once(params, onText);
+      return await this.once(params, onText, signal);
     } catch (e) {
       // Ein 400 kommt vor der ersten Ausgabe. Liegt es an der Ersatzmodell-Option, geht es ohne sie weiter.
       if (!(e instanceof Anthropic.BadRequestError) || !("fallbacks" in params)) throw e;
       console.warn(`[Claude] Anfrage mit Ersatzmodell abgelehnt (${apiErrorText(e)}) – nächster Versuch ohne.`);
-      const result = await this.once(withoutFallback(params), onText);
+      const result = await this.once(withoutFallback(params), onText, signal);
       this.noFallback = true;
       return result;
     }
   }
-  private once(params: StreamParams, onText: (text: string) => void): Promise<Message> {
-    const stream = this.client.beta.messages.stream(params);
+  private once(params: StreamParams, onText: (text: string) => void, signal?: AbortSignal): Promise<Message> {
+    const stream = this.client.beta.messages.stream(params, { signal });
     stream.on("text", onText);
     return stream.finalMessage();
   }
@@ -74,9 +75,15 @@ export function requestBase(model: ModelId, effort: "low" | "medium" | "high") {
 export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
-/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 4;
+/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage. Ältere Verläufe werden einmalig umgestellt. */
+export const TOOLSET = 5;
 const MAX_LOOPS = 5;
+/**
+ * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
+ * Darum: nach TURN_BUDGET_MS wird abgebrochen (sauberer Fehler), und ein weiterer Modellaufruf beginnt nur, wenn noch MIN_CALL_MS übrig sind.
+ */
+export const TURN_BUDGET_MS = 50_000;
+const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
 const QUIET_TOOLS = new Set(["merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
@@ -124,6 +131,8 @@ export interface NarratorOptions {
   guard: UsageGuard;
   model?: ModelId;
   effort?: "low" | "medium" | "high";
+  /** Zeitbudget je Zug (Tests setzen es kürzer). */
+  turnBudgetMs?: number;
 }
 
 /** Alles, was ein Zug über die Szene wissen muss. `world` wird von den Werkzeugen verändert. */
@@ -260,56 +269,75 @@ export class Narrator {
     const base = requestBase(this.model, this.o.effort ?? "low");
     let cost = 0;
     const usage = { input: 0, output: 0 };
-    for (let loop = 0; loop < MAX_LOOPS; loop++) {
-      await this.o.guard.check(who);
-      const msg = await this.o.llm!.stream({
-        ...base,
-        betas: [...(base.betas ?? []), ...(compact ? ["compact-2026-01-12"] : [])],
-        max_tokens: 8000,
-        cache_control: CACHE_1H,
-        system: [{ type: "text", text: systemPrompt(data), cache_control: CACHE_1H }],
-        tools: this.tools(data, characters),
-        tool_choice: { type: "auto" },
-        ...(compact ? { context_management: { edits: [{ type: "compact_20260112" as const, trigger: { type: "input_tokens" as const, value: COMPACT_AT }, instructions: COMPACT_INSTRUCTIONS }] } } : {}),
-        messages: history,
-      }, onText);
-      const c = costUsd(msg.usage, this.model);
-      cost += c;
-      await this.o.guard.record(msg.usage, this.model);
-      const u = msg.usage;
-      usage.input += u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
-      usage.output += u.output_tokens;
-      const compacted = (u.iterations ?? []).some((i) => i.type === "compaction");
-      console.log(`[Kosten] ${this.model}: Eingabe ${u.input_tokens}, Cache gelesen ${u.cache_read_input_tokens ?? 0}, Cache geschrieben ${u.cache_creation_input_tokens ?? 0}, Ausgabe ${u.output_tokens} (davon Denken ${u.output_tokens_details?.thinking_tokens ?? "?"})${compacted ? ", mit Zusammenfassung" : ""} → ${(c * 100).toFixed(2)} ct`);
-
-      if (msg.stop_reason === "refusal") throw new GmError("Der Spielleiter möchte diese Szene so nicht erzählen. Versuch es mit einer anderen Handlung.", "refusal");
-      history.push({ role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] });
-      const uses = msg.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
-      if (uses.length && msg.stop_reason === "tool_use") {
-        const results: ToolResult[] = [];
-        let pending: PendingCheck | null = null;
-        for (const b of uses) {
-          if (b.name === TOOL_NAME) {
-            const p: PendingCheck | null = pending ? null : this.pendingFor(b, characters, data, world);
-            if (p) pending = p;
-            else results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: pending ? "Nur eine Probe gleichzeitig – verlange die nächste nach dem Ergebnis." : "INVALID_INPUT: Prüfe figur, art, id (aus der Liste), sg (0–30) und modus." });
-          } else if ((AUTO_TOOLS as readonly string[]).includes(b.name)) {
-            results.push({ type: "tool_result", tool_use_id: b.id, ...(await runAutoTool(b, { data, characters, world, rolls: this.o.rolls, onRoll: scene.onRoll })) });
-          } else {
-            results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: "Unbekanntes Werkzeug." });
-          }
+    const budget = this.o.turnBudgetMs ?? TURN_BUDGET_MS;
+    const deadline = Date.now() + budget;
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), budget);
+    try {
+      for (let loop = 0; loop < MAX_LOOPS; loop++) {
+        await this.o.guard.check(who);
+        let msg: Message;
+        try {
+          msg = await this.o.llm!.stream({
+            ...base,
+            betas: [...(base.betas ?? []), ...(compact ? ["compact-2026-01-12"] : [])],
+            max_tokens: 8000,
+            cache_control: CACHE_1H,
+            system: [{ type: "text", text: systemPrompt(data), cache_control: CACHE_1H }],
+            tools: this.tools(data, characters),
+            tool_choice: { type: "auto" },
+            ...(compact ? { context_management: { edits: [{ type: "compact_20260112" as const, trigger: { type: "input_tokens" as const, value: COMPACT_AT }, instructions: COMPACT_INSTRUCTIONS }] } } : {}),
+            messages: history,
+          }, onText, abort.signal);
+        } catch (e) {
+          if (abort.signal.aborted) throw new GmError("Der Spielleiter hat zu lange gebraucht und wurde unterbrochen. Bitte erneut versuchen.", "api");
+          throw e;
         }
-        if (pending) return { history, pending, held: results, costUsd: cost, usage };
-        const told = msg.content.some((b) => b.type === "text" && /»\s*Vorschläge:/.test(b.text));
-        const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
-        if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost, usage };
-        history.push({ role: "user", content: results });
-        continue;
+        const c = costUsd(msg.usage, this.model);
+        cost += c;
+        await this.o.guard.record(msg.usage, this.model);
+        const u = msg.usage;
+        usage.input += u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+        usage.output += u.output_tokens;
+        const compacted = (u.iterations ?? []).some((i) => i.type === "compaction");
+        console.log(`[Kosten] ${this.model}: Eingabe ${u.input_tokens}, Cache gelesen ${u.cache_read_input_tokens ?? 0}, Cache geschrieben ${u.cache_creation_input_tokens ?? 0}, Ausgabe ${u.output_tokens} (davon Denken ${u.output_tokens_details?.thinking_tokens ?? "?"})${compacted ? ", mit Zusammenfassung" : ""} → ${(c * 100).toFixed(2)} ct`);
+
+        if (msg.stop_reason === "refusal") throw new GmError("Der Spielleiter möchte diese Szene so nicht erzählen. Versuch es mit einer anderen Handlung.", "refusal");
+        history.push({ role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] });
+        const uses = msg.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
+        if (uses.length && msg.stop_reason === "tool_use") {
+          const results: ToolResult[] = [];
+          let pending: PendingCheck | null = null;
+          for (const b of uses) {
+            if (b.name === TOOL_NAME) {
+              const p: PendingCheck | null = pending ? null : this.pendingFor(b, characters, data, world);
+              if (p) pending = p;
+              else results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: pending ? "Nur eine Probe gleichzeitig – verlange die nächste nach dem Ergebnis." : "INVALID_INPUT: Prüfe figur, art, id (aus der Liste), sg (0–30) und modus." });
+            } else if ((AUTO_TOOLS as readonly string[]).includes(b.name)) {
+              results.push({ type: "tool_result", tool_use_id: b.id, ...(await runAutoTool(b, { data, characters, world, rolls: this.o.rolls, onRoll: scene.onRoll })) });
+            } else {
+              results.push({ type: "tool_result", tool_use_id: b.id, is_error: true, content: "Unbekanntes Werkzeug." });
+            }
+          }
+          if (pending) return { history, pending, held: results, costUsd: cost, usage };
+          const told = msg.content.some((b) => b.type === "text" && /»\s*Vorschläge:/.test(b.text));
+          const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
+          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, held: results, costUsd: cost, usage };
+          // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.
+          if (deadline - Date.now() < MIN_CALL_MS) {
+            console.warn("[Claude] Zeitbudget fast aufgebraucht – Zug endet ohne weiteren Aufruf.");
+            return { history, pending: null, held: results, costUsd: cost, usage };
+          }
+          history.push({ role: "user", content: results });
+          continue;
+        }
+        if (uses.length) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
+        return { history, pending: null, held: [], costUsd: cost, usage };
       }
-      if (uses.length) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
-      return { history, pending: null, held: [], costUsd: cost, usage };
+      throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");
+    } finally {
+      clearTimeout(timer);
     }
-    throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");
   }
 }
 

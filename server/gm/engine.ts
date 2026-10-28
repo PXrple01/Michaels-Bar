@@ -13,7 +13,7 @@ import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import { characterHash, signState, verifyState } from "./state";
 import { UpgradeForge } from "./upgrades";
-import { countChapterTurn } from "./world";
+import { countChapterTurn, enforceDefeat } from "./world";
 import type { UsageGuard } from "./usage";
 
 export { AnthropicLlm, describeRoll, type LlmClient } from "./narrator";
@@ -26,6 +26,7 @@ export interface GmOptions {
   secret: string;
   model?: ModelId;
   effort?: "low" | "medium" | "high";
+  turnBudgetMs?: number;
 }
 
 interface Saved { messages: MessageParam[]; world: WorldState; held: ToolResult[] }
@@ -103,6 +104,7 @@ export class GameMaster {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
     const ce = effectiveCharacter(c, world);
+    if (world.arc?.finished) throw new GmError("Dieses Abenteuer ist abgeschlossen. Beginne ein neues!", "state");
     const pending = this.pendingFrom(messages, ce, data, world);
     if (!pending) throw new GmError("Gerade ist keine Probe offen.", "state");
     const { record, content } = await this.narrator.rollPending(pending, { characters: [ce], data, world }, held);
@@ -152,7 +154,9 @@ export class GameMaster {
     const scene = { characters: [effectiveCharacter(c, world)], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }) };
     const res = await this.narrator.converse(messages, scene, who, (text) => emit({ type: "text", text }));
     applyLevels(world, [c], data.classes, data.rules);
-    emit({ type: "done", state: this.sign(res.history, world, res.held, c), pending: res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
+    // Gefallen und niemand hat geholfen: Niederlage, vom Server erzwungen (auch wenn Claude es nicht selbst beendet hat)
+    const defeated = enforceDefeat(world, scene.characters);
+    emit({ type: "done", state: this.sign(res.history, world, res.held, c), pending: defeated ? null : res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
   }
 }
 

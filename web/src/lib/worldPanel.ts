@@ -29,7 +29,7 @@ export function worldPanel(w: WorldState | null | undefined, characters: { id: s
         return html`<div class="wh ${c.id === meId ? "me" : ""} ${hp <= 0 ? "down" : ""}">
           <span class="wh-name">${icon("heart")} ${c.name}${characters.length > 1 && w.levels?.[c.id] ? html` <small class="wh-lv">St. ${w.levels[c.id].level}</small>` : ""}</span>
           ${bar(hp, max)}
-          <span class="wh-num">${hp}/${max} ${term("tp", "TP")}${hp <= 0 ? " · kampfunfähig" : ""}</span>
+          <span class="wh-num">${hp}/${max} ${term("tp", "TP")}${hp <= 0 ? (characters.every((x) => (w.hp[x.id] ?? 0) <= 0) ? " · alle gefallen" : " · bewusstlos – kann gerettet werden") : ""}</span>
         </div>`;
       })}
       ${rules ? levelBadge(level, xp, rules) : html`<span class="chip xp" title="Erfahrungspunkte">${icon("star")} ${xp} EP</span>`}

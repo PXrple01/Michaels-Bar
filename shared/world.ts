@@ -60,6 +60,8 @@ export interface Arc {
   turnsInChapter: number;
   finished: boolean;
   epilog: string | null;
+  /** Wie die Kampagne endete: Sieg im Finale oder Niederlage, weil die ganze Gruppe gefallen ist. Fehlt = Sieg (ältere Stände). */
+  outcome?: "sieg" | "niederlage";
 }
 
 export function initArc(): Arc {
@@ -71,6 +73,11 @@ export const isArc = (a: unknown): a is Arc => !!a && Array.isArray((a as Arc).c
 
 export const currentChapter = (arc: Arc): Chapter | null => arc.chapters[arc.current] ?? null;
 export const currentAct = (arc: Arc): ActIndex => currentChapter(arc)?.act ?? 0;
+
+/** Ist die ganze Gruppe kampfunfähig? (Eine einzelne bewusstlose Figur kann noch gerettet werden.) */
+export function allDown(w: WorldState, characters: Pick<Character, "id">[]): boolean {
+  return characters.length > 0 && characters.every((c) => (w.hp[c.id] ?? 0) <= 0);
+}
 
 export const MAX_MEMORY = 30;
 export const MAX_QUESTS = 20;
@@ -90,8 +97,9 @@ export function initWorld(characters: Pick<Character, "id" | "hp">[]): WorldStat
 
 /** Kurzer Spielstand für Claude – wird jeder Handlung angehängt, damit Zahlen auch nach einer Zusammenfassung stimmen. */
 export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "name">[], rules?: Rules): string {
-  const hp = characters.map((c) => `${c.name} ${w.hp[c.id] ?? 0}/${w.maxHp[c.id] ?? 0} TP${(w.hp[c.id] ?? 0) <= 0 ? " (kampfunfähig)" : ""}`).join(", ");
+  const hp = characters.map((c) => `${c.name} ${w.hp[c.id] ?? 0}/${w.maxHp[c.id] ?? 0} TP${(w.hp[c.id] ?? 0) <= 0 ? " (kampfunfähig – bewusstlos, aber rettbar)" : ""}`).join(", ");
   const lines = [`Lebenspunkte: ${hp}`];
+  if (w.combat && allDown(w, characters)) lines.push(DEFEAT_WARNING);
   if (w.combat) lines.push(`Kampf (Runde ${w.combat.round}): ${w.combat.enemies.map((e) => `${e.name} ${e.hp}/${e.maxHp} TP, Rüstung ${e.armor}${e.hp <= 0 ? " – besiegt" : ""}`).join("; ")}`);
   const open = w.quests.filter((q) => q.status === "offen");
   // Nur Titel: Notizen und Gemerktes stehen schon im Verlauf (und in der Zusammenfassung) – jede Wiederholung kostet bei jedem Zug.
@@ -102,6 +110,9 @@ export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "
   if (w.arc) lines.push(arcSummary(w.arc));
   return lines.join("\n");
 }
+
+/** Hinweis an Claude, sobald die ganze Gruppe im Kampf gefallen ist. */
+export const DEFEAT_WARNING = "ALLE Figuren sind kampfunfähig. Nur ein glaubwürdiger Verbündeter vor Ort kann sie jetzt noch retten (mit heilen, oder kampf_beenden, weil Hilfe eintrifft oder die Gegner sie gefangen nehmen). Sonst erzähle jetzt ein kurzes, würdiges Ende mit Epilog und rufe abenteuer_beenden mit ausgang niederlage auf – ohne Vorschlagszeile. Bleibt beides aus, beendet der Server die Kampagne als Niederlage.";
 
 /** Kampagnenstand für Claude – Teil jedes <spielstand>. So weiß Claude auch in einer Abzweigung, wo die Geschichte steht. */
 export function arcSummary(arc: Arc): string {

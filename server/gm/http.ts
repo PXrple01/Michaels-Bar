@@ -11,6 +11,41 @@ export type GmKind = (typeof GM_KINDS)[number];
 type AnyEvent = GmEvent | ReviewEvent | PartyEvent;
 const sse = (ev: AnyEvent) => `data: ${JSON.stringify(ev)}\n\n`;
 
+/** Lebenszeichen im Stream: Proxys schließen stille Verbindungen nicht, und der Browser erkennt eine tote Verbindung. */
+const PING_MS = 15_000;
+
+/** Gestreamte SSE-Antwort (Netlify). Schreiben nach einem Verbindungsabbruch ist harmlos – der Zug läuft zu Ende und wird gespeichert. */
+function sseResponse(run: (write: (chunk: string) => void) => Promise<void>, headers: Record<string, string> = {}): Response {
+  const encoder = new TextEncoder();
+  let closed = false;
+  let ping: ReturnType<typeof setInterval> | undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const write = (chunk: string) => {
+        if (closed) return;
+        try { controller.enqueue(encoder.encode(chunk)); } catch { closed = true; }
+      };
+      ping = setInterval(() => write(": ping\n\n"), PING_MS);
+      try { await run(write); } catch (e) { console.error(e); } finally {
+        clearInterval(ping);
+        if (!closed) { closed = true; try { controller.close(); } catch { /* schon zu */ } }
+      }
+    },
+    cancel() { closed = true; clearInterval(ping); },
+  });
+  return new Response(stream, { headers: { ...headers, "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" } });
+}
+
+/** Dasselbe für Express (lokal). */
+async function sseExpress(res: import("express").Response, run: (write: (chunk: string) => void) => Promise<void>) {
+  res.setHeader("content-type", "text/event-stream; charset=utf-8");
+  res.setHeader("cache-control", "no-cache, no-transform");
+  res.flushHeaders();
+  const write = (chunk: string) => { if (!res.writableEnded && !res.destroyed) res.write(chunk); };
+  const ping = setInterval(() => write(": ping\n\n"), PING_MS);
+  try { await run(write); } catch (e) { console.error(e); } finally { clearInterval(ping); res.end(); }
+}
+
 const PARTY_JSON = ["create", "join", "state", "leave", "choose", "level"] as const;
 const PARTY_STREAM = ["start", "action", "roll", "upgrade"] as const;
 
@@ -43,27 +78,18 @@ export function mountGm(app: Express, claude: () => Claude, accessCode: string |
       return void res.status(r.status).json(r.body);
     }
     if (!(PARTY_STREAM as readonly string[]).includes(op)) return void res.status(404).json({ error: "Unbekannter Endpunkt" });
-    res.setHeader("content-type", "text/event-stream; charset=utf-8");
-    res.setHeader("cache-control", "no-cache, no-transform");
-    res.flushHeaders();
-    await claude().party.run(op as (typeof PARTY_STREAM)[number], req.body ?? {}, req.ip ?? "local", (ev) => res.write(sse(ev)));
-    res.end();
+    await sseExpress(res, (write) => claude().party.run(op as (typeof PARTY_STREAM)[number], req.body ?? {}, req.ip ?? "local", (ev) => write(sse(ev))));
   });
 
   app.post(["/api/campaign/:kind", "/api/classes/review"], async (req: Request, res) => {
     const kind = (req.path.endsWith("/review") ? "review" : req.params.kind) as GmKind | "review";
     if (kind !== "review" && !GM_KINDS.includes(kind)) return void res.status(404).json({ error: "Unbekannter Endpunkt" });
-    res.setHeader("content-type", "text/event-stream; charset=utf-8");
-    res.setHeader("cache-control", "no-cache, no-transform");
-    res.flushHeaders();
-    if (!accessAllowed(accessCode, req.header("x-access-code"))) {
-      res.end(sse({ type: "error", message: "Zugangscode fehlt oder ist falsch.", code: "access" }));
-      return;
-    }
-    const emit = (ev: GmEvent | ReviewEvent) => res.write(sse(ev));
-    if (kind === "review") await claude().reviewer.run(req.body, req.ip ?? "local", emit);
-    else await claude().gm.run(kind, req.body, req.ip ?? "local", emit);
-    res.end();
+    await sseExpress(res, async (write) => {
+      const emit = (ev: GmEvent | ReviewEvent) => write(sse(ev));
+      if (!accessAllowed(accessCode, req.header("x-access-code"))) emit({ type: "error", message: "Zugangscode fehlt oder ist falsch.", code: "access" });
+      else if (kind === "review") await claude().reviewer.run(req.body, req.ip ?? "local", emit);
+      else await claude().gm.run(kind, req.body, req.ip ?? "local", emit);
+    });
   });
 }
 
@@ -91,14 +117,7 @@ async function handleOpenAiRequest(request: globalThis.Request, path: string, cl
   if (request.method === "POST") { try { body = await request.json(); } catch { return Response.json({ error: { message: "Ungültiges JSON.", type: "invalid_request_error", code: null } }, { status: 400, headers: CORS }); } }
   const r = await claude.openai.handle(request.method, path, request.headers.get("authorization"), body, who);
   if (!("stream" in r)) return Response.json(r.json, { status: r.status, headers: CORS });
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      await r.stream((chunk) => controller.enqueue(encoder.encode(chunk)));
-      controller.close();
-    },
-  });
-  return new Response(stream, { headers: { ...CORS, "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" } });
+  return sseResponse((write) => r.stream(write), CORS);
 }
 
 /** Für Netlify: beantwortet einen Web-Request mit einem gestreamten Response. */
@@ -111,18 +130,13 @@ export async function handleGmRequest(req: Request | globalThis.Request, claude:
   if (request.method !== "POST" || (kind !== "review" && !GM_KINDS.includes(kind))) return new Response("Not found", { status: 404 });
   let body: unknown = null;
   try { body = await request.json(); } catch { /* bleibt null, wird als ungültig gemeldet */ }
-  const encoder = new TextEncoder();
   const allowed = accessAllowed(accessCode, request.headers.get("x-access-code"));
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const emit = (ev: GmEvent | ReviewEvent) => controller.enqueue(encoder.encode(sse(ev)));
-      if (!allowed) emit({ type: "error", message: "Zugangscode fehlt oder ist falsch.", code: "access" });
-      else if (kind === "review") await claude.reviewer.run(body, who, emit);
-      else await claude.gm.run(kind, body, who, emit as (ev: GmEvent) => void);
-      controller.close();
-    },
+  return sseResponse(async (write) => {
+    const emit = (ev: GmEvent | ReviewEvent) => write(sse(ev));
+    if (!allowed) emit({ type: "error", message: "Zugangscode fehlt oder ist falsch.", code: "access" });
+    else if (kind === "review") await claude.reviewer.run(body, who, emit);
+    else await claude.gm.run(kind, body, who, emit as (ev: GmEvent) => void);
   });
-  return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" } });
 }
 
 async function handlePartyRequest(request: globalThis.Request, op: string, claude: Claude, accessCode: string | undefined, who: string): Promise<Response> {
@@ -135,12 +149,5 @@ async function handlePartyRequest(request: globalThis.Request, op: string, claud
     return Response.json(r.body, { status: r.status });
   }
   if (!(PARTY_STREAM as readonly string[]).includes(op)) return new Response("Not found", { status: 404 });
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      await claude.party.run(op as (typeof PARTY_STREAM)[number], body, who, (ev) => controller.enqueue(encoder.encode(sse(ev))));
-      controller.close();
-    },
-  });
-  return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" } });
+  return sseResponse((write) => claude.party.run(op as (typeof PARTY_STREAM)[number], body, who, (ev) => write(sse(ev))));
 }

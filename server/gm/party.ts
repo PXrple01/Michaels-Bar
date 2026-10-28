@@ -6,16 +6,18 @@ import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyStoryE
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
-import { countChapterTurn } from "./world";
+import { countChapterTurn, enforceDefeat } from "./world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
+import { errorEvent, GmError, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, TURN_BUDGET_MS, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import type { UpgradeForge } from "./upgrades";
 import { effectiveAbilities, emptyProgression, upgradeDue } from "../../shared/upgrades";
 import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared/levels";
 import type { UsageGuard } from "./usage";
+
+interface Busy { since: string; op?: "start" | "action" | "roll"; storyLen?: number; pending?: PendingCheck | null }
 
 interface PartyPlayer { id: string; tokenHash: string; host: boolean; joinedAt: string; character: Character }
 
@@ -31,7 +33,10 @@ export interface Party {
   story: PartyStoryEntry[];
   actions: Record<string, string>;
   pending: PendingCheck | null;
-  busy: { since: string } | null;
+  /** Sperre während Claude erzählt – mit allem, was nötig ist, um einen abgebrochenen Zug zurückzunehmen. */
+  busy: Busy | null;
+  /** Fehlermeldung des letzten gescheiterten Zugs. */
+  failed?: string | null;
   live: string;
   lastTurnCostUsd: number | null;
   /** Lebenspunkte, Kampf, Aufträge, Gedächtnis – ab dem Start. */
@@ -66,7 +71,23 @@ export class MemoryPartyStore implements PartyStore {
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const newCode = () => Array.from(randomBytes(6), (b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
 const hash = (t: string) => createHash("sha256").update(t).digest("hex");
-const STALE_MS = 120_000;
+/** Eine Sperre gilt als verwaist, wenn der Zug länger als sein Zeitbudget läuft (etwa weil Netlify die Funktion beendet hat). */
+const STALE_MS = TURN_BUDGET_MS + 20_000;
+const isStale = (b: Busy) => Date.now() - Date.parse(b.since) >= STALE_MS;
+const INTERRUPTED = "Der Spielleiter wurde unterbrochen (Zeitlimit oder Verbindungsabbruch). Bitte erneut versuchen.";
+
+/** Nimmt einen abgebrochenen Zug zurück: Geschichte und offene Probe wie vorher, beim Start zurück in die Lobby. */
+function recover(p: Party): boolean {
+  if (!p.busy || !isStale(p.busy)) return false;
+  const b = p.busy;
+  if (typeof b.storyLen === "number") p.story = p.story.slice(0, b.storyLen);
+  if (b.op === "roll" && b.pending) p.pending = b.pending;
+  if (b.op === "start") { p.status = "lobby"; p.opening = null; p.world = null; }
+  p.busy = null;
+  p.live = "";
+  p.failed = INTERRUPTED;
+  return true;
+}
 const LIVE_SAVE_MS = 1500;
 
 class PartyError extends Error { constructor(message: string, public code = "state") { super(message); } }
@@ -132,11 +153,12 @@ export class PartyService {
       story: party.story,
       pending: party.pending ? { ...party.pending, playerId: party.players.find((p) => p.character.id === party.pending!.characterId)?.id ?? "" } : null,
       yourAction: party.actions[you] ?? null,
-      busy: !!party.busy && Date.now() - Date.parse(party.busy.since) < STALE_MS,
+      busy: !!party.busy && !isStale(party.busy),
       live: party.live,
       budget,
       lastTurnCostUsd: party.lastTurnCostUsd,
       world: party.status === "playing" ? party.world ?? null : null,
+      failed: party.failed ?? null,
     };
   }
 
@@ -173,8 +195,10 @@ export class PartyService {
   }
 
   async state(body: { code?: unknown; token?: unknown }): Promise<PartyView> {
-    const { party } = await this.load(body?.code);
+    let { party } = await this.load(body?.code);
     const me = this.player(party, body?.token);
+    // Verwaiste Sperre (abgebrochener Zug): sofort zurücknehmen, damit niemand bei „Der Spielleiter erzählt …“ hängen bleibt
+    if (party.busy && isStale(party.busy)) party = await this.update(party.code, (p) => { recover(p); });
     return this.view(party, me.id, await this.o.guard.info());
   }
 
@@ -260,8 +284,11 @@ export class PartyService {
     const me = this.player(party, body.token);
     const now = body.now === true;
     if (now && !me.host) throw new PartyError("Nur der Gastgeber kann die Runde vorzeitig erzählen lassen.");
+    const retry = body.retry === true;
     const updated = await this.update(party.code, (p) => {
+      recover(p);
       if (p.status !== "playing") throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
+      if (retry && !p.failed) throw new PartyError("Es gibt nichts zu wiederholen.");
       if (p.pending) throw new PartyError(`Erst muss ${p.pending.characterName} würfeln.`);
       if (p.world?.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
       // Abgegeben ist abgegeben: Eine Handlung lässt sich danach nicht mehr ändern oder zurückziehen.
@@ -269,7 +296,7 @@ export class PartyService {
       if (text) p.actions[me.id] = text;
     });
     const all = updated.players.every((p) => p.id in updated.actions);
-    return Object.keys(updated.actions).length > 0 && (all || now);
+    return Object.keys(updated.actions).length > 0 && (all || now || retry);
   }
 
   private async gmTurn(op: "start" | "action" | "roll", body: Record<string, unknown>, who: string, emit: (ev: PartyEvent) => void) {
@@ -280,8 +307,12 @@ export class PartyService {
     let rollEntry: PartyStoryEntry | null = null;
 
     // 1) Sperre setzen und Eingabe für Claude vorbereiten
+    const lock: Busy = { since: new Date().toISOString(), op };
     const locked = await this.update(first.code, (p) => {
-      if (p.busy && Date.now() - Date.parse(p.busy.since) < STALE_MS) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
+      recover(p);
+      if (p.busy) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
+      lock.storyLen = p.story.length;
+      lock.pending = p.pending;
       const data = this.dataFor(p);
       // Gruppen von vor Etappe 5: einmalig auf den neuen Werkzeugstand bringen
       // Gruppen von älterem Werkzeugstand: Denkblöcke einmal entfernen; Lebenspunkte usw. bleiben, der Kampagnenbogen kommt dazu
@@ -318,9 +349,11 @@ export class PartyService {
         if (p.pending.characterId !== me.character.id) throw new PartyError(`${p.pending.characterName} muss würfeln, nicht du.`);
         messages = p.messages;
       }
-      p.busy = { since: new Date().toISOString() };
+      p.busy = lock;
       p.live = "";
+      p.failed = null;
     });
+    const mine = (p: Party) => p.busy?.since === lock.since;
 
     const data = this.dataFor(locked);
     const world = locked.world!;
@@ -357,15 +390,18 @@ export class PartyService {
       await saving;
       flush();
       applyLevels(world, this.characters(locked), data.classes, data.rules);
+      // Ganze Gruppe gefallen und niemand hat sie gerettet: Niederlage, vom Server erzwungen
+      const defeated = enforceDefeat(world, characters);
 
       // 4) Ergebnis übernehmen und Sperre lösen
       const done = await this.update(locked.code, (p) => {
+        if (!mine(p)) throw new PartyError(INTERRUPTED);
         p.messages = res.history;
         p.model = this.o.narrator.model;
         p.story.push(...segments);
         p.world = world;
         p.held = res.held;
-        p.pending = res.pending;
+        p.pending = defeated ? null : res.pending;
         for (const [id, text] of Object.entries(consumed)) if (p.actions[id] === text) delete p.actions[id];
         p.busy = null;
         p.live = "";
@@ -373,18 +409,14 @@ export class PartyService {
       });
       emit({ type: "view", view: this.view(done, me.id, await this.o.guard.info()) });
     } catch (e) {
-      // Fehler: Sperre lösen; beim Start zurück in die Lobby, damit man es erneut versuchen kann
+      // Fehler: Zug zurücknehmen und Sperre lösen; beim Start zurück in die Lobby. Die Handlungen bleiben abgegeben –
+      // so kann jeder mit „Erneut versuchen“ die Runde neu erzählen lassen. Erneutes Würfeln liefert denselben Wurf (Wurf-ID hängt an der Probe).
+      const message = e instanceof PartyError ? e.message : errorEvent(e).message;
       await this.update(locked.code, (p) => {
-        p.busy = null;
-        p.live = "";
-        if (op === "start") { p.status = "lobby"; p.opening = null; }
-        if (op === "action") { p.story = p.story.filter((s, i) => !(i === p.story.length - 1 && s.type === "actions")); }
-        if (op === "roll" && rollEntry?.type === "roll") {
-          // Probe wieder öffnen; erneutes Würfeln liefert denselben Wurf (Wurf-ID hängt an der Probe)
-          p.pending = locked.pending;
-          const id = rollEntry.record.id;
-          p.story = p.story.filter((s) => !(s.type === "roll" && s.record.id === id));
-        }
+        if (!mine(p)) return;
+        p.busy = { ...lock, since: new Date(0).toISOString() };
+        recover(p);
+        p.failed = message;
       }).catch(() => {});
       throw e;
     }

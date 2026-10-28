@@ -28,10 +28,13 @@ export function arcProgress(arc: Arc): Raw {
 export function endCard(w: WorldState, names: { id: string; name: string }[], again: { href: string; label: string }): Raw {
   const arc = w.arc!;
   const played = arc.chapters.filter((c) => c.done);
-  return html`<div class="card end-card glow-border">
-    <div class="end-icon">${icon("crown")}</div>
-    <div class="eyebrow">Die Kampagne ist abgeschlossen</div>
-    <h2>Ende</h2>
+  const lost = arc.outcome === "niederlage";
+  const solo = names.length === 1;
+  return html`<div class="card end-card glow-border ${lost ? "defeat" : ""}">
+    <div class="end-icon">${icon(lost ? "candle" : "crown")}</div>
+    <div class="eyebrow">${lost ? (solo ? "Du bist gefallen" : "Die ganze Gruppe ist gefallen") : "Die Kampagne ist abgeschlossen"}</div>
+    <h2>${lost ? "Niederlage" : "Ende"}</h2>
+    ${lost ? html`<p class="muted">${solo ? "Niemand konnte dich mehr retten" : "Niemand konnte euch mehr retten"} – so endet diese Geschichte. Eine neue wartet schon.</p>` : ""}
     ${arc.epilog ? html`<p class="end-epilog">${arc.epilog}</p>` : ""}
     <div class="end-grid">
       <div><span>Kapitel</span><b>${played.length}</b></div>

@@ -12,7 +12,7 @@ import { errorEvent, type MessageParam, type Narrator } from "./narrator";
 import { rollOpening, seededRng } from "./openings";
 import { kickoffMessage } from "./prompt";
 import { applyLevels, chooseLevelReward, effectiveCharacter, levelChoiceDue, levelTitle } from "../../shared/levels";
-import { countChapterTurn } from "./world";
+import { countChapterTurn, enforceDefeat } from "./world";
 import type { UsageGuard } from "./usage";
 
 /** Zwei Modelle: mit Spielstand (unsichtbarer Kommentar) oder ohne – falls eine App Kommentare sichtbar anzeigt. */
@@ -171,17 +171,20 @@ export class OpenAiGateway {
       const scene = { characters: [effectiveCharacter(character, world)], data, world, onRoll: (r: RollRecord) => onText(diceLine(r, true)) };
       let msgs = history;
       const usage = { input: 0, output: 0 };
+      const t0 = Date.now();
       for (let probe = 0; ; probe++) {
         const res = await this.o.narrator.converse(msgs, scene, who, onText, { compact: false });
         usage.input += res.usage.input;
         usage.output += res.usage.output;
-        if (!res.pending) break;
-        if (probe >= MAX_PROBES) { onText("\n\n*(Der Spielleiter macht hier eine Pause – schreib, wie es weitergeht.)*"); break; }
+        if (!res.pending || world.arc?.finished) break;
+        // Zeitlimit der Funktion (Netlify): lieber eine Pause als ein abgebrochener Stream
+        if (probe >= MAX_PROBES || Date.now() - t0 > 25_000) { onText("\n\n*(Der Spielleiter macht hier eine Pause – schreib, wie es weitergeht.)*"); break; }
         // Kein Würfeln-Knopf in Chat-Apps: Der Server würfelt die verlangte Probe sofort.
         const { record, content } = await this.o.narrator.rollPending(res.pending, scene, res.held);
         onText(diceLine(record));
         msgs = [...res.history, { role: "user", content }];
       }
+      if (enforceDefeat(world, [character])) onText(`\n\n*Alle sind gefallen – das Abenteuer endet mit einer Niederlage.*\n\n${world.arc!.epilog}`);
       if (withState) {
         // Stufen nachziehen; Wahlen (Stufe 4/7) trifft hier der Server, weil Chat-Apps keine Auswahl-Knöpfe haben
         for (const up of applyLevels(world, [character], data.classes, data.rules)) onText(`\n\n⭐ *Stufe ${up.to} erreicht – ${levelTitle(up.to, data.rules)}!*`);
