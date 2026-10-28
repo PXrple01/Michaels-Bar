@@ -63,11 +63,23 @@ export interface CampaignSave {
   story: StoryEntry[];
   /** Hat der Spieler schon gehandelt? Vorher darf der Einstieg neu gewürfelt werden. */
   started: boolean;
+  /** Bisherige Kosten dieser Kampagne in Dollar (alle Züge zusammen). */
+  costUsd?: number;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface BudgetInfo { spentUsd: number; limitUsd: number }
+
+/** Kosten lesbar: unter einem Dollar in Cent, sonst in Dollar. */
+export const costText = (usd: number) => (usd < 1 ? `${(usd * 100).toFixed(usd < 0.1 ? 1 : 0)} ct` : `${usd.toFixed(2)} $`);
+/** Anzeige oben im Abenteuer: Kosten dieser Kampagne und des letzten Zugs; das Gesamtbudget steht im Hinweis. */
+export function costChip(campaignUsd: number, lastUsd: number | null, budget: BudgetInfo | null): { text: string; title: string } {
+  return {
+    text: `Diese Kampagne ${costText(campaignUsd)}${lastUsd !== null ? ` · Letzter Zug ${costText(lastUsd)}` : ""}`,
+    title: `Was der Spielleiter (Claude) in diesem Abenteuer bisher gekostet hat.${budget ? ` Gesamtbudget aller Abenteuer: ${budget.spentUsd.toFixed(2)} $ von ${budget.limitUsd.toFixed(0)} $.` : ""}`,
+  };
+}
 
 /** Ereignisse, die der Server beim Erzählen streamt. */
 export type GmEvent =

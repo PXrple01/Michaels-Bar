@@ -44,6 +44,8 @@ export interface PartyView {
   version: number;
   budget: BudgetInfo | null;
   lastTurnCostUsd: number | null;
+  /** Kosten dieser Gruppe insgesamt (alle Züge). */
+  costUsd: number;
   /** Lebenspunkte, Kampf, Aufträge – erst ab dem Start. */
   world: WorldState | null;
   /** Der letzte Zug ist gescheitert (für alle sichtbar, mit „Erneut versuchen“). */

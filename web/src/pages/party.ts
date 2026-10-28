@@ -1,10 +1,11 @@
+import { costChip } from "../../../shared/campaign";
 import { openSheet } from "../lib/sheetModal";
 import { MAX_ACTION_LENGTH, splitSuggestions } from "../../../shared/campaign";
 import { characterRoll } from "../../../shared/character";
 import { formatModifier, type RollRecord } from "../../../shared/dice";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../../shared/party";
 import type { Character } from "../../../shared/schema";
-import { rollWithOverlay } from "../dice3d/roller";
+import { getStage, rollWithOverlay } from "../dice3d/roller";
 import { enhance } from "../fx/effects";
 import { api, loadGameData, type GameData } from "../lib/api";
 import { campaignStore } from "../lib/campaigns";
@@ -336,7 +337,7 @@ export function partyPage(): Page {
           if (typing) { oldTa.focus({ preventScroll: true }); oldTa.setSelectionRange(sel![0], sel![1]); }
         }
         renderHud();
-        if (v.budget) { const b = $("#budget", root); b.hidden = false; b.textContent = `${v.lastTurnCostUsd !== null ? `Letzter Zug ${(v.lastTurnCostUsd * 100).toFixed(1)} ct · ` : ""}Budget ${v.budget.spentUsd.toFixed(2)} $ / ${v.budget.limitUsd.toFixed(0)} $`; }
+        if (v.budget || v.costUsd) { const b = $("#budget", root), chip = costChip(v.costUsd ?? 0, v.lastTurnCostUsd, v.budget); b.hidden = false; b.textContent = chip.text; b.title = chip.title; }
         bindBelow();
         enhance(belowEl);
       }
@@ -426,10 +427,11 @@ export function partyPage(): Page {
         renderPlayers();
         renderAbilities();
         if (v.status === "playing") showTutorial(`gruppe-${code}`, PARTY_TUTORIAL);
+        // Würfe der anderen zuerst zeigen – die Animation soll nicht erst nach dem Neuaufbau der Erzählung starten
+        void showNewRolls();
         renderOpening();
         renderStory();
         renderBelow();
-        void showNewRolls();
         firstLoad = false;
       }
 
@@ -439,7 +441,10 @@ export function partyPage(): Page {
         catch (e) {
           if (e instanceof PartyApiError && (e.status === 403 || e.status === 400)) { toast(e.message, "error"); memberships.remove(code); go("/gruppe"); return; }
         }
-        timer = window.setTimeout(poll, view?.busy ? 1500 : document.hidden ? 8000 : 3500);
+        // Wartet die Gruppe auf den Wurf eines anderen, öfter nachsehen – sonst kommt dessen Würfelanimation spät an
+        const othersRoll = !!view?.pendings.some((c) => c.playerId !== me.playerId);
+        if (othersRoll) getStage(); // 3D-Würfelbühne schon vorbereiten
+        timer = window.setTimeout(poll, document.hidden ? 8000 : othersRoll ? 1000 : view?.busy ? 1500 : 3500);
       }
 
       function handle(ev: PartyEvent) {
@@ -465,17 +470,18 @@ export function partyPage(): Page {
         if (!p) return;
         let resolveRoll!: (r: RollRecord) => void, rejectRoll!: (e: Error) => void;
         const rollP = new Promise<RollRecord>((res, rej) => { resolveRoll = res; rejectRoll = rej; });
-        const overlay = rollWithOverlay(`${p.label}${MODE_TEXT[p.modus]}${p.sg !== null ? ` · SG ${p.sg}` : ""}`, () => rollP);
-        busyLocal = true; liveLocal = "";
-        renderBelow();
         const queued: PartyEvent[] = [];
         let open = true;
         let damage: RollRecord | null = null;
+        // Erst den Wurf abschicken, dann die 3D-Bühne aufbauen – so erfahren die anderen sofort davon
         const s = partyApi.stream("roll", me, {}, (ev) => {
           if (ev.type === "roll") { seenRolls.add(ev.record.id); if (ev.record.label.includes("Schaden")) damage = ev.record; else resolveRoll(ev.record); return; }
           if (ev.type === "error") rejectRoll(new Error(ev.message));
           if (open) queued.push(ev); else handle(ev);
         });
+        const overlay = rollWithOverlay(`${p.label}${MODE_TEXT[p.modus]}${p.sg !== null ? ` · SG ${p.sg}` : ""}`, () => rollP);
+        busyLocal = true; liveLocal = "";
+        renderBelow();
         await overlay;
         // Eigener Schadenswurf mit eigener Animation
         if (!damage) await new Promise((r) => setTimeout(r, 400)); // kommt der Schaden etwas später, kurz warten

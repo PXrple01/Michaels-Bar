@@ -57,6 +57,8 @@ export interface Party {
   failed?: string | null;
   live: string;
   lastTurnCostUsd: number | null;
+  /** Kosten dieser Gruppe insgesamt (alle Züge). */
+  costUsd?: number;
   /** Lebenspunkte, Kampf, Aufträge, Gedächtnis – ab dem Start. */
   world: WorldState | null;
   /** Werkzeug-Ergebnisse, die mit dem nächsten Probenergebnis an Claude gehen. */
@@ -185,6 +187,7 @@ export class PartyService {
       live: party.live,
       budget,
       lastTurnCostUsd: party.lastTurnCostUsd,
+      costUsd: party.costUsd ?? 0,
       world: party.status === "playing" ? party.world ?? null : null,
       failed: party.failed ?? null,
     };
@@ -315,6 +318,7 @@ export class PartyService {
       if (cur.offer || cur.chosen.length !== prog.chosen.length) return; // inzwischen schon erledigt (zweites Gerät)
       p.world!.progress = { ...p.world!.progress, [me.character.id]: { abilities: res.abilities, chosen: cur.chosen, offer: res.offer } };
       p.lastTurnCostUsd = res.costUsd;
+      p.costUsd = (p.costUsd ?? 0) + res.costUsd;
     });
     emit({ type: "view", view: this.view(done, me.id, await this.o.guard.info()) });
   }
@@ -548,6 +552,7 @@ export class PartyService {
         p.busy = null;
         p.live = "";
         p.lastTurnCostUsd = res.costUsd;
+      p.costUsd = (p.costUsd ?? 0) + res.costUsd;
       });
       emit({ type: "view", view: this.view(done, me.id, await this.o.guard.info()) });
     } catch (e) {
