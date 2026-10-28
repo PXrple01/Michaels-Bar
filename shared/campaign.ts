@@ -118,9 +118,11 @@ export interface UpgradeRequest {
 
 /** Trennt die Vorschlagszeile („» Vorschläge: A | B | C“) vom Erzähltext. */
 export function splitSuggestions(text: string): { body: string; suggestions: string[] } {
-  const m = text.match(/\n?\s*»\s*Vorschläge:\s*(.+)\s*$/);
+  // Normal: „» Vorschläge: A | B“. Manchmal lässt Claude das Wort weg („» A | B“) oder schreibt „Ideen:“/„Optionen:“ –
+  // ohne Wort zählt die Zeile nur mit „|“ und ohne schließendes „«“ (sonst wäre es ein Zitat in »Anführungszeichen«).
+  const m = text.match(/\n?[ \t*_]*»[ \t]*(?:\*{0,2}(?:Vorschläge|Ideen|Optionen|Möglichkeiten)\*{0,2}:\*{0,2}[ \t]*(.+?)|([^\n«]*\|[^\n«]*))[ \t*_]*$/);
   if (!m) return { body: text.trimEnd(), suggestions: [] };
-  const suggestions = m[1].split("|").map((s) => s.trim()).filter(Boolean).slice(0, 4);
+  const suggestions = (m[1] ?? m[2]).split("|").map((s) => s.trim()).filter(Boolean).slice(0, 4);
   return { body: text.slice(0, m.index).trimEnd(), suggestions };
 }
 

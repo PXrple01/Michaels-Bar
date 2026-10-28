@@ -145,5 +145,10 @@ describe("Hilfsfunktionen", () => {
   it("Vorschlagszeile wird abgetrennt", () => {
     expect(splitSuggestions("Text.\n» Vorschläge: A | B | C")).toEqual({ body: "Text.", suggestions: ["A", "B", "C"] });
     expect(splitSuggestions("Nur Text.")).toEqual({ body: "Nur Text.", suggestions: [] });
+    // Claude lässt das Wort manchmal weg oder nennt es anders
+    expect(splitSuggestions("Text.\n\n» Die Büttel angreifen | Einschüchtern | Mit Liutgard zurück")).toEqual({ body: "Text.", suggestions: ["Die Büttel angreifen", "Einschüchtern", "Mit Liutgard zurück"] });
+    expect(splitSuggestions("Text.\n» **Ideen:** A | B")).toEqual({ body: "Text.", suggestions: ["A", "B"] });
+    // Ein Zitat in »Anführungszeichen« am Ende ist kein Vorschlag
+    expect(splitSuggestions("Er sagt:\n»Geh | oder bleib.«").suggestions).toEqual([]);
   });
 });
