@@ -14,7 +14,7 @@ import { turnSummary } from "./summary";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, Narrator, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type LlmClient, type MessageParam, type ModelId, type ToolResult } from "./narrator";
+import { chapterMark, errorEvent, GmError, Narrator, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, userTurn, type LlmClient, type MessageParam, type ModelId, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import { characterHash, signState, verifyState } from "./state";
@@ -177,11 +177,15 @@ export class GameMaster {
 
   private async converse(messages: MessageParam[], world: WorldState, c: Character, data: GameData, who: string, emit: (ev: GmEvent) => void) {
     const scene = { characters: [effectiveCharacter(c, world)], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }), onImage: (img: SceneImage) => emit({ type: "image", ...img }) };
-    const res = await this.narrator.converse(messages, scene, who, (text) => emit({ type: "text", text }));
+    const mark = chapterMark(world), first = !messages.some((m) => m.role === "assistant");
+    let narration = "";
+    const res = await this.narrator.converse(messages, scene, who, (text) => { narration += text; emit({ type: "text", text }); });
+    // Anfang der Kampagne oder eines Kapitels: immer ein Bild (falls Claude keines bestellt hat)
+    const auto = await this.narrator.imageIfDue({ mark, first, painted: res.painted, narration, scene });
     applyLevels(world, [c], data.classes, data.rules);
     // Gefallen und niemand hat geholfen: Niederlage, vom Server erzwungen (auch wenn Claude es nicht selbst beendet hat)
     const defeated = enforceDefeat(world, scene.characters);
-    emit({ type: "done", state: this.sign(res.history, world, res.held, c), pending: defeated ? null : res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd, turnImageUsd: res.imageUsd });
+    emit({ type: "done", state: this.sign(res.history, world, res.held, c), pending: defeated ? null : res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd + auto.claudeUsd, turnImageUsd: res.imageUsd + auto.imageUsd });
   }
 }
 

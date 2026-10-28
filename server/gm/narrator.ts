@@ -7,7 +7,7 @@ import type { ImageMaker } from "../images";
 import { characterRoll } from "../../shared/character";
 import { formatModifier, parseNotation, type RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
-import type { WorldState } from "../../shared/world";
+import { currentChapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { systemPrompt } from "./prompt";
@@ -86,6 +86,10 @@ const MAX_LOOPS = 5;
  * Darum: nach TURN_BUDGET_MS wird abgebrochen (sauberer Fehler), und ein weiterer Modellaufruf beginnt nur, wenn noch MIN_CALL_MS übrig sind.
  */
 export const TURN_BUDGET_MS = 50_000;
+/** Kleines Modell für Bildbeschreibungen. */
+const IMAGE_PROMPT_MODEL: ModelId = "claude-haiku-5-5";
+/** Kapitelmarke: ändert sie sich in einem Zug, hat ein neues Kapitel (oder die Kampagne) begonnen. */
+export const chapterMark = (w: WorldState) => (w.arc?.plan ? `${w.arc.current}:${w.arc.chapters[w.arc.current]?.titel ?? ""}` : "");
 const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
 const QUIET_TOOLS = new Set(["bild", "ort", "person", "laden", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
@@ -164,6 +168,8 @@ export interface ConverseResult {
   costUsd: number;
   /** Kosten der gemalten Bilder dieses Zugs (fal.ai). */
   imageUsd: number;
+  /** Hat Claude in diesem Zug ein Bild bestellt? */
+  painted: boolean;
   /** Verbrauchte Tokens aller Aufrufe dieses Zugs (Eingabe inkl. Cache). */
   usage: { input: number; output: number };
 }
@@ -172,6 +178,43 @@ export class Narrator {
   constructor(private o: NarratorOptions) {}
 
   get model(): ModelId { return this.o.model ?? "claude-opus-5-5"; }
+
+  /**
+   * Bild am Anfang der Kampagne und jedes Kapitels – falls Claude in diesem Zug keines bestellt hat.
+   * Die Bildbeschreibung schreibt dann Claude Haiku aus dem eben erzählten Text (Bruchteil eines Cents).
+   */
+  async imageIfDue(o: { mark: string; first: boolean; painted: boolean; narration: string; scene: Scene }): Promise<{ imageUsd: number; claudeUsd: number }> {
+    const none = { imageUsd: 0, claudeUsd: 0 };
+    const { world } = o.scene;
+    const now = chapterMark(world);
+    const due = !o.painted && !world.arc?.finished && (o.first || (now !== "" && now !== o.mark));
+    if (!due || !this.o.images?.ready || o.narration.trim().length < 40) return none;
+    const ch = world.arc ? currentChapter(world.arc) : null;
+    let claudeUsd = 0, motif = o.narration.split("»")[0].trim().slice(0, 900);
+    if (this.o.llm) {
+      try {
+        const msg = await this.o.llm.stream({
+          ...requestBase(IMAGE_PROMPT_MODEL, "low"),
+          max_tokens: 400,
+          system: [{ type: "text", text: "You write prompts for an image model that paints scenes of a medieval role-playing game (Holy Roman Empire, around 1400). From the German narration, describe in 2–4 English sentences the most striking moment as one picture: place, light, weather, time of day, important figures with appearance and clothing, mood. No names, no text, no style instructions. Answer with the prompt only." }],
+          messages: [{ role: "user", content: `${world.time ? `Time: ${world.time.phase}, weather: ${world.time.weather}.\n` : ""}Narration:\n${o.narration.split("»")[0].slice(-3000)}` }],
+        }, () => {}, AbortSignal.timeout(15_000));
+        await this.o.guard.record(msg.usage, IMAGE_PROMPT_MODEL);
+        claudeUsd = costUsd(msg.usage, IMAGE_PROMPT_MODEL);
+        const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
+        if (text.length >= 40) motif = text;
+      } catch (e) { console.error("[Bilder] Bildbeschreibung fehlgeschlagen:", (e as Error).message); }
+    }
+    try {
+      const { url, costUsd: imageUsd } = await this.o.images.make(motif, "landscape_4_3");
+      await this.o.guard.addUsd(imageUsd);
+      o.scene.onImage?.({ url, caption: ch?.titel ?? "Der Anfang" });
+      return { imageUsd, claudeUsd };
+    } catch (e) {
+      console.error("[Bilder]", (e as Error).message);
+      return { imageUsd: 0, claudeUsd };
+    }
+  }
 
   /** Werkzeug bild: malen, speichern, den Spielern zeigen. Fehler beenden den Zug nicht – Claude erfährt sie als Text. */
   private async paint(b: Anthropic.Beta.BetaToolUseBlock, scene: Scene): Promise<{ costUsd: number } | string> {
@@ -223,7 +266,7 @@ export class Narrator {
       },
     }, ...autoToolDefs(characters), {
       name: "bild",
-      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Für Momente, die ein Bild verdienen: Ankunft an einem eindrucksvollen Ort, eine wichtige Person oder ein besonderer Gegner tritt auf, ein dramatischer Wendepunkt, das Finale. Höchstens eins pro Antwort und nicht bei jedem Zug – etwa jede dritte bis fünfte Szene.",
+      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Nutze es oft: immer in deiner ersten Antwort einer Kampagne und wenn ein neues Kapitel beginnt, außerdem bei jedem Ortswechsel, wenn eine wichtige Person oder ein besonderer Gegner auftritt und bei dramatischen Wendepunkten – etwa jede zweite bis dritte Antwort. Höchstens eins pro Antwort.",
       input_schema: {
         type: "object",
         properties: {
@@ -364,7 +407,7 @@ export class Narrator {
     ensureInventory(world, characters, data.rules);
     const history = [...messages];
     const base = requestBase(this.model, this.o.effort ?? "low");
-    let cost = 0, imageUsd = 0;
+    let cost = 0, imageUsd = 0, paintedTurn = false;
     const usage = { input: 0, output: 0 };
     const budget = this.o.turnBudgetMs ?? TURN_BUDGET_MS;
     const deadline = Date.now() + budget;
@@ -414,7 +457,7 @@ export class Narrator {
             if (b.name === TOOL_NAME || b.name === "gegner_greift_an") continue;
             if (b.name === "bild") {
               const r = painted ? "Nur ein Bild pro Antwort." : await this.paint(b, scene);
-              painted = true;
+              painted = paintedTurn = true;
               if (typeof r !== "string") imageUsd += r.costUsd;
               byId.set(b.id, { type: "tool_result", tool_use_id: b.id, content: typeof r === "string" ? r : "Das Bild wird den Spielern gezeigt." });
               continue;
@@ -433,20 +476,20 @@ export class Narrator {
           // Gegnerzug: mit offenen Proben erst nach den Würfen (siehe enemyTurn), sonst sofort
           if (!pendings.length) for (const b of uses) if (b.name === "gegner_greift_an") await run(b);
           const results = uses.map((b) => byId.get(b.id)).filter((r): r is ToolResult => !!r);
-          if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, imageUsd, usage };
+          if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
           const told = msg.content.some((b) => b.type === "text" && splitSuggestions(b.text).suggestions.length > 0);
           const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
-          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, usage };
+          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
           // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.
           if (deadline - Date.now() < MIN_CALL_MS) {
             console.warn("[Claude] Zeitbudget fast aufgebraucht – Zug endet ohne weiteren Aufruf.");
-            return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, usage };
+            return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
           }
           history.push({ role: "user", content: results });
           continue;
         }
         if (uses.length) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
-        return { history, pending: null, pendings: [], held: [], costUsd: cost, imageUsd, usage };
+        return { history, pending: null, pendings: [], held: [], costUsd: cost, imageUsd, painted: paintedTurn, usage };
       }
       throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");
     } finally {

@@ -63,3 +63,38 @@ describe("Porträt-Beschreibung durch Claude", async () => {
     expect(await portraitPrompt({ llm: broken as never, guard }, c, data)).toMatchObject({ claudeUsd: 0 });
   });
 });
+
+describe("Bild am Anfang der Kampagne und jedes Kapitels", async () => {
+  const path = await import("node:path");
+  const { Narrator, chapterMark } = await import("../server/gm/narrator");
+  const { UsageGuard, MemoryCounterStore } = await import("../server/gm/usage");
+  const { RollLog } = await import("../server/dice/log");
+  const { loadGameData } = await import("../server/rules/loader");
+  const { buildCharacter } = await import("../server/characters");
+  const { initWorld } = await import("../shared/world");
+  const data = await loadGameData(path.resolve(__dirname, "../data"));
+  const ritter = data.classes.find((c) => c.id === "ritter")!;
+  const hagen = buildCharacter({ name: "Hagen", stand: "bauer", classId: "ritter", attributes: ritter.recommendedAttributes, chosenSkills: ["reiten", "wahrnehmung"] }, data);
+  const llm = { stream: async () => ({ content: [{ type: "text", text: "A muddy crossroads at dawn with a gallows, fog rising over the fields." }], usage: { input_tokens: 300, output_tokens: 40 } }) };
+  const narrator = new Narrator({ llm: llm as never, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 60), images: new ImageMaker({ key: "k", store: new MemoryImageStore(), fetch: falReply(1024, 768) }) });
+  const narration = "Nebel liegt über der Wegkreuzung, und am Galgen knarrt ein Seil im Wind. Ein Mann wartet dort.";
+
+  it("malt beim ersten Zug und beim Kapitelwechsel – nicht sonst und nicht doppelt", async () => {
+    const world = initWorld([hagen]);
+    const shown: string[] = [];
+    const scene = { characters: [hagen], data, world, onRoll: () => {}, onImage: (i: { caption: string }) => shown.push(i.caption) };
+    const start = await narrator.imageIfDue({ mark: "", first: true, painted: false, narration, scene });
+    expect(start.imageUsd).toBe(0.005);
+    expect(start.claudeUsd).toBeGreaterThan(0);
+    // Gleiches Kapitel: kein Bild
+    world.arc = { ...world.arc!, plan: { ziel: "z", bedrohung: "b" }, chapters: [{ titel: "Der Galgen", ziel: "", act: 0, detour: false, rueckweg: null, done: false, rueckblick: null }, { titel: "Die Mühle", ziel: "", act: 0, detour: false, rueckweg: null, done: false, rueckblick: null }], current: 0 };
+    const mark = chapterMark(world);
+    expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0);
+    // Neues Kapitel, aber Claude hat schon ein Bild bestellt: keines zusätzlich
+    world.arc.current = 1;
+    expect((await narrator.imageIfDue({ mark, first: false, painted: true, narration, scene })).imageUsd).toBe(0);
+    // Neues Kapitel ohne Bild von Claude: Bild mit dem Kapiteltitel
+    expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.005);
+    expect(shown).toEqual(["Der Anfang", "Die Mühle"]);
+  });
+});

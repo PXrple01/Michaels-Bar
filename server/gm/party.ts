@@ -14,7 +14,7 @@ import { turnSummary } from "./summary";
 import { countChapterTurn, enforceDefeat } from "./world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
-import { errorEvent, GmError, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, TURN_BUDGET_MS, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
+import { chapterMark, errorEvent, GmError, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, TURN_BUDGET_MS, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
 import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import type { UpgradeForge } from "./upgrades";
@@ -530,7 +530,11 @@ export class PartyService {
       let lastSave = Date.now();
       let saving: Promise<unknown> = Promise.resolve();
       const onImage = (img: SceneImage) => { flush(); segments.push({ type: "image", ...img }); emit({ type: "image", ...img }); };
-      const res = await this.o.narrator.converse(messages, { characters, data, world, onRoll, onImage }, o.who, (text) => {
+      const scene = { characters, data, world, onRoll, onImage };
+      const mark = chapterMark(world), first = !messages.some((m) => m.role === "assistant");
+      let narration = "";
+      const res = await this.o.narrator.converse(messages, scene, o.who, (text) => {
+        narration += text;
         live += text;
         emit({ type: "text", text });
         if (Date.now() - lastSave > LIVE_SAVE_MS) {
@@ -541,6 +545,10 @@ export class PartyService {
       });
       await saving;
       flush();
+      // Anfang der Kampagne oder eines Kapitels: immer ein Bild (falls Claude keines bestellt hat)
+      const auto = await this.o.narrator.imageIfDue({ mark, first, painted: res.painted, narration, scene });
+      res.costUsd += auto.claudeUsd;
+      res.imageUsd += auto.imageUsd;
       applyLevels(world, this.characters(locked), data.classes, data.rules);
       // Ganze Gruppe gefallen und niemand hat sie gerettet: Niederlage, vom Server erzwungen
       const defeated = enforceDefeat(world, characters);

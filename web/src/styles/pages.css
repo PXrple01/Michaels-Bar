@@ -1320,8 +1320,8 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 @keyframes paint-pulse { 50% { opacity: 0.45; filter: blur(2px); } }
 .paint-btn { margin-top: 10px; justify-self: start; }
 
-.story-image { margin: 4px 0; display: grid; gap: 8px; animation: vt-in 0.8s var(--ease-out) both; }
-.si-frame { all: unset; cursor: zoom-in; display: block; border-radius: var(--radius); overflow: hidden; border: 1px solid rgba(245, 214, 138, 0.35); box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.9), 0 0 40px -20px rgba(var(--c-accent), 0.6); background: rgb(var(--c-s08)); aspect-ratio: 4 / 3; }
+.story-image { width: 100%; margin: 4px 0; display: grid; gap: 8px; animation: vt-in 0.8s var(--ease-out) both; }
+.si-frame { all: unset; box-sizing: border-box; width: 100%; cursor: zoom-in; display: block; border-radius: var(--radius); overflow: hidden; border: 1px solid rgba(245, 214, 138, 0.35); box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.9), 0 0 40px -20px rgba(var(--c-accent), 0.6); background: rgb(var(--c-s08)); aspect-ratio: 4 / 3; }
 .si-frame img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.8s var(--ease-out); }
 .si-frame:hover img { transform: scale(1.03); }
 .story-image figcaption { display: flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-head); font-size: 0.92rem; color: var(--text-2); font-style: italic; }
