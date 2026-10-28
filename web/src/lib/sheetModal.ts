@@ -1,3 +1,4 @@
+import { avatar } from "./portraits";
 // Figurenblatt im Abenteuer: Name in der Seitenleiste antippen → Werte der Figur auf einen Blick
 // (mit Stufenaufstiegen, Schmied-Verbesserungen und aufgewerteten Fähigkeiten dieser Kampagne).
 import { armorValue, attackInfo, modifier, skillBonusForLevel, trainedSkills } from "../../../shared/character";
@@ -11,7 +12,7 @@ import { abilityIcon, usesLabel } from "./abilities";
 import type { GameData } from "./api";
 import { dataFor } from "./customClasses";
 import { $, fragment, html, type Raw } from "./dom";
-import { icon, sigil } from "./icons";
+import { icon } from "./icons";
 
 function sheetBody(c: Character, data: GameData, w: WorldState | null | undefined): Raw {
   const { rules, classes } = dataFor(data, c);
@@ -29,7 +30,7 @@ function sheetBody(c: Character, data: GameData, w: WorldState | null | undefine
   const persona = ([["Eigenart", c.personality.trait], ["Glaube", c.personality.ideal], ["Bindung", c.personality.bond], ["Schwäche", c.personality.flaw], ["Aussehen", c.appearance]] as const).filter(([, v]) => v);
   return html`
     <div class="cs-head">
-      <span class="cs-sigil">${sigil(cls.sigil)}</span>
+      <span class="cs-sigil">${avatar(c.id, cls.sigil, { probe: true })}</span>
       <div class="cs-id">
         <h3>${c.name}</h3>
         <small class="muted">${cls.name}${stand ? ` · ${stand.name}` : ""}</small>

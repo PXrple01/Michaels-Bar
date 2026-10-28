@@ -2,7 +2,8 @@
 // Claude verlangt Proben nur über das Werkzeug; gewürfelt wird ausschließlich hier im Server.
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import type { GmEvent, PendingCheck } from "../../shared/campaign";
+import { splitSuggestions, type GmEvent, type PendingCheck, type SceneImage } from "../../shared/campaign";
+import type { ImageMaker } from "../images";
 import { characterRoll } from "../../shared/character";
 import { formatModifier, parseNotation, type RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
@@ -78,7 +79,7 @@ export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
 /** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo; 11 = Tageszeit und Wetter; 12 = Inventar und Geld; 13 = Händler und Schmied; 14 = Personenverzeichnis; 15 = Karte. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 15;
+export const TOOLSET = 16;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
@@ -87,7 +88,7 @@ const MAX_LOOPS = 5;
 export const TURN_BUDGET_MS = 50_000;
 const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
-const QUIET_TOOLS = new Set(["ort", "person", "laden", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
+const QUIET_TOOLS = new Set(["bild", "ort", "person", "laden", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
@@ -135,6 +136,8 @@ export interface NarratorOptions {
   effort?: "low" | "medium" | "high";
   /** Zeitbudget je Zug (Tests setzen es kürzer). */
   turnBudgetMs?: number;
+  /** Bilder über fal.ai (ohne FAL_KEY: keine Bilder). */
+  images?: ImageMaker;
 }
 
 /** Alles, was ein Zug über die Szene wissen muss. `world` wird von den Werkzeugen verändert. */
@@ -143,6 +146,8 @@ export interface Scene {
   data: GameData;
   world: WorldState;
   onRoll: (record: RollRecord) => void;
+  /** Ein Szenenbild ist fertig (Werkzeug bild). */
+  onImage?: (img: SceneImage) => void;
 }
 
 export type ToolResult = Anthropic.Beta.BetaToolResultBlockParam;
@@ -164,6 +169,24 @@ export class Narrator {
   constructor(private o: NarratorOptions) {}
 
   get model(): ModelId { return this.o.model ?? "claude-opus-5-5"; }
+
+  /** Werkzeug bild: malen, speichern, den Spielern zeigen. Fehler beenden den Zug nicht – Claude erfährt sie als Text. */
+  private async paint(b: Anthropic.Beta.BetaToolUseBlock, scene: Scene): Promise<{ costUsd: number } | string> {
+    const images = this.o.images;
+    if (!images?.ready) return "Bilder sind auf dieser Seite nicht eingerichtet – rufe bild nicht mehr auf.";
+    const input = (b.input ?? {}) as { motiv?: unknown; titel?: unknown };
+    const motif = typeof input.motiv === "string" ? input.motiv : "";
+    if (motif.trim().length < 10) return "Bitte beschreibe das Motiv (motiv) in 1–3 englischen Sätzen.";
+    try {
+      const { url, costUsd } = await images.make(motif, "landscape_4_3");
+      await this.o.guard.addUsd(costUsd);
+      scene.onImage?.({ url, caption: typeof input.titel === "string" ? input.titel.trim().slice(0, 80) : "" });
+      return { costUsd };
+    } catch (e) {
+      console.error("[Bilder]", (e as Error).message);
+      return `Das Bild konnte nicht gemalt werden (${(e as Error).message}). Erzähle einfach weiter.`;
+    }
+  }
 
   ensureReady() {
     if (!this.o.llm) throw new GmError("Kein API-Schlüssel hinterlegt. Trage ANTHROPIC_API_KEY ein (lokal in .env, online in den Netlify-Umgebungsvariablen).", "no_api_key");
@@ -195,7 +218,18 @@ export class Narrator {
         },
         required: [...(party ? ["figur"] : []), "art", "id", "sg", "modus", "grund"],
       },
-    }, ...autoToolDefs(characters)];
+    }, ...autoToolDefs(characters), {
+      name: "bild",
+      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Für Momente, die ein Bild verdienen: Ankunft an einem eindrucksvollen Ort, eine wichtige Person oder ein besonderer Gegner tritt auf, ein dramatischer Wendepunkt, das Finale. Höchstens eins pro Antwort und nicht bei jedem Zug – etwa jede dritte bis fünfte Szene.",
+      input_schema: {
+        type: "object",
+        properties: {
+          motiv: { type: "string", description: "Bildbeschreibung auf ENGLISCH, 1–3 Sätze: was man sieht (Ort, Licht, Wetter, Tageszeit, wichtige Personen mit Aussehen und Kleidung, Stimmung). Keine Namen, keine Schrift. Den Malstil legt der Server fest." },
+          titel: { type: "string", description: "Bildunterschrift auf Deutsch, 2–6 Wörter" },
+        },
+        required: ["motiv", "titel"],
+      },
+    }];
   }
 
   private toolInput(data: GameData) {
@@ -372,8 +406,16 @@ export class Narrator {
           // dann die Probe (höchstens eine), zuletzt Gegnerangriffe – die warten, bis alle gewürfelt haben.
           const byId = new Map<string, ToolResult>();
           const run = async (b: Anthropic.Beta.BetaToolUseBlock) => byId.set(b.id, { type: "tool_result", tool_use_id: b.id, ...(await runAutoTool(b, { data, characters, world, rolls: this.o.rolls, onRoll: scene.onRoll })) });
+          let painted = false;
           for (const b of uses) {
             if (b.name === TOOL_NAME || b.name === "gegner_greift_an") continue;
+            if (b.name === "bild") {
+              const r = painted ? "Nur ein Bild pro Antwort." : await this.paint(b, scene);
+              painted = true;
+              if (typeof r !== "string") cost += r.costUsd;
+              byId.set(b.id, { type: "tool_result", tool_use_id: b.id, content: typeof r === "string" ? r : "Das Bild wird den Spielern gezeigt." });
+              continue;
+            }
             if ((AUTO_TOOLS as readonly string[]).includes(b.name)) await run(b);
             else byId.set(b.id, { type: "tool_result", tool_use_id: b.id, is_error: true, content: "Unbekanntes Werkzeug." });
           }
@@ -389,7 +431,7 @@ export class Narrator {
           if (!pendings.length) for (const b of uses) if (b.name === "gegner_greift_an") await run(b);
           const results = uses.map((b) => byId.get(b.id)).filter((r): r is ToolResult => !!r);
           if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, usage };
-          const told = msg.content.some((b) => b.type === "text" && /»\s*Vorschläge:/.test(b.text));
+          const told = msg.content.some((b) => b.type === "text" && splitSuggestions(b.text).suggestions.length > 0);
           const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
           if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, usage };
           // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.

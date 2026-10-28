@@ -1,3 +1,4 @@
+import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
 import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusForLevel, trainedSkills, type CharacterRollType } from "../../../shared/character";
 import { formatModifier, type RollMode } from "../../../shared/dice";
 import type { Character, Money } from "../../../shared/schema";
@@ -8,7 +9,7 @@ import { api, loadGameData, type GameData } from "../lib/api";
 import { dataFor } from "../lib/customClasses";
 import { $, $$, html, setHTML, uuid } from "../lib/dom";
 import { term } from "../lib/glossary";
-import { icon, sigil } from "../lib/icons";
+import { icon } from "../lib/icons";
 import { go, type Page } from "../lib/router";
 import { bindSegmented, confirmDialog, segmented, toast } from "../lib/ui";
 
@@ -51,7 +52,7 @@ export function sheetPage(): Page {
           </div>` : ""}
 
           <section class="sheet-head card" data-reveal>
-            <div class="sh-sigil">${sigil(cls.sigil, "draw")}</div>
+            <div class="sh-sigil" id="sh-portrait">${avatar(c.id, cls.sigil, { draw: true })}</div>
             <div class="sh-id">
               <div class="eyebrow">${cls.name} · ${stand.name}</div>
               <h1>${c.name}</h1>
@@ -61,6 +62,7 @@ export function sheetPage(): Page {
                 <span class="chip">${term("trefferwuerfel", `W${cls.hitDie}`)}</span>
                 <span class="chip">${term("koennen", `Können ${formatModifier(sb)}`)}</span>
               </div>
+              <button class="btn btn-ghost btn-sm paint-btn" id="paint-portrait" hidden>${icon("feather")} ${portraitOf(c.id) ? "Neues Porträt malen" : "Porträt malen"}</button>
             </div>
             <div class="sh-vitals">
               <div class="vital hp">
@@ -202,6 +204,26 @@ export function sheetPage(): Page {
       }));
 
       $("#hp-fill", root).classList.toggle("low", c.hp.current / c.hp.max <= 0.3);
+
+      // Porträt (fal.ai): Knopf nur, wenn Bilder eingerichtet sind; neue Figuren bekommen gleich eines
+      const paintBtn = $<HTMLButtonElement>("#paint-portrait", root);
+      const paint = async () => {
+        paintBtn.disabled = true;
+        $("#sh-portrait", root).classList.add("painting");
+        try {
+          await paintPortrait(c);
+          $("#sh-portrait", root).innerHTML = avatar(c.id, cls.sigil).value;
+          paintBtn.innerHTML = html`${icon("feather")} Neues Porträt malen`.value;
+        } catch (e) { toast(`Porträt: ${(e as Error).message}`, "error"); }
+        $("#sh-portrait", root).classList.remove("painting");
+        paintBtn.disabled = false;
+      };
+      paintBtn.addEventListener("click", () => void paint());
+      void imagesEnabled().then((on) => {
+        if (!on) return;
+        paintBtn.hidden = false;
+        if (isNew && !portraitOf(c.id)) void paint();
+      });
 
       $("#copy-char", root).addEventListener("click", async () => {
         const json = JSON.stringify(c);

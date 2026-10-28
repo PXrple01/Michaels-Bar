@@ -47,8 +47,12 @@ export interface SignedState {
   model?: string;
 }
 
+/** Gemaltes Bild zur Szene (Link zu /api/images/…). */
+export interface SceneImage { url: string; caption: string }
+
 export type StoryEntry =
   | { type: "gm"; text: string }
+  | ({ type: "image" } & SceneImage)
   | { type: "player"; text: string }
   | { type: "roll"; record: RollRecord; auto?: boolean };
 
@@ -88,6 +92,8 @@ export type GmEvent =
   | { type: "roll"; record: RollRecord }
   /** Vom Server ausgelöster Wurf (Gegnerangriff, Heilung, Rast) – mitten in der Erzählung. */
   | { type: "autoroll"; record: RollRecord }
+  /** Szenenbild fertig – erscheint nach dem Text dieser Antwort. */
+  | ({ type: "image" } & SceneImage)
   | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo; turnCostUsd?: number }
   /** Verbesserungen erstellt (offer) oder gewählt (offer = null) – neuer signierter Spielstand. */
   | { type: "upgrade"; state: SignedState; offer: UpgradeOffer | null; budget: BudgetInfo; turnCostUsd?: number }

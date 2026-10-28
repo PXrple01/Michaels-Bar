@@ -10,7 +10,7 @@ import { signClass, verifySignedClass } from "./classes";
 import type { RollLog } from "./dice/log";
 import type { GameData } from "./rules/loader";
 
-export interface ApiDeps { data: () => GameData; rolls: RollLog; accessCode?: string; secret?: string; customClassDir?: string }
+export interface ApiDeps { data: () => GameData; rolls: RollLog; accessCode?: string; secret?: string; customClassDir?: string; /** Sind Bilder (fal.ai) eingerichtet? */ images?: boolean }
 export interface ApiResult { status: number; body: unknown }
 
 const MODES: RollMode[] = ["normal", "advantage", "disadvantage"];
@@ -37,7 +37,7 @@ async function route(method: string, path: string, body: unknown, deps: ApiDeps)
       return { status: 200, body: { rules, campaign, classes } };
     }
     case "GET /api/config":
-      return { status: 200, body: { accessRequired: !!deps.accessCode } };
+      return { status: 200, body: { accessRequired: !!deps.accessCode, images: !!deps.images } };
     // Neue Figur: Der Server rechnet sie aus, gespeichert wird sie im Browser.
     case "POST /api/characters":
       return { status: 201, body: buildCharacter(body, deps.data(), deps.secret) };

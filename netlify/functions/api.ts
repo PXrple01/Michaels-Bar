@@ -6,7 +6,7 @@ import type { GameData } from "../../server/rules/loader";
 import gamedata from "../../server/generated/gamedata.json";
 import { BlobRollStore } from "../lib/blobs";
 
-const deps = { data: () => gamedata as unknown as GameData, rolls: new RollLog(new BlobRollStore()), accessCode: process.env.ACCESS_CODE, secret: process.env.GAME_SECRET };
+const deps = { data: () => gamedata as unknown as GameData, rolls: new RollLog(new BlobRollStore()), accessCode: process.env.ACCESS_CODE, secret: process.env.GAME_SECRET, images: !!process.env.FAL_KEY?.trim() };
 
 export default async (req: Request) => {
   let body: unknown = null;

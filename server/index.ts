@@ -9,6 +9,7 @@ import { MemoryPartyStore } from "./gm/party";
 import { MemoryCounterStore } from "./gm/usage";
 import { MemoryRollStore, RollLog } from "./dice/log";
 import { loadGameData, RulesError, type GameData } from "./rules/loader";
+import { FileImageStore } from "./images";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // Optionale .env-Datei (ANTHROPIC_API_KEY usw.)
@@ -43,7 +44,8 @@ const rolls = new RollLog(new MemoryRollStore(path.join(root, "saves", "rolls.lo
 const secret = localSecret();
 const counters = new MemoryCounterStore();
 const parties = new MemoryPartyStore();
-const claude = createClaude(process.env, () => data, rolls, counters, secret, parties);
+// Bilder lokal in saves/images (nicht im Git)
+const claude = createClaude(process.env, () => data, rolls, counters, secret, parties, new FileImageStore(path.join(root, "saves", "images")));
 // Konten lokal als Dateien in saves/accounts (nicht im Git)
 const accounts = new AccountService({ store: new FileAccountStore(path.join(root, "saves", "accounts")), secret, counters, inviteCode: process.env.ACCESS_CODE?.trim() || undefined, admin: process.env.ADMIN_USER?.trim() || undefined, parties });
 const app = createApp({
@@ -55,6 +57,7 @@ const app = createApp({
   secret,
   customClassDir: path.join(root, "data", "classes", "custom"),
   accounts,
+  images: claude.images.ready,
 });
 
 app.listen(PORT, HOST, () => {

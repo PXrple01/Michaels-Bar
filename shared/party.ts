@@ -1,5 +1,5 @@
 // Mehrspieler: gemeinsame Abenteuer mit Gruppen-Code. Der Spielstand liegt auf dem Server.
-import type { BudgetInfo, Opening, PendingCheck } from "./campaign";
+import type { BudgetInfo, Opening, PendingCheck, SceneImage } from "./campaign";
 import type { RollRecord } from "./dice";
 import type { WorldState } from "./world";
 
@@ -9,7 +9,8 @@ export type PartyStoryEntry =
   | { type: "gm"; text: string }
   | { type: "actions"; items: { playerId: string; name: string; text: string }[] }
   | { type: "roll"; record: RollRecord; playerId: string; auto?: boolean }
-  | { type: "info"; text: string };
+  | { type: "info"; text: string }
+  | ({ type: "image" } & SceneImage);
 
 export interface PartyPlayerView {
   id: string;
@@ -68,5 +69,6 @@ export type PartyEvent =
   | { type: "text"; text: string }
   | { type: "roll"; record: RollRecord }
   | { type: "autoroll"; record: RollRecord }
+  | ({ type: "image" } & SceneImage)
   | { type: "view"; view: PartyView }
   | { type: "error"; message: string; code?: string };

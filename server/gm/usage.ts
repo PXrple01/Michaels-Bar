@@ -74,6 +74,11 @@ export class UsageGuard {
     return this.store.add(monthKey(), costUsd(u, model));
   }
 
+  /** Sonstige Kosten (z. B. Bilder) aufs Monatsbudget buchen. */
+  async addUsd(usd: number): Promise<number> {
+    return this.store.add(monthKey(), usd);
+  }
+
   async info() {
     return { spentUsd: Math.round((await this.store.get(monthKey())) * 100) / 100, limitUsd: this.limitUsd };
   }

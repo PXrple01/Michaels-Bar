@@ -1,3 +1,4 @@
+import { sceneFigure } from "../lib/sceneImage";
 import { openSheet } from "../lib/sheetModal";
 import { effectiveCharacter } from "../../../shared/levels";
 import { costChip, costText, splitSuggestions, MAX_ACTION_LENGTH, type CampaignSave, type GmEvent, type Opening, type PendingCheck } from "../../../shared/campaign";
@@ -222,6 +223,7 @@ export function playPage(): Page {
       function storyEntry(e: CampaignSave["story"][number], first: boolean): Raw {
         if (e.type === "player") return html`<div class="story-player"><span>${e.text}</span></div>`;
         if (e.type === "roll") return rollSummary(e.record, e.auto);
+        if (e.type === "image") return sceneFigure(e);
         return html`<div class="story-gm ${first ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}</div>`;
       }
 
@@ -429,7 +431,12 @@ export function playPage(): Page {
       function handle(ev: GmEvent) {
         if (!alive) return;
         if (ev.type === "text") pushLive(ev.text);
-        else if (ev.type === "autoroll") {
+        else if (ev.type === "image") {
+          endLive();
+          const entry = { type: "image" as const, url: ev.url, caption: ev.caption };
+          save!.story.push(entry); appendEntry(entry);
+          scrollDown(true);
+        } else if (ev.type === "autoroll") {
           // Gegnerangriff, Heilung, Rast: Erzählung bis hier abschließen, Wurf zeigen, danach weitererzählen
           endLive();
           const entry = { type: "roll" as const, record: ev.record, auto: true };

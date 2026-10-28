@@ -1,3 +1,4 @@
+import { sceneFigure } from "../lib/sceneImage";
 import { costChip } from "../../../shared/campaign";
 import { openSheet } from "../lib/sheetModal";
 import { MAX_ACTION_LENGTH, splitSuggestions } from "../../../shared/campaign";
@@ -217,6 +218,7 @@ export function partyPage(): Page {
         if (e.type === "gm") return html`<div class="story-gm ${firstGm ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}</div>`;
         if (e.type === "roll") return rollSummary(e.record, e.auto);
         if (e.type === "info") return html`<div class="story-info">${e.text}</div>`;
+        if (e.type === "image") return sceneFigure(e);
         return html`<div class="story-actions">${e.items.map((i) => html`<div class="story-player ${i.playerId === me.playerId ? "mine" : ""}"><span><b>${i.name}</b>${i.text}</span></div>`)}</div>`;
       }
 

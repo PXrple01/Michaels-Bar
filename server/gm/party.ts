@@ -1,6 +1,6 @@
 // Mehrspieler-Gruppen: Spielstand auf dem Server, Runden mit gesammelten Handlungen, Proben für bestimmte Figuren.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import type { Opening, PendingCheck } from "../../shared/campaign";
+import type { Opening, PendingCheck, SceneImage } from "../../shared/campaign";
 import { MAX_ACTION_LENGTH } from "../../shared/campaign";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../shared/party";
 import type { RollRecord } from "../../shared/dice";
@@ -523,7 +523,8 @@ export class PartyService {
       }
       let lastSave = Date.now();
       let saving: Promise<unknown> = Promise.resolve();
-      const res = await this.o.narrator.converse(messages, { characters, data, world, onRoll }, o.who, (text) => {
+      const onImage = (img: SceneImage) => { flush(); segments.push({ type: "image", ...img }); emit({ type: "image", ...img }); };
+      const res = await this.o.narrator.converse(messages, { characters, data, world, onRoll, onImage }, o.who, (text) => {
         live += text;
         emit({ type: "text", text });
         if (Date.now() - lastSave > LIVE_SAVE_MS) {
@@ -552,7 +553,7 @@ export class PartyService {
         p.busy = null;
         p.live = "";
         p.lastTurnCostUsd = res.costUsd;
-      p.costUsd = (p.costUsd ?? 0) + res.costUsd;
+        p.costUsd = (p.costUsd ?? 0) + res.costUsd;
       });
       emit({ type: "view", view: this.view(done, me.id, await this.o.guard.info()) });
     } catch (e) {

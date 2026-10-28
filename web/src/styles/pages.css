@@ -1302,3 +1302,33 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 .cs-persona div { display: grid; grid-template-columns: 90px 1fr; gap: 8px; font-size: 0.86rem; }
 .cs-persona dt { color: var(--muted); }
 .cs-persona dd { margin: 0; color: var(--text-2); }
+
+/* ───────────── Bilder (fal.ai) ───────────── */
+.avatar { position: relative; display: grid; place-items: center; width: 100%; height: 100%; border-radius: inherit; }
+.avatar > svg { width: 100%; height: 100%; transition: opacity 0.4s; }
+.avatar-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; border-radius: inherit; opacity: 0; transition: opacity 0.6s var(--ease-out); }
+.avatar.has-img .avatar-img { opacity: 1; }
+.avatar.has-img > svg { opacity: 0; }
+.tm-sigil .avatar { width: 38px; height: 38px; border-radius: 12px; overflow: hidden; }
+.tm-sigil .avatar > svg { width: 30px; height: 30px; }
+.tm-sigil .avatar.has-img { box-shadow: 0 0 0 1px rgba(245, 214, 138, 0.4); }
+.cs-sigil { overflow: hidden; }
+.cs-sigil .avatar > svg { width: 46px; height: 46px; }
+.char-sigil .avatar, .sh-sigil .avatar { border-radius: 18px; overflow: hidden; }
+.char-sigil .avatar.has-img, .sh-sigil .avatar.has-img { box-shadow: 0 0 0 1px rgba(245, 214, 138, 0.45), 0 10px 30px -10px rgba(var(--c-accent), 0.6); }
+.sh-sigil.painting .avatar { animation: paint-pulse 1.4s ease-in-out infinite; }
+@keyframes paint-pulse { 50% { opacity: 0.45; filter: blur(2px); } }
+.paint-btn { margin-top: 10px; justify-self: start; }
+
+.story-image { margin: 4px 0; display: grid; gap: 8px; animation: vt-in 0.8s var(--ease-out) both; }
+.si-frame { all: unset; cursor: zoom-in; display: block; border-radius: var(--radius); overflow: hidden; border: 1px solid rgba(245, 214, 138, 0.35); box-shadow: 0 20px 50px -24px rgba(0, 0, 0, 0.9), 0 0 40px -20px rgba(var(--c-accent), 0.6); background: rgb(var(--c-s08)); aspect-ratio: 4 / 3; }
+.si-frame img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.8s var(--ease-out); }
+.si-frame:hover img { transform: scale(1.03); }
+.story-image figcaption { display: flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-head); font-size: 0.92rem; color: var(--text-2); font-style: italic; }
+.story-image figcaption svg { width: 14px; height: 14px; color: var(--gold); }
+.story-image.broken { display: none; }
+.lightbox { cursor: zoom-out; }
+.lightbox figure { margin: 0; display: grid; gap: 10px; justify-items: center; max-width: min(1100px, 100%); }
+.lightbox img { max-width: 100%; max-height: calc(100dvh - 100px); border-radius: var(--radius-sm); box-shadow: 0 30px 80px -20px #000; }
+.lightbox figcaption { font-family: var(--font-head); color: var(--text); }
+.lb-close { position: fixed; top: 16px; right: 16px; }

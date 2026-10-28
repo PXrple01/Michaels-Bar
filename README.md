@@ -206,6 +206,18 @@ Zweimal pro Kampagne entwickelt sich eine Fähigkeit weiter (`shared/upgrades.ts
   eigene Figur frei; in der Team-Leiste leuchten verbesserte Fähigkeiten golden. Über die OpenAI-Schnittstelle gibt es
   (noch) keine Verbesserungen.
 
+## Bilder (fal.ai)
+
+Mit einem fal.ai-Schlüssel malt die Seite Bilder (`server/images.ts`, Modell **Z-Image Turbo**, ca. 0,5 Cent pro Bild):
+
+- **Szenenbilder:** Claude ruft das Werkzeug `bild` auf, wenn ein Moment ein Bild verdient (eindrucksvoller Ort, wichtige
+  Person, Wendepunkt). Das Bild erscheint nach dem Text in der Erzählung; antippen zeigt es groß.
+- **Figurenporträts:** Neue Figuren bekommen automatisch eines, auf dem Figurenbogen gibt es „Porträt malen“. Es erscheint
+  auf den Figurenkarten, in der Seitenleiste und im Figurenblatt – in der Gruppe auch bei den Mitspielern.
+- **Einschalten:** Umgebungsvariable `FAL_KEY` anlegen (in Netlify als geheim markieren) und neu veröffentlichen.
+- Die Bilder werden selbst gespeichert (Netlify Blobs „images“, lokal `saves/images`), damit sie dauerhaft bleiben.
+- Kosten zählen zum Monatsbudget (`MONTHLY_BUDGET_USD`) und zu den Kosten der Kampagne.
+
 ## OpenAI-kompatible Schnittstelle (für Chat-Apps und Programme)
 
 Der Spielleiter ist auch im OpenAI-Format erreichbar (`server/gm/openai.ts`) – für Chat-Apps mit „OpenAI-kompatibler“ Adresse

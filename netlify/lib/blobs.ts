@@ -5,6 +5,7 @@ import type { RollStore } from "../../server/dice/log";
 import type { CounterStore } from "../../server/gm/usage";
 import type { Party, PartyStore } from "../../server/gm/party";
 import type { AccountStore, UserRecord } from "../../server/accounts";
+import type { ImageStore, StoredImage } from "../../server/images";
 
 export class BlobRollStore implements RollStore {
   private get store() { return getStore({ name: "rolls", consistency: "strong" }); }
@@ -74,4 +75,16 @@ export class BlobAccountStore implements AccountStore {
   async getBackup(id: string, name: string) { return ((await this.store.get(this.backupKey(id, name), { type: "json" })) as Record<string, string> | null) ?? null; }
   async putBackup(id: string, name: string, data: Record<string, string>) { await this.store.setJSON(this.backupKey(id, name), data); }
   async deleteBackup(id: string, name: string) { await this.store.delete(this.backupKey(id, name)); }
+}
+
+/** Gemalte Bilder (Szenen und Porträts) – die Art steht in den Metadaten. */
+export class BlobImageStore implements ImageStore {
+  private get store() { return getStore({ name: "images" }); }
+  async put(id: string, img: StoredImage) {
+    await this.store.set(id, new Uint8Array(img.bytes).buffer, { metadata: { type: img.type } });
+  }
+  async get(id: string) {
+    const r = await this.store.getWithMetadata(id, { type: "arrayBuffer" });
+    return r ? { bytes: new Uint8Array(r.data), type: String(r.metadata?.type ?? "image/webp") } : null;
+  }
 }

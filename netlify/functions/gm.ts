@@ -5,7 +5,7 @@ import { handleGmRequest } from "../../server/gm/http";
 import { createClaude } from "../../server/gm/setup";
 import type { GameData } from "../../server/rules/loader";
 import gamedata from "../../server/generated/gamedata.json";
-import { BlobCounterStore, BlobPartyStore, BlobRollStore } from "../lib/blobs";
+import { BlobCounterStore, BlobImageStore, BlobPartyStore, BlobRollStore } from "../lib/blobs";
 
 const data = gamedata as unknown as GameData;
 
@@ -15,8 +15,8 @@ export default async (req: Request, context: Context) => {
     if (new URL(req.url).pathname.startsWith("/v1/")) return Response.json({ error: { message: "GAME_SECRET fehlt in den Netlify-Umgebungsvariablen (mindestens 16 Zeichen).", type: "api_error", code: "not_configured" } }, { status: 503 });
     return new Response(`data: ${JSON.stringify({ type: "error", code: "no_api_key", message: "GAME_SECRET fehlt in den Netlify-Umgebungsvariablen (mindestens 16 Zeichen)." })}\n\n`, { headers: { "content-type": "text/event-stream" } });
   }
-  const claude = createClaude(process.env, () => data, new RollLog(new BlobRollStore()), new BlobCounterStore(), secret, new BlobPartyStore());
+  const claude = createClaude(process.env, () => data, new RollLog(new BlobRollStore()), new BlobCounterStore(), secret, new BlobPartyStore(), new BlobImageStore());
   return handleGmRequest(req, claude, process.env.ACCESS_CODE, context.ip ?? "unbekannt", secret);
 };
 
-export const config: Config = { path: ["/api/campaign/*", "/api/classes/review", "/api/party/*", "/v1/*"] };
+export const config: Config = { path: ["/api/campaign/*", "/api/classes/review", "/api/party/*", "/api/portrait", "/api/images/*", "/v1/*"] };

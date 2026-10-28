@@ -1,5 +1,6 @@
 // Solo-Modus: Der Spielstand liegt im Browser und ist vom Server signiert.
-import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest } from "../../shared/campaign";
+import type { ImageMaker } from "../images";
+import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest, type SceneImage } from "../../shared/campaign";
 import { trade } from "../../shared/shop";
 import { emptyProgression, upgradeDue } from "../../shared/upgrades";
 import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared/levels";
@@ -32,6 +33,7 @@ export interface GmOptions {
   model?: ModelId;
   effort?: "low" | "medium" | "high";
   turnBudgetMs?: number;
+  images?: ImageMaker;
 }
 
 interface Saved { messages: MessageParam[]; world: WorldState; held: ToolResult[] }
@@ -174,7 +176,7 @@ export class GameMaster {
   }
 
   private async converse(messages: MessageParam[], world: WorldState, c: Character, data: GameData, who: string, emit: (ev: GmEvent) => void) {
-    const scene = { characters: [effectiveCharacter(c, world)], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }) };
+    const scene = { characters: [effectiveCharacter(c, world)], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }), onImage: (img: SceneImage) => emit({ type: "image", ...img }) };
     const res = await this.narrator.converse(messages, scene, who, (text) => emit({ type: "text", text }));
     applyLevels(world, [c], data.classes, data.rules);
     // Gefallen und niemand hat geholfen: Niederlage, vom Server erzwungen (auch wenn Claude es nicht selbst beendet hat)

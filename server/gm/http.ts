@@ -5,6 +5,9 @@ import type { ReviewEvent } from "../../shared/classreview";
 import type { PartyEvent } from "../../shared/party";
 import type { Claude } from "./setup";
 import { readSession } from "../accounts";
+import { ValidationError } from "../characters";
+import { serveImage } from "../images";
+import { LimitError } from "./usage";
 
 export const GM_KINDS = ["start", "turn", "roll", "upgrade", "choose", "level", "shop"] as const;
 export type GmKind = (typeof GM_KINDS)[number];
@@ -80,8 +83,31 @@ export function gate(accessCode: string | undefined, secret: string | undefined,
   return { ok: accessAllowed(accessCode, code) || !!s, who: s ? `user:${s.id}` : ip };
 }
 
+/** Figurenporträt malen: JSON-Antwort mit dem Bild-Link. */
+async function portraitJson(claude: Claude, body: unknown, who: string): Promise<{ status: number; body: unknown }> {
+  try {
+    return { status: 200, body: await claude.portrait((body as { character?: unknown } | null)?.character, who) };
+  } catch (e) {
+    if (e instanceof ValidationError) return { status: 400, body: { error: `Figur ungültig: ${e.problems.join(", ")}` } };
+    if (e instanceof LimitError) return { status: 429, body: { error: e.message } };
+    return { status: 502, body: { error: (e as Error).message } };
+  }
+}
+
 export function mountGm(app: Express, claude: () => Claude, accessCode: string | undefined, secret?: string) {
   const gateOf = (req: Request) => gate(accessCode, secret, req.header("x-access-code"), req.header("x-session"), req.ip ?? "local");
+  app.get("/api/images/:id", async (req: Request, res) => {
+    const r = await serveImage(claude().images.store, String(req.params.id));
+    res.status(r.status);
+    r.headers.forEach((v, k) => res.setHeader(k, v));
+    res.end(Buffer.from(await r.arrayBuffer()));
+  });
+  app.post("/api/portrait", async (req: Request, res) => {
+    const g = gateOf(req);
+    if (!g.ok) return void res.status(403).json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" });
+    const r = await portraitJson(claude(), req.body, g.who);
+    res.status(r.status).json(r.body);
+  });
   app.post("/api/party/:op", async (req: Request, res) => {
     const op = String(req.params.op);
     const g = gateOf(req);
@@ -139,8 +165,16 @@ export async function handleGmRequest(req: Request | globalThis.Request, claude:
   const request = req as globalThis.Request;
   const path = new URL(request.url).pathname;
   if (path.startsWith("/v1/")) return handleOpenAiRequest(request, path, claude, ip);
+  if (path.startsWith("/api/images/") && request.method === "GET") return serveImage(claude.images.store, path.split("/").pop() ?? "");
   const g = gate(accessCode, secret, request.headers.get("x-access-code"), request.headers.get("x-session"), ip);
   const who = g.who;
+  if (path === "/api/portrait" && request.method === "POST") {
+    if (!g.ok) return Response.json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" }, { status: 403 });
+    let body: unknown = null;
+    try { body = await request.json(); } catch { /* ungültig */ }
+    const r = await portraitJson(claude, body, who);
+    return Response.json(r.body, { status: r.status });
+  }
   if (path.startsWith("/api/party/")) return handlePartyRequest(request, path.split("/").pop() ?? "", claude, g.ok, who);
   const kind = (path === "/api/classes/review" ? "review" : path.split("/").pop()) as GmKind | "review";
   if (request.method !== "POST" || (kind !== "review" && !GM_KINDS.includes(kind))) return new Response("Not found", { status: 404 });

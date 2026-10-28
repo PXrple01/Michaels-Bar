@@ -8,7 +8,7 @@ import { mountGm, mountOpenAi } from "./gm/http";
 import type { GameData } from "./rules/loader";
 import type { AccountService } from "./accounts";
 
-export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string; claude?: () => Claude; accessCode?: string; secret?: string; customClassDir?: string; accounts?: AccountService }) {
+export function createApp(opts: { data: () => GameData; rolls: RollLog; staticDir?: string; claude?: () => Claude; accessCode?: string; secret?: string; customClassDir?: string; accounts?: AccountService; images?: boolean }) {
   const app = express();
   app.disable("x-powered-by");
   // Lange Abenteuer (signierter Verlauf) und OpenAI-Gespräche schicken den ganzen Verlauf mit

@@ -1,3 +1,4 @@
+import { avatar } from "./portraits";
 // Spielansicht für Solo und Gruppe: links das Team mit Fortschritt und Auftragsbuch, rechts Gegner und Kernauftrag,
 // in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
 import { currentChapter, isArc, type Arc, type WorldState } from "../../../shared/world";
@@ -8,7 +9,7 @@ import { mapBlock, openMap } from "./mapUi";
 import type { Rules } from "../../../shared/schema";
 import { levelTitle, xpProgress } from "../../../shared/levels";
 import { html, type Raw } from "./dom";
-import { icon, sigil } from "./icons";
+import { icon } from "./icons";
 import { arcProgress } from "./arc";
 import { abilityChips, type AbilityInfo } from "./abilities";
 
@@ -66,7 +67,7 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
         const lv = w?.levels?.[m.id]?.level ?? 1;
         const down = !!w && hp <= 0;
         return html`<div class="tm ${m.me ? "me" : ""} ${down ? "down" : ""}">
-          <span class="tm-sigil">${sigil(m.sigil)}</span>
+          <span class="tm-sigil">${avatar(m.id, m.sigil, { probe: !m.me })}</span>
           <div class="tm-body">
             <div class="tm-line"><button type="button" class="tm-name" data-sheet="${m.id}" title="Figurenblatt von ${m.name} ansehen">${m.name}</button>${m.host ? icon("crown") : ""}<span class="tm-lv" title="Stufe ${lv} · ${levelTitle(lv, rules)}">St. ${lv}</span></div>
             <small class="tm-sub">${m.className}${m.status ? ` · ${m.status}` : ""}</small>

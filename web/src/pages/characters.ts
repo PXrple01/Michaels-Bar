@@ -1,10 +1,11 @@
+import { avatar } from "../lib/portraits";
 import { ACHIEVEMENTS } from "../../../shared/achievements";
 import { unlockedAchievements } from "../lib/achievements";
 import { enhance } from "../fx/effects";
 import { api, loadGameData } from "../lib/api";
 import { campaignStore } from "../lib/campaigns";
 import { html, setHTML } from "../lib/dom";
-import { icon, sigil } from "../lib/icons";
+import { icon } from "../lib/icons";
 import { go, type Page } from "../lib/router";
 import { confirmDialog, toast } from "../lib/ui";
 
@@ -42,7 +43,7 @@ export function charactersPage(): Page {
                 <div class="char-wrap" data-reveal="scale" style="--i:${i + 1}">
                 <button class="icon-btn char-delete" data-delete="${c.id}" aria-label="${c.name} löschen" title="Figur löschen">${icon("trash")}</button>
                 <a class="card char-card tilt" href="#/figur/${c.id}">
-                  <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
+                  <div class="char-sigil">${avatar(c.id, cls?.sigil ?? "shield", { draw: true })}</div>
                   <h3>${c.name}</h3>
                   <p class="muted">${cls?.name ?? c.classId} · ${stand?.name ?? c.stand} · Stufe ${c.level}</p>
                   <div class="mini-hp" title="${c.hp.current} von ${c.hp.max} Trefferpunkten"><i style="width:${hpPct}%"></i></div>
