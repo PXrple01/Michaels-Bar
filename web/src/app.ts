@@ -1,7 +1,8 @@
 // Die eigentliche App – wird erst geladen, wenn jemand angemeldet ist (siehe main.ts).
 import { $, html, raw } from "./lib/dom";
 import { applyPalette, logoSvg } from "./lib/palette";
-import { onSyncState, syncState } from "./lib/account";
+import { onSyncState, summaryText, syncState, takeImported } from "./lib/account";
+import { toast } from "./lib/ui";
 import { icon } from "./lib/icons";
 import { route, startRouter } from "./lib/router";
 import { onSettings, settings, updateSettings } from "./lib/settings";
@@ -105,3 +106,7 @@ void Promise.race([document.fonts.load('700 64px "Cinzel"'), new Promise((r) => 
   clearDieCache();
   startRouter($("#app"), setActive);
 });
+
+// Erste Anmeldung mit Spielständen von früher: kurz zeigen, was ins Konto übernommen wurde
+const imported = takeImported();
+if (imported) setTimeout(() => toast(`Deine bisherigen Spielstände sind jetzt in deinem Konto: ${summaryText(imported)}.`, "success", 8000), 800);

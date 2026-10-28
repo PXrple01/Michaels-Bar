@@ -76,7 +76,7 @@ export const PASSWORD_MIN = 8;
 /** Welche Browser-Schlüssel ein Konto speichert */
 export const DATA_KEY = /^wus\.[a-z0-9._-]{1,60}$/;
 const MAX_KEYS = 50;
-const MAX_VALUE = 5_000_000;
+const MAX_VALUE = 5_500_000;
 const SESSION_DAYS = 90;
 const FAIL_LIMIT = 10;
 const FAIL_WINDOW_MIN = 15;

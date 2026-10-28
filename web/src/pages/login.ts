@@ -47,7 +47,7 @@ export async function showLogin() {
         </form>
         ${old ? html`<div class="auth-old">
           <b>${icon("scroll")} Spielstände von früher gefunden</b>
-          <p>In diesem Browser gefunden: ${[old.characters && `${old.characters} Figur${old.characters === 1 ? "" : "en"}`, old.campaigns && `${old.campaigns} Abenteuer`, old.classes && `${old.classes} eigene Klasse${old.classes === 1 ? "" : "n"}`].filter(Boolean).join(", ")}. Nach dem Anmelden übernimmst du alles mit einem Klick in dein Konto.</p>
+          <p>In diesem Browser gefunden: ${[old.characters && `${old.characters} Figur${old.characters === 1 ? "" : "en"}`, old.campaigns && `${old.campaigns} Abenteuer`, old.classes && `${old.classes} eigene Klasse${old.classes === 1 ? "" : "n"}`].filter(Boolean).join(", ")}. Beim Anmelden kommen sie automatisch in dein Konto – im Browser wird dabei nichts gelöscht.</p>
           <button class="btn btn-ghost btn-sm" id="auth-backup">${icon("download")} Vorher als Datei sichern</button>
         </div>` : ""}
       </div>

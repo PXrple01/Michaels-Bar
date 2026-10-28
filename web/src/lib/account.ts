@@ -42,6 +42,27 @@ async function call<T>(method: string, op: string, body?: unknown, token = sessi
   return data as T;
 }
 
+/* ── Komprimieren: große Spielstände (lange Abenteuer) gehen gepackt an den Server ── */
+
+const PACKED = "gz1:";
+const toB64 = (buf: ArrayBuffer) => { let s = ""; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
+const fromB64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+async function pack(v: string): Promise<string> {
+  if (v.length < 50_000 || typeof CompressionStream === "undefined") return v;
+  const buf = await new Response(new Blob([v]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+  return PACKED + toB64(buf);
+}
+export async function unpack(v: string): Promise<string> {
+  if (!v.startsWith(PACKED)) return v;
+  return new Response(new Blob([fromB64(v.slice(PACKED.length))]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+}
+async function unpackAll(data: Record<string, string>): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(data)) { try { out[k] = await unpack(v); } catch { /* beschädigt: überspringen */ } }
+  return out;
+}
+
 /* ── Speichern im Konto ── */
 
 let state: SyncState = "saved";
@@ -68,20 +89,27 @@ export function flush(keepalive = false): Promise<void> {
     const token = sessionToken();
     const keys = [...dirty()];
     if (!token || !keys.length) { if (!keys.length) setState("saved"); return; }
-    try {
-      for (const key of keys) {
-        const value = get(key);
-        await call("PUT", "data", { key, value }, token, keepalive && (value?.length ?? 0) < 60_000);
+    let failed = false;
+    for (const key of keys) {
+      const value = get(key);
+      try {
+        const sent = value === null ? null : await pack(value);
+        await call("PUT", "data", { key, value: sent }, token, keepalive && (sent?.length ?? 0) < 60_000);
         const d = dirty(); if (get(key) === value) d.delete(key); setDirty(d);
+      } catch (e) {
+        // Ein Bereich klappt nicht (z. B. zu groß) – die anderen trotzdem speichern
+        failed = true;
+        if (e instanceof AccountApiError && (e.status === 401 || e.status === 0)) break;
       }
-      retry = 0;
-      setState(dirty().size ? "saving" : "saved");
-      if (dirty().size) timer = window.setTimeout(() => void flush(), 300);
-    } catch (e) {
-      if (e instanceof AccountApiError && e.status === 401) { setState("offline"); return; }
+    }
+    if (failed) {
       setState("offline");
       retry = Math.min(retry + 1, 6);
       timer = window.setTimeout(() => void flush(), 2000 * 2 ** retry);
+    } else {
+      retry = 0;
+      setState(dirty().size ? "saving" : "saved");
+      if (dirty().size) timer = window.setTimeout(() => void flush(), 300);
     }
   })().finally(() => { flushing = null; });
   return flushing;
@@ -106,7 +134,7 @@ function installHooks() {
 
 /** Stand aus dem Konto in den Browser holen. Was hier noch ungespeichert liegt, geht vorher an den Server. */
 async function pull(token: string) {
-  const { data } = await call<{ data: Record<string, string> }>("GET", "data", undefined, token);
+  const data = await unpackAll((await call<{ data: Record<string, string> }>("GET", "data", undefined, token)).data);
   const pending = dirty();
   quietly(() => {
     for (const key of SYNC_KEYS) {
@@ -140,24 +168,49 @@ export async function boot(): Promise<Session | null> {
   return s;
 }
 
-/** Nach Anmeldung oder Registrierung: Browser-Speicher diesem Konto zuordnen und seinen Stand laden. */
+/** Nach dem ersten Anmelden mit alten Spielständen gesetzt – die App zeigt dann einmal, was übernommen wurde. */
+const IMPORTED = "wus.imported.v1";
+
+/**
+ * Nach Anmeldung oder Registrierung: Browser-Speicher diesem Konto zuordnen und seinen Stand laden.
+ * Spielstände aus der Zeit vor den Konten bleiben dabei, wo sie sind, und werden direkt ins Konto übernommen –
+ * nie wird etwas gelöscht, bevor es sicher im Konto liegt (früher ging das bei vollem Browser-Speicher schief).
+ */
 export async function adopt(token: string, username: string) {
   const owner = get(OWNER);
   const deviceSettings = get("wus.settings.v1");
-  // Spielstände aus der Zeit vor den Konten: aufheben, damit man sie übernehmen kann
-  const local = SYNC_KEYS.filter((k) => k !== "wus.settings.v1" && get(k) !== null);
-  if (!owner && local.length && !get(LEGACY)) {
-    put(LEGACY, JSON.stringify(Object.fromEntries(local.map((k) => [k, JSON.parse(get(k)!)]))));
-  }
+  const legacy = !owner && SYNC_KEYS.some((k) => k !== "wus.settings.v1" && get(k) !== null);
   setDirty(new Set());
-  quietly(() => { for (const k of SYNC_KEYS) put(k, null); });
   put(SESSION, JSON.stringify({ token, username }));
   put(OWNER, username.toLowerCase());
   installHooks();
+  if (legacy) {
+    // Kontostand dazuholen und mit den Spielständen im Browser zusammenführen; danach alles hochladen
+    const data = await unpackAll((await call<{ data: Record<string, string> }>("GET", "data", undefined, token)).data);
+    const before = legacyCounts();
+    const server: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) { try { server[k] = JSON.parse(v); } catch { /* kaputter Eintrag */ } }
+    mergeData(server);
+    const d = dirty(); for (const k of SYNC_KEYS) if (get(k) !== null) d.add(k); setDirty(d);
+    put(IMPORTED, JSON.stringify(before));
+    await flush();
+    return;
+  }
+  quietly(() => { for (const k of SYNC_KEYS) put(k, null); });
   await pull(token);
   // Hat das Konto noch keine Einstellungen (z. B. Farbthema), gelten die dieses Geräts
   if (get("wus.settings.v1") === null && deviceSettings !== null) localStorage.setItem("wus.settings.v1", deviceSettings);
   await flush();
+}
+
+function legacyCounts(): MergeSummary {
+  const n = (k: string) => { try { const v = JSON.parse(get(k) ?? "[]"); return Array.isArray(v) ? v.length : 0; } catch { return 0; } };
+  return { characters: n("wus.characters.v1"), campaigns: n("wus.campaigns.v1"), classes: n("wus.classes.v1"), parties: n("wus.parties.v1") };
+}
+
+/** Einmalig nach der Übernahme: was aus dem Browser ins Konto kam (oder null). */
+export function takeImported(): MergeSummary | null {
+  try { const v = JSON.parse(get(IMPORTED) ?? "null"); put(IMPORTED, null); return v; } catch { return null; }
 }
 
 export async function login(username: string, password: string) {
