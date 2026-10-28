@@ -968,6 +968,7 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
   .play { max-width: 1400px; }
   .play-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr) 270px; gap: 24px; align-items: start; }
   .play-layout.lobby-mode { grid-template-columns: minmax(0, 860px); justify-content: center; }
+  .play-layout.lobby-mode .play-main { grid-column: 1; }
   .play-bars { display: contents; }
   .side { position: sticky; top: calc(var(--topbar-h) + 12px); max-height: calc(100dvh - var(--topbar-h) - 24px); overflow: auto; overscroll-behavior: contain; }
   .side-left { grid-column: 1; grid-row: 1; }
