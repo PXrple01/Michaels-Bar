@@ -1,6 +1,7 @@
 // Spielansicht für Solo und Gruppe: links das Team mit Fortschritt und Auftragsbuch, rechts Gegner und Kernauftrag,
 // in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
 import { currentChapter, isArc, type WorldState } from "../../../shared/world";
+import { PHASE_NAME } from "../../../shared/time";
 import type { Rules } from "../../../shared/schema";
 import { levelTitle, xpProgress } from "../../../shared/levels";
 import { html, type Raw } from "./dom";
@@ -99,8 +100,13 @@ export function lageSide(w: WorldState | null | undefined): Raw {
   const kern = arc?.known?.kern ?? fallback?.title ?? null;
   const kernText = arc?.known?.kern ? null : fallback?.description ?? null;
   const aufgabe = arc?.known?.aufgabe ?? null;
-  return html`<summary class="side-pill ${combat ? "combat" : ""}">${icon(combat ? "sword" : "target")}<b>${combat ? `${standing} Gegner` : "Ziel"}</b><span class="pill-caret">${icon("arrowRight")}</span></summary>
+  return html`<summary class="side-pill ${combat ? "combat" : ""}">${icon(combat ? "sword" : w?.time ? (w.time.phase === "nacht" ? "moon" : w.time.phase === "abend" ? "sunset" : "sun") : "target")}<b>${combat ? `${standing} Gegner` : "Ziel"}</b><span class="pill-caret">${icon("arrowRight")}</span></summary>
     <div class="side-body">
+      ${w?.time ? html`<div class="sky sky-${w.time.phase}" title="Tageszeit und Wetter">
+        <span class="sky-icon">${icon(w.time.phase === "nacht" ? "moon" : w.time.phase === "abend" ? "sunset" : "sun")}</span>
+        <span class="sky-text"><b>Tag ${w.time.day} · ${PHASE_NAME[w.time.phase]}</b><small>${icon("cloud")} ${w.time.weather}</small></span>
+        ${w.time.phase === "nacht" ? html`<span class="sky-stars"><i></i><i></i><i></i><i></i><i></i></span>` : ""}
+      </div>` : ""}
       ${combat ? html`<div class="side-combat">
         <div class="wc-head">${icon("sword")} Kampf · Runde ${combat.round}</div>
         <div class="enemy-list">${combat.enemies.map((e) => html`<div class="we ${e.hp <= 0 ? "down" : ""}">

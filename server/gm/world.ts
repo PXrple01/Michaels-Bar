@@ -7,11 +7,12 @@ import { armorValue, modifier } from "../../shared/character";
 import { formatModifier, parseNotation, type RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
 import { resetUses, useAbility } from "../../shared/abilityUses";
+import { advanceTime, ensureTime, timeLine, type TimeStep } from "../../shared/time";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 
-export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -58,6 +59,10 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       ...(party ? { figur: nameProp(characters, "Wer die Fähigkeit einsetzt") } : {}),
       faehigkeit: { type: "string", description: "Name der Fähigkeit, genau wie auf dem Figurenbogen" },
     }, [...(party ? ["figur"] : []), "faehigkeit"]),
+    tool("zeit", "Lässt Zeit vergehen und/oder ändert das Wetter (wird den Spielern angezeigt). kurz: eine Weile, keine neue Tageszeit; stunden: nächste Tageszeit (Morgen → Mittag → Abend → Nacht); bis_abend, bis_nacht, bis_morgen: springt dorthin (bis_morgen = nächster Tag). Eine lange Rast stellt die Zeit von selbst auf den nächsten Morgen.", {
+      vergeht: { type: "string", enum: ["kurz", "stunden", "bis_abend", "bis_nacht", "bis_morgen"] },
+      wetter: { type: "string", description: "Optional: neues Wetter in wenigen Worten, z. B. „Nieselregen“, „klirrender Frost“" },
+    }, ["vergeht"]),
     tool("auftrag", "Führt das Auftragsbuch: neuen Auftrag anlegen, Notiz ergänzen, als erledigt oder gescheitert markieren.", {
       aktion: { type: "string", enum: ["neu", "notiz", "erledigt", "gescheitert"] },
       titel: { type: "string", description: "Kurzer Titel, bei Folgeaktionen genau wie beim Anlegen" },
@@ -189,7 +194,10 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       resetUses(w, input.art === "lang" ? "lang" : "kurz");
       if (input.art === "lang") {
         for (const c of ctx.characters) w.hp[c.id] = w.maxHp[c.id];
-        return { content: `Lange Rast: Alle sind wieder bei vollen Kräften. ${ctx.characters.map((c) => hpLine(ctx, c)).join("; ")}` };
+        // Die Nacht ist vorbei: ein neuer Tag beginnt
+        const t = ensureTime(w);
+        advanceTime(t, "bis_morgen");
+        return { content: `Lange Rast: Alle sind wieder bei vollen Kräften. ${ctx.characters.map((c) => hpLine(ctx, c)).join("; ")}. Ein neuer Tag beginnt: ${timeLine(t)}.` };
       }
       const parts: string[] = [];
       for (const c of ctx.characters) {
@@ -201,6 +209,15 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
         parts.push(hpLine(ctx, c));
       }
       return { content: `Kurze Rast. ${parts.join("; ")}` };
+    }
+    case "zeit": {
+      const step = String(input.vergeht ?? "kurz") as TimeStep;
+      if (!["kurz", "stunden", "bis_abend", "bis_nacht", "bis_morgen"].includes(step)) return err("vergeht muss kurz, stunden, bis_abend, bis_nacht oder bis_morgen sein.");
+      const t = ensureTime(w);
+      const newDay = advanceTime(t, step);
+      const wetter = text(input.wetter, 60);
+      if (wetter) t.weather = wetter;
+      return { content: `${newDay ? "Ein neuer Tag beginnt. " : ""}Jetzt: ${timeLine(t)}.${newDay ? " (Fähigkeiten „1× pro Tag“ werden erst durch eine lange Rast wieder frei.)" : ""}` };
     }
     case "faehigkeit_einsetzen": {
       const c = findCharacter(ctx, input.figur);

@@ -4,6 +4,7 @@ import type { Character, Rules } from "./schema";
 import { levelsSummary, type LevelState } from "./levels";
 import { upgradesSummary, type Progression } from "./upgrades";
 import { usesSummary, type UsedAbilities } from "./abilityUses";
+import { timeLine, type GameTime } from "./time";
 
 export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
 export interface Quest { id: string; title: string; description: string; status: "offen" | "erledigt" | "gescheitert"; notes: string[] }
@@ -25,6 +26,8 @@ export interface WorldState {
   levels?: Record<string, LevelState>;
   /** Eingesetzte begrenzte Fähigkeiten (1× pro Kampf/Rast/Tag) – bis Kampfende bzw. Rast. */
   used?: UsedAbilities;
+  /** Tag, Tageszeit und Wetter */
+  time?: GameTime;
   /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
   sent?: { arc: string; turns: number };
 }
@@ -106,6 +109,7 @@ export function initWorld(characters: Pick<Character, "id" | "hp">[]): WorldStat
 export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "name">[], rules?: Rules, opts: { arc?: boolean } = {}): string {
   const hp = characters.map((c) => `${c.name} ${w.hp[c.id] ?? 0}/${w.maxHp[c.id] ?? 0} TP${(w.hp[c.id] ?? 0) <= 0 ? " (kampfunfähig – bewusstlos, aber rettbar)" : ""}`).join(", ");
   const lines = [`Lebenspunkte: ${hp}`];
+  if (w.time) lines.push(`Zeit: ${timeLine(w.time)}`);
   if (w.combat && allDown(w, characters)) lines.push(DEFEAT_WARNING);
   if (w.combat) lines.push(`Kampf (Runde ${w.combat.round}): ${w.combat.enemies.map((e) => `${e.name} ${e.hp}/${e.maxHp} TP, Rüstung ${e.armor}${e.hp <= 0 ? " – besiegt" : ""}`).join("; ")}`);
   const open = w.quests.filter((q) => q.status === "offen");

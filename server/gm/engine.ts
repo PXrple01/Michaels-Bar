@@ -5,6 +5,7 @@ import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
+import { initTime } from "../../shared/time";
 import { turnSummary } from "./summary";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { RollLog } from "../dice/log";
@@ -85,7 +86,9 @@ export class GameMaster {
     const previous = Array.isArray(req.previousOpenings) ? req.previousOpenings.filter((p) => typeof p === "string").map((p) => p.slice(0, 400)).slice(-10) : [];
     const opening = rollOpening(data.openings, previous);
     emit({ type: "opening", opening, summary: openingSummary(opening) });
-    await this.converse([{ role: "user", content: kickoffMessage([c], data, opening, previous) }], initWorld([c]), c, data, who, emit);
+    const world = initWorld([c]);
+    world.time = initTime(opening.zeit);
+    await this.converse([{ role: "user", content: kickoffMessage([c], data, opening, previous) }], world, c, data, who, emit);
   }
 
   private async turn(req: TurnRequest, who: string, emit: (ev: GmEvent) => void) {
