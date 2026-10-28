@@ -114,12 +114,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85em
 .fair-icon svg { width: 28px; height: 28px; }
 @media (max-width: 600px) { .fair-card { flex-direction: column; } }
 
-.roadmap { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; max-width: 720px; position: relative; }
-.roadmap li { display: flex; align-items: center; gap: 16px; padding: 14px 18px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
-.roadmap li > span:nth-child(2) { flex: 1; }
-.roadmap li.done { border-color: var(--line-strong); }
 .rm-dot { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 50%; border: 1px solid var(--line-strong); font-family: var(--font-head); font-weight: 700; color: var(--muted); }
-.roadmap li.done .rm-dot { background: linear-gradient(135deg, rgb(var(--c-violet)), rgb(var(--c-deep))); color: #fff; border: 0; box-shadow: 0 0 16px -2px var(--purple); }
 .rm-dot svg { width: 18px; height: 18px; }
 
 /* ── Anleitung ── */

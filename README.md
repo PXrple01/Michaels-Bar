@@ -76,7 +76,7 @@ Netlify Blobs (Wurf-Protokoll, Budgetzähler) ist automatisch dabei.
 - **Spielstände von vor den Konten** (im Browser gespeichert) werden nach der ersten Anmeldung erkannt und lassen sich mit einem Klick übernehmen.
 - Ein vergessenes Passwort lässt sich nicht zurücksetzen (es gibt keine E-Mail) – daher im Zweifel regelmäßig exportieren.
 
-## Was schon geht
+## Funktionen
 
 - **Startseite, Anleitung und Lexikon** für Leute, die noch nie ein Rollenspiel gespielt haben – mit interaktivem
   Probe-Labor (Chancen live ausrechnen), Vorteil/Nachteil-Vergleich und Erklärungen per Tooltip.

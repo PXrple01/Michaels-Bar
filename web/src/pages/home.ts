@@ -17,14 +17,6 @@ const DICE_INFO = [
   { sides: 100, name: "W100", use: "Prozentwurf: Zufallstabellen und Glück." },
 ];
 
-const STAGES = [
-  { n: 1, title: "Regeln, Würfel-Engine, Charakterbogen", done: true },
-  { n: 2, title: "3D-Würfel mit fairer Ergebnislogik", done: true },
-  { n: 3, title: "Claude als Spielleiter, Startimpulse", done: true },
-  { n: 4, title: "Eigene Klassen mit Claude-Gutachten", done: true },
-  { n: 5, title: "Kampf, Gedächtnis, Quests", done: true },
-  { n: 6, title: "Speichern, Kostenlimit, Feinschliff", done: false },
-];
 
 export function homePage(): Page {
   let disposeDie: (() => void) | null = null;
@@ -123,16 +115,6 @@ export function homePage(): Page {
               <p>Das Ergebnis würfelt der Server mit kryptografischem Zufall, <em>bevor</em> die Animation startet. Der 3D-Würfel rollt dann so, dass genau diese Zahl oben liegt. Niemand – weder du, noch die Webseite, noch der Spielleiter – kann das Ergebnis beeinflussen oder neu würfeln.</p>
             </div>
           </div>
-        </section>
-
-        <section class="section container">
-          <div class="section-head" data-reveal>
-            <div class="eyebrow">Baufortschritt</div>
-            <h2>Was schon geht</h2>
-          </div>
-          <ol class="roadmap">
-            ${STAGES.map((s, i) => html`<li class="${s.done ? "done" : ""}" data-reveal="left" style="--i:${i}"><span class="rm-dot">${s.done ? icon("check") : s.n}</span><span>${s.title}</span>${s.done ? html`<span class="chip good">fertig</span>` : html`<span class="chip">geplant</span>`}</li>`)}
-          </ol>
         </section>
 
         <footer class="footer container">The Last Ember · Am letzten Feuer werden die besten Geschichten erzählt</footer>
