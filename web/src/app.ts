@@ -21,6 +21,7 @@ import { adventuresPage, playPage } from "./pages/adventure";
 import { classEditorPage, classesPage } from "./pages/classes";
 import { partyHomePage, partyPage } from "./pages/party";
 import { achievementsPage } from "./pages/achievements";
+import { hallPage } from "./pages/hall";
 import { scheduleAchievementCheck } from "./lib/achievements";
 
 const NAV = [
@@ -29,6 +30,7 @@ const NAV = [
   { id: "chars", href: "#/figuren", label: "Figuren", icon: "users" },
   { id: "adventure", href: "#/abenteuer", label: "Abenteuer", icon: "scroll" },
   { id: "table", href: "#/wuerfel", label: "Würfeltisch", icon: "dice" },
+  { id: "hall", href: "#/heldenhalle", label: "Heldenhalle", icon: "crown" },
   { id: "settings", href: "#/einstellungen", label: "Einstellungen", icon: "settings" },
 ];
 
@@ -41,12 +43,12 @@ function renderChrome() {
   $("#topbar").innerHTML = html`
     <a class="logo" href="#/">${logoMark()}<span>The Last <span class="amp">Ember</span></span></a>
     <nav class="nav" aria-label="Hauptnavigation">
-      ${NAV.map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.label}</span></a>`)}
+      ${NAV.map((n) => html`<a href="${n.href}" data-nav="${n.id}" title="${n.label}">${icon(n.icon)}<span>${n.label}</span></a>`)}
     </nav>
     <a class="icon-btn sync-btn" href="#/einstellungen" id="sync-btn" title="${SYNC_TITLE[syncState()]}" aria-label="Konto: ${SYNC_TITLE[syncState()]}"><span class="sync-dot ${syncState()}"></span></a>
     <a class="icon-btn mobile-only" href="#/einstellungen" aria-label="Einstellungen" data-nav="settings">${icon("settings")}</a>
     <button class="icon-btn" id="sound-btn" aria-label="${sound ? "Ton ausschalten" : "Ton einschalten"}" title="Würfelgeräusche">${icon(sound ? "sound" : "mute")}</button>`.value;
-  $("#tabbar").innerHTML = html`${NAV.filter((n) => n.id !== "settings").map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.id === "table" ? "Würfel" : n.id === "settings" ? "Optionen" : n.label}</span></a>`)}`.value;
+  $("#tabbar").innerHTML = html`${NAV.filter((n) => n.id !== "settings" && n.id !== "hall").map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.id === "table" ? "Würfel" : n.id === "settings" ? "Optionen" : n.label}</span></a>`)}`.value;
   $("#sound-btn").addEventListener("click", () => updateSettings({ sound: !settings().sound }));
 }
 
@@ -79,7 +81,8 @@ route("/klassen/neu", "chars", classEditorPage);
 route("/klassen/:id/:mode", "chars", classEditorPage);
 route("/abenteuer/:id", "adventure", playPage);
 route("/einstellungen", "settings", settingsPage);
-route("/erfolge", "chars", achievementsPage);
+route("/erfolge", "hall", achievementsPage);
+route("/heldenhalle", "hall", hallPage);
 
 applyPalette(settings().palette);
 renderChrome();

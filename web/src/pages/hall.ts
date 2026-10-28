@@ -35,7 +35,7 @@ function soloSaga(s: CampaignSave): Saga {
 const date = (iso: string) => new Date(iso).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
 
 function sagaCard(s: Saga, i: number): Raw {
-  const status = s.defeat ? html`<span class="chip bad">${icon("candle")} Gefallen</span>` : s.finished ? html`<span class="chip good">${icon("crown")} Vollendet</span>` : html`<span class="chip">${icon("feather")} Wird erzählt</span>`;
+  const status = s.defeat ? html`<span class="chip bad">${icon("moon")} Gefallen</span>` : s.finished ? html`<span class="chip good">${icon("crown")} Vollendet</span>` : html`<span class="chip">${icon("feather")} Wird erzählt</span>`;
   const body = html`
     ${s.image ? html`<span class="saga-img"><img src="${s.image}" alt="" loading="lazy" onerror="this.parentElement.remove()"></span>` : ""}
     <span class="saga-body">
@@ -67,7 +67,7 @@ export function hallPage(): Page {
         ].sort((a, b) => b.when.localeCompare(a.when));
         const won = sagas.filter((s) => s.finished).length, lost = sagas.filter((s) => s.defeat).length;
         const level = Math.max(1, ...sagas.map((s) => s.level));
-        const fame = won * 100 + level * 10 + sagas.reduce((n, s) => n + s.turns, 0);
+        const fame = won * 100 + (level - 1) * 10 + sagas.reduce((n, s) => n + s.turns, 0);
         return { c, sagas, won, lost, level, fame, places: sagas.reduce((n, s) => n + s.places, 0), days: sagas.reduce((n, s) => n + Math.max(0, s.day - 1), 0), crits: sagas.reduce((n, s) => n + s.crits, 0) };
       }).sort((a, b) => b.fame - a.fame);
 
@@ -96,20 +96,20 @@ export function hallPage(): Page {
         ${heroes.length ? html`<div class="hall-list">${heroes.map((h, i) => {
           const cls = classes.find((x) => x.id === h.c.classId) ?? h.c.customClass?.cls;
           const stand = data.rules.stands.find((s) => s.id === h.c.stand);
-          return html`<section class="card hero-plaque ${i === 0 && h.fame > 0 ? "first" : ""}" data-reveal style="--i:${Math.min(i, 6)}">
+          return html`<section class="card hero-plaque ${i === 0 && h.fame > 0 && heroes.length > 1 ? "first" : ""}" data-reveal style="--i:${Math.min(i, 6)}">
             <div class="hp-head">
               <a class="hp-portrait" href="#/figur/${h.c.id}" title="Figurenbogen öffnen">${avatar(h.c.id, cls?.sigil ?? "shield", { draw: true })}</a>
               <div class="hp-id">
-                ${i === 0 && h.fame > 0 ? html`<span class="hp-rank">${icon("crown")} Ruhmreichste Figur</span>` : ""}
+                ${i === 0 && h.fame > 0 && heroes.length > 1 ? html`<span class="hp-rank">${icon("crown")} Ruhmreichste Figur</span>` : ""}
                 <h2>${h.c.name}</h2>
                 <small class="muted">${cls?.name ?? h.c.classId}${stand ? ` · ${stand.name}` : ""} · ${levelTitle(h.level, data.rules)} (Stufe ${h.level})</small>
                 ${h.c.appearance ? html`<p class="hp-look">${h.c.appearance}</p>` : ""}
                 <div class="hp-fame">
                   <span title="Vollendete Kampagnen">${icon("crown")} ${h.won}</span>
-                  <span title="Niederlagen">${icon("candle")} ${h.lost}</span>
+                  <span title="Niederlagen">${icon("moon")} ${h.lost}</span>
                   <span title="Bereiste Orte">${icon("map")} ${h.places}</span>
                   <span title="Tage unterwegs">${icon("sun")} ${h.days}</span>
-                  <span title="Natürliche 20">${icon("20")} ${h.crits}</span>
+                  <span title="Natürliche 20">${icon("dice")} ${h.crits}</span>
                 </div>
               </div>
             </div>

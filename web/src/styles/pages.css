@@ -582,7 +582,10 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .setup-card h3 svg { width: 22px; height: 22px; }
 .setup-card .error-detail { font-size: 0.8rem; color: var(--muted); word-break: break-word; }
 @media (max-width: 600px) { .story-gm { font-size: 1.04rem; } .pending .btn { width: 100%; } }
-@media (max-width: 1100px) and (min-width: 821px) { .nav a span { display: none; } .nav a { padding: 10px; } }
+@media (max-width: 1240px) and (min-width: 821px) { .nav a span { display: none; } .nav a { padding: 10px; } }
+/* Einstellungen im Menü nur als Zahnrad – sonst wird die Leiste mit der Heldenhalle zu voll */
+.nav a[data-nav="settings"] span { display: none; }
+.nav a[data-nav="settings"] { padding-inline: 10px; }
 
 /* ── Eigene Klassen ── */
 .process { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 26px; }
@@ -1332,3 +1335,51 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 .lightbox img { max-width: 100%; max-height: calc(100dvh - 100px); border-radius: var(--radius-sm); box-shadow: 0 30px 80px -20px #000; }
 .lightbox figcaption { font-family: var(--font-head); color: var(--text); }
 .lb-close { position: fixed; top: 16px; right: 16px; }
+
+/* ───────────── Heldenhalle ───────────── */
+.head-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.hall-head .lead { max-width: 640px; }
+.hall-stats { display: flex; flex-wrap: wrap; gap: clamp(18px, 4vw, 40px); margin-top: 18px; }
+.hall-stats div { display: grid; }
+.hall-stats b { font-family: var(--font-display); font-size: 2rem; line-height: 1.1; color: var(--gold); text-shadow: 0 0 24px rgba(245, 214, 138, 0.35); }
+.hall-stats span { color: var(--muted); font-size: 0.85rem; }
+.hall-medals { display: flex; align-items: center; gap: 14px; padding: 12px 16px; margin-bottom: 22px; color: var(--text); text-decoration: none; border-color: rgba(245, 214, 138, 0.35); }
+.hall-medals:hover { border-color: rgba(245, 214, 138, 0.6); }
+.hm-label { display: inline-flex; align-items: center; gap: 8px; flex: none; font-size: 0.9rem; color: var(--text-2); }
+.hm-label svg { width: 16px; height: 16px; color: var(--gold); }
+.hm-label b { color: var(--gold); }
+.hm-row { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+.hm-medal { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; color: #3a2208; background: radial-gradient(circle at 35% 30%, #fff3c4, #f5d68a 40%, #b8862c 100%); box-shadow: 0 0 10px rgba(245, 214, 138, 0.35); }
+.hm-medal svg { width: 15px; height: 15px; }
+.hm-more { align-self: center; color: var(--muted); font-size: 0.82rem; }
+.hm-go svg { width: 18px; height: 18px; color: var(--muted); }
+.hall-list { display: grid; gap: 20px; padding-bottom: 48px; }
+.hero-plaque { display: grid; gap: 18px; padding: clamp(16px, 3vw, 26px); }
+.hero-plaque.first { border-color: rgba(245, 214, 138, 0.5); background: linear-gradient(150deg, rgba(245, 214, 138, 0.08), transparent 45%), var(--card-bg, rgba(var(--c-s14), 0.8)); box-shadow: 0 30px 60px -36px rgba(245, 214, 138, 0.45); }
+.hp-head { display: flex; gap: clamp(14px, 3vw, 24px); align-items: flex-start; }
+.hp-portrait { flex: none; width: clamp(92px, 16vw, 140px); aspect-ratio: 3 / 4; border-radius: 18px; overflow: hidden; display: grid; place-items: center; color: var(--purple-3);
+  border: 1px solid rgba(245, 214, 138, 0.35); background: radial-gradient(circle at 50% 35%, rgba(var(--c-accent), 0.18), rgb(var(--c-s08)) 70%); box-shadow: inset 0 0 0 4px rgba(var(--c-s07), 0.7), 0 16px 34px -18px #000; }
+.hp-portrait .avatar > svg { width: 62%; height: auto; }
+.hp-id { display: grid; gap: 4px; min-width: 0; }
+.hp-id h2 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.1rem); }
+.hp-rank { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+.hp-rank svg { width: 14px; height: 14px; }
+.hp-look { margin: 4px 0 0; font-size: 0.9rem; font-style: italic; color: var(--text-2); }
+.hp-fame { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 0.88rem; color: var(--text-2); }
+.hp-fame span { display: inline-flex; align-items: center; gap: 5px; }
+.hp-fame svg { width: 15px; height: 15px; color: var(--purple-2); }
+.hp-empty { margin: 0; }
+.sagas { display: grid; gap: 10px; }
+.saga { display: flex; gap: 14px; align-items: stretch; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(255, 255, 255, 0.02); color: var(--text); text-decoration: none; border-left: 3px solid var(--line-strong); transition: background 0.3s, border-color 0.3s; }
+a.saga:hover { background: rgba(255, 255, 255, 0.05); }
+.saga.won { border-left-color: var(--gold); }
+.saga.lost { border-left-color: var(--bad); }
+.saga-img { flex: none; width: clamp(84px, 18vw, 150px); aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; background: rgb(var(--c-s08)); }
+.saga-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.saga-body { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.saga-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.saga-top b { font-family: var(--font-head); font-size: 1.05rem; }
+.saga-top .chip svg { width: 13px; height: 13px; }
+.saga-epilog { display: block; margin-top: 4px; font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 0.92rem; color: var(--text-2); quotes: "„" "“"; }
+.empty-hall { display: grid; gap: 14px; justify-items: center; text-align: center; padding: 32px 20px; }
+@media (max-width: 560px) { .hall-medals { flex-wrap: wrap; } .saga { flex-direction: column; } .saga-img { width: 100%; } }

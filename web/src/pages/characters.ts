@@ -27,7 +27,10 @@ export function charactersPage(): Page {
             <div class="eyebrow">Deine Heldinnen und Helden</div>
             <h1>Figuren</h1>
             <p class="lead">${list.length ? "Wähle eine Figur, um ihren Bogen zu öffnen, oder erschaffe eine neue." : "Noch keine Figur – Zeit, die erste zu erschaffen!"}</p>
-            <a class="ach-link" href="#/erfolge">${icon("crown")} Erfolge <b>${Object.keys(unlockedAchievements()).length} / ${ACHIEVEMENTS.length}</b> ${icon("arrowRight")}</a>
+            <div class="head-links">
+              <a class="ach-link" href="#/heldenhalle">${icon("crown")} Heldenhalle ${icon("arrowRight")}</a>
+              <a class="ach-link" href="#/erfolge">${icon("star")} Erfolge <b>${Object.keys(unlockedAchievements()).length} / ${ACHIEVEMENTS.length}</b> ${icon("arrowRight")}</a>
+            </div>
           </header>
           <div class="char-grid">
             <a class="card char-card new-card tilt" href="#/figur/neu" data-reveal="scale">
