@@ -18,6 +18,7 @@ import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
 import { worldPanel } from "../lib/worldPanel";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
+import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
 import { abilityChips, abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
 import { PARTY_TUTORIAL } from "../lib/tutorials";
@@ -257,6 +258,10 @@ export function partyPage(): Page {
         if (v.status === "playing" && !v.busy && !busyLocal && !v.world?.arc?.finished && (forging || upgradeState(v.world, myCharId) !== "none")) {
           content = html`${upgradeCard(v.world!, myCharId, abilityType, forging)}${content}`;
         }
+        // Wahl beim Stufenaufstieg (eigene Figur)
+        if (myChar && v.status === "playing" && !v.busy && !busyLocal && !v.world?.arc?.finished && levelChoiceDue(v.world, myChar.id, data.rules)) {
+          content = html`${levelChoiceCard(v.world, myChar, dataFor(data, myChar).classes.find((x) => x.id === myChar.classId), data.rules)}${content}`;
+        }
         belowEl.innerHTML = content.value;
         const newTa = belowEl.querySelector<HTMLTextAreaElement>("#action");
         if (oldTa && newTa && (typing || (draft && oldTa.value === draft))) {
@@ -292,7 +297,7 @@ export function partyPage(): Page {
             return html`<div class="hud-m ${p.id === me.playerId ? "me" : ""} ${hp <= 0 ? "down" : ""}">
               <span class="hud-sigil">${sigil(p.sigil)}</span>
               <div class="hud-body">
-                <div class="hud-line"><b>${p.name}</b>${p.host ? icon("crown") : ""}<small>${hp}/${max}</small></div>
+                <div class="hud-line"><b>${p.name}</b>${p.host ? icon("crown") : ""}${w?.levels?.[p.characterId] ? html`<span class="hud-lv">St. ${w.levels[p.characterId].level}</span>` : ""}<small>${hp}/${max}</small></div>
                 <span class="hp-bar ${pct <= 0 ? "down" : pct < 34 ? "low" : pct < 67 ? "mid" : ""}"><span style="width:${pct}%"></span></span>
                 ${abilityChips(p.abilities)}
               </div>
@@ -358,12 +363,14 @@ export function partyPage(): Page {
 
       function apply(v: PartyView) {
         const changed = !view || v.version !== view.version || v.live !== view.live;
+        const levelBefore = myChar ? view?.world?.levels?.[myChar.id]?.level : undefined;
         view = v;
+        if (myChar && levelBefore !== undefined) announceLevel(levelBefore, v.world?.levels?.[myChar.id]?.level ?? levelBefore, data.rules);
         if (!changed && !firstLoad) return;
         renderPlayers();
         renderAbilities();
         if (v.status === "playing") showTutorial(`gruppe-${code}`, PARTY_TUTORIAL);
-        $("#world", root).innerHTML = worldPanel(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), myChar?.id).value;
+        $("#world", root).innerHTML = worldPanel(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), myChar?.id, data.rules).value;
         renderOpening();
         renderStory();
         renderBelow();
@@ -430,6 +437,10 @@ export function partyPage(): Page {
         belowEl.querySelector("#leave")?.addEventListener("click", async () => { try { await partyApi.leave(me); } catch { /* egal */ } memberships.remove(code); go("/gruppe"); });
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
+        bindLevelCard(belowEl, async (choice) => {
+          try { apply(await partyApi.level(me, choice)); renderBelow(); toast(choice.skill ? "Neue Fertigkeit gelernt!" : "Attribute gesteigert!", "success", 4000); }
+          catch (e) { toast((e as Error).message, "error", 6000); }
+        });
         belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
         belowEl.querySelector("#now")?.addEventListener("click", () => void stream("action", { text: "", now: true }));
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");

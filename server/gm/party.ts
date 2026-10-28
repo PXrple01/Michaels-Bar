@@ -14,6 +14,7 @@ import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import type { UpgradeForge } from "./upgrades";
 import { effectiveAbilities, emptyProgression, upgradeDue } from "../../shared/upgrades";
+import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared/levels";
 import type { UsageGuard } from "./usage";
 
 interface PartyPlayer { id: string; tokenHash: string; host: boolean; joinedAt: string; character: Character }
@@ -216,7 +217,7 @@ export class PartyService {
     const tier = world ? upgradeDue(world, me.character.id) : null;
     if (!world || !tier) throw new PartyError(world?.progress?.[me.character.id]?.offer ? "Deine Verbesserungen liegen schon bereit – wähle eine aus." : "Gerade ist für dich keine Verbesserung freigeschaltet.");
     const prog = world.progress?.[me.character.id] ?? emptyProgression();
-    const res = await this.o.forge.generate({ data: this.dataFor(party), character: me.character, characters: this.characters(party), world, tier, recent: lastNarration(party.messages), who });
+    const res = await this.o.forge.generate({ data: this.dataFor(party), character: effectiveCharacter(me.character, world), characters: this.characters(party).map((c) => effectiveCharacter(c, world)), world, tier, recent: lastNarration(party.messages), who });
     const done = await this.update(party.code, (p) => {
       const cur = p.world?.progress?.[me.character.id] ?? emptyProgression();
       if (cur.offer || cur.chosen.length !== prog.chosen.length) return; // inzwischen schon erledigt (zweites Gerät)
@@ -224,6 +225,19 @@ export class PartyService {
       p.lastTurnCostUsd = res.costUsd;
     });
     emit({ type: "view", view: this.view(done, me.id, await this.o.guard.info()) });
+  }
+
+  /** Wahl beim Stufenaufstieg (Fertigkeit bei Stufe 4, Attribute bei Stufe 7) – für die eigene Figur. */
+  async levelChoice(body: { code?: unknown; token?: unknown; skill?: unknown; attrs?: unknown }): Promise<PartyView> {
+    const { party } = await this.load(body?.code);
+    const me = this.player(party, body?.token);
+    const done = await this.update(party.code, (p) => {
+      if (!p.world) throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
+      const data = this.dataFor(p);
+      const problem = chooseLevelReward(p.world, me.character, data.classes, data.rules, { skill: body.skill, attrs: body.attrs });
+      if (problem) throw new PartyError(problem);
+    });
+    return this.view(done, me.id, await this.o.guard.info());
   }
 
   async choose(body: { code?: unknown; token?: unknown; option?: unknown }): Promise<PartyView> {
@@ -298,7 +312,7 @@ export class PartyService {
         if (p.world!.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
         if (p.world!.combat) p.world!.combat.round++;
         countChapterTurn(p.world!);
-        messages = [...p.messages, userTurn(p.held ?? [], `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${worldSummary(p.world!, this.characters(p))}\n</spielstand>`)];
+        messages = [...p.messages, userTurn(p.held ?? [], `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${worldSummary(p.world!, this.characters(p), data.rules)}\n</spielstand>`)];
       } else {
         if (!p.pending) throw new PartyError("Gerade ist keine Probe offen.");
         if (p.pending.characterId !== me.character.id) throw new PartyError(`${p.pending.characterName} muss würfeln, nicht du.`);
@@ -309,8 +323,9 @@ export class PartyService {
     });
 
     const data = this.dataFor(locked);
-    const characters = this.characters(locked);
     const world = locked.world!;
+    // Figuren so, wie sie in dieser Kampagne gerade sind (Stufe, zusätzliche Fertigkeit, gesteigerte Attribute)
+    const characters = this.characters(locked).map((c) => effectiveCharacter(c, world));
 
     try {
       // 2) Probe würfeln (nur bei „roll“)
@@ -341,6 +356,7 @@ export class PartyService {
       });
       await saving;
       flush();
+      applyLevels(world, this.characters(locked), data.classes, data.rules);
 
       // 4) Ergebnis übernehmen und Sperre lösen
       const done = await this.update(locked.code, (p) => {

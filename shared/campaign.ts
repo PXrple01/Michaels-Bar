@@ -98,6 +98,14 @@ export interface RollRequest {
   state: SignedState;
 }
 
+/** Wahl beim Stufenaufstieg: Fertigkeit (Stufe 4) oder Attributsteigerung (Stufe 7). */
+export interface LevelRequest {
+  character: unknown;
+  state: SignedState;
+  skill?: string;
+  attrs?: Record<string, number>;
+}
+
 /** Verbesserungen erstellen lassen (upgrade) bzw. eine davon wählen (choose, mit `option`). */
 export interface UpgradeRequest {
   character: unknown;

@@ -26,7 +26,7 @@ export const GLOSSARY: Record<string, Term> = {
   schaden: { title: "Schaden", short: "Wie viele Trefferpunkte ein Treffer abzieht. Hängt von der Waffe ab, z. B. 1W8 beim Langschwert." },
   klasse: { title: "Klasse", short: "Der Beruf oder die Berufung deiner Figur, z. B. Ritter oder Kräuterhexe. Sie bestimmt Fähigkeiten, Ausrüstung und Trefferpunkte." },
   stand: { title: "Stand (Herkunft)", short: "Woher deine Figur stammt: Bauernkind, Bürgerkind, Adel … Das gibt dir eine Fertigkeit und Startgeld." },
-  stufe: { title: "Stufe", short: "Wie erfahren deine Figur ist (1 bis 10). Durch Abenteuer sammelst du Erfahrung und steigst auf." },
+  stufe: { title: "Stufe", short: "Wie erfahren deine Figur in dieser Kampagne ist (1 bis 10). Für Kapitel, Aufträge und überstandene Gefahren gibt es Erfahrung; jede Stufe bringt mehr Trefferpunkte, Stufe 4 eine neue Fertigkeit, Stufe 7 stärkere Attribute, Stufe 10 mehr Können. Jede neue Kampagne beginnt bei Stufe 1." },
   trefferwuerfel: { title: "Trefferwürfel", short: "Bestimmt, wie viele Trefferpunkte deine Klasse hat. Ein Ritter (W10) hält mehr aus als eine Kräuterhexe (W6)." },
   rast: { title: "Rast", short: "Eine Pause zum Durchatmen. Eine kurze Rast heilt einen Trefferwürfel plus Konstitution, eine Nacht Schlaf alle Trefferpunkte. Manche Fähigkeiten kannst du danach wieder einsetzen." },
   fair: { title: "Fairer Wurf", short: "Das Ergebnis würfelt der Server mit kryptografischem Zufall, bevor die Animation startet. Weder du noch der Spielleiter können es ändern oder neu würfeln." },

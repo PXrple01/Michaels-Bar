@@ -1,6 +1,7 @@
 // Spielwelt-Zustand eines Abenteuers: Lebenspunkte, Kampf, Aufträge, Gedächtnis, Erfahrung, Kampagnenbogen.
 // Wird nur vom Server verändert (über Werkzeuge des Spielleiters) und ist signiert bzw. serverseitig gespeichert.
-import type { Character } from "./schema";
+import type { Character, Rules } from "./schema";
+import { levelsSummary, type LevelState } from "./levels";
 import { upgradesSummary, type Progression } from "./upgrades";
 
 export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
@@ -19,6 +20,8 @@ export interface WorldState {
   arc?: Arc;
   /** Verbesserte Fähigkeiten je Figur. */
   progress?: Record<string, Progression>;
+  /** Stufen je Figur (nur in dieser Kampagne). */
+  levels?: Record<string, LevelState>;
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */
@@ -86,13 +89,14 @@ export function initWorld(characters: Pick<Character, "id" | "hp">[]): WorldStat
 }
 
 /** Kurzer Spielstand für Claude – wird jeder Handlung angehängt, damit Zahlen auch nach einer Zusammenfassung stimmen. */
-export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "name">[]): string {
+export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "name">[], rules?: Rules): string {
   const hp = characters.map((c) => `${c.name} ${w.hp[c.id] ?? 0}/${w.maxHp[c.id] ?? 0} TP${(w.hp[c.id] ?? 0) <= 0 ? " (kampfunfähig)" : ""}`).join(", ");
   const lines = [`Lebenspunkte: ${hp}`];
   if (w.combat) lines.push(`Kampf (Runde ${w.combat.round}): ${w.combat.enemies.map((e) => `${e.name} ${e.hp}/${e.maxHp} TP, Rüstung ${e.armor}${e.hp <= 0 ? " – besiegt" : ""}`).join("; ")}`);
   const open = w.quests.filter((q) => q.status === "offen");
   // Nur Titel: Notizen und Gemerktes stehen schon im Verlauf (und in der Zusammenfassung) – jede Wiederholung kostet bei jedem Zug.
   if (open.length) lines.push(`Offene Aufträge: ${open.map((q) => q.title).join(" | ")}`);
+  if (rules) { const lv = levelsSummary(w, characters, rules); if (lv) lines.push(lv); }
   const upgrades = upgradesSummary(w, characters);
   if (upgrades) lines.push(upgrades);
   if (w.arc) lines.push(arcSummary(w.arc));

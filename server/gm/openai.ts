@@ -11,6 +11,7 @@ import type { GameData } from "../rules/loader";
 import { errorEvent, type MessageParam, type Narrator } from "./narrator";
 import { rollOpening, seededRng } from "./openings";
 import { kickoffMessage } from "./prompt";
+import { applyLevels, chooseLevelReward, effectiveCharacter, levelChoiceDue, levelTitle } from "../../shared/levels";
 import { countChapterTurn } from "./world";
 import type { UsageGuard } from "./usage";
 
@@ -159,7 +160,7 @@ export class OpenAiGateway {
     if (withState && history.length > 1) countChapterTurn(world);
     if (withState && history.length > 1) {
       const last = history[history.length - 1];
-      last.content = `${last.content as string}\n\n<spielstand>\n${worldSummary(world, [character])}\n</spielstand>`;
+      last.content = `${last.content as string}\n\n<spielstand>\n${worldSummary(world, [character], data.rules)}\n</spielstand>`;
     }
 
     try { this.o.narrator.ensureReady(); } catch (e) { return oaiError(503, errorEvent(e).message, "api_error", "no_api_key"); }
@@ -167,7 +168,7 @@ export class OpenAiGateway {
     const id = `chatcmpl-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
     const created = Math.floor(Date.now() / 1000);
     const run = async (onText: (t: string) => void) => {
-      const scene = { characters: [character], data, world, onRoll: (r: RollRecord) => onText(diceLine(r, true)) };
+      const scene = { characters: [effectiveCharacter(character, world)], data, world, onRoll: (r: RollRecord) => onText(diceLine(r, true)) };
       let msgs = history;
       const usage = { input: 0, output: 0 };
       for (let probe = 0; ; probe++) {
@@ -181,7 +182,12 @@ export class OpenAiGateway {
         onText(diceLine(record));
         msgs = [...res.history, { role: "user", content }];
       }
-      if (withState) onText(this.marker(world, character.id));
+      if (withState) {
+        // Stufen nachziehen; Wahlen (Stufe 4/7) trifft hier der Server, weil Chat-Apps keine Auswahl-Knöpfe haben
+        for (const up of applyLevels(world, [character], data.classes, data.rules)) onText(`\n\n⭐ *Stufe ${up.to} erreicht – ${levelTitle(up.to, data.rules)}!*`);
+        autoLevelChoices(world, character, data);
+        onText(this.marker(world, character.id));
+      }
       return usage;
     };
 
@@ -220,6 +226,22 @@ export class OpenAiGateway {
       const ev = errorEvent(e);
       const status = ev.code === "budget" || ev.code === "rate" ? 429 : ev.code === "refusal" ? 400 : 502;
       return oaiError(status, ev.message, status === 429 ? "rate_limit_error" : "api_error", ev.code ?? null);
+    }
+  }
+}
+
+/** Ohne Auswahl-Knöpfe: Bei Stufe 4 die erste noch nicht geübte Fertigkeit der Klassenauswahl, bei Stufe 7 +1 auf die zwei Hauptattribute. */
+function autoLevelChoices(world: WorldState, c: Character, data: GameData) {
+  const cls = data.classes.find((x) => x.id === c.classId);
+  for (let i = 0; i < 2; i++) {
+    const due = levelChoiceDue(world, c.id, data.rules);
+    if (due === "skill") {
+      const pick = [...(cls?.skillChoices.from ?? []), ...data.rules.skills.map((s) => s.id)].find((id) => !chooseLevelReward(structuredClone(world), c, data.classes, data.rules, { skill: id }));
+      if (pick) chooseLevelReward(world, c, data.classes, data.rules, { skill: pick });
+    } else if (due === "attrs") {
+      const [a, b] = cls?.primaryAttributes ?? [];
+      const first = a && b ? { [a]: 1, [b]: 1 } : { [a ?? "konstitution"]: 2 };
+      if (chooseLevelReward(world, c, data.classes, data.rules, { attrs: first })) chooseLevelReward(world, c, data.classes, data.rules, { attrs: { konstitution: 1, geschick: 1 } });
     }
   }
 }

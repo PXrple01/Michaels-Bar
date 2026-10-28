@@ -31,6 +31,14 @@ export const rulesSchema = z.object({
   levels: z.object({
     min: z.literal(1), max: z.number().int().min(1),
     xpTable: z.array(z.number().int().min(0)), skillBonus: z.array(z.number().int().min(0)),
+    titles: z.array(z.string()),
+    extraSkillAt: z.number().int(), attributeIncreaseAt: z.number().int(),
+    /** So viele „volle“ Trefferpunkt-Aufstiege verteilen sich auf die Stufen 2 bis max. */
+    hpLevelUps: z.number().int().min(0),
+    /** Höchste Stufe je Akt (Anfang, Mitte, Finale); die letzte Stufe gibt es erst im letzten Kapitel. */
+    actCap: z.tuple([z.number().int(), z.number().int(), z.number().int()]),
+    chapterXp: z.number().int().min(0), actXp: z.number().int().min(0),
+    explanation: z.string(),
   }),
   checks: z.object({
     die: z.literal(20),

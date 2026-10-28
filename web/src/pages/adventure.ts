@@ -12,6 +12,7 @@ import { setAccessCode, streamGm } from "../lib/gm";
 import { worldPanel } from "../lib/worldPanel";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
+import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
 import { effectiveAbilities } from "../../../shared/upgrades";
 import { abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
@@ -193,7 +194,7 @@ export function playPage(): Page {
       const belowEl = $("#below", root);
 
       const persist = () => campaignStore.save(save);
-      const renderWorld = () => { $("#world", root).innerHTML = worldPanel(save!.state.world, [character]).value; };
+      const renderWorld = () => { $("#world", root).innerHTML = worldPanel(save!.state.world, [character], character.id, data.rules).value; };
 
       function renderOpening(animate: boolean) {
         const el = $("#opening", root);
@@ -288,6 +289,7 @@ export function playPage(): Page {
         const world = save!.state.world;
         const showUpgrade = !lastError && !busy && !world?.arc?.finished && (forging || upgradeState(world, character.id) !== "none");
         if (showUpgrade) content = html`${upgradeCard(world!, character.id, abilityType, forging)}${content}`;
+        if (!lastError && !busy && !world?.arc?.finished && levelChoiceDue(world, character.id, data.rules)) content = html`${levelChoiceCard(world, character, myClassDef(), data.rules)}${content}`;
         belowEl.innerHTML = html`${content}
           ${!save!.started && save!.opening && !busy ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="reroll">${icon("refresh")} Neuen Einstieg würfeln</button></div>` : ""}`.value;
         const b = $("#budget", root);
@@ -355,6 +357,19 @@ export function playPage(): Page {
         renderBelow();
       }
 
+      /** Wahl beim Stufenaufstieg übernehmen (ohne Claude). */
+      async function doLevel(choice: { skill?: string; attrs?: Record<string, number> }) {
+        if (busy) return;
+        await streamGm("level", { character, state: save!.state, ...choice }, (ev) => {
+          if (!alive) return;
+          if (ev.type === "upgrade") { save!.state = ev.state; persist(); toast(choice.skill ? "Neue Fertigkeit gelernt!" : "Attribute gesteigert!", "success", 4000); }
+          else if (ev.type === "error") toast(ev.message, "error", 6000);
+        });
+        renderWorld();
+        renderBelow();
+      }
+      const levelOf = () => save!.state.world?.levels?.[character.id]?.level ?? 1;
+
       function bindBelow() {
         belowEl.querySelector("#composer")?.addEventListener("submit", (e) => { e.preventDefault(); void sendAction(); });
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
@@ -367,6 +382,7 @@ export function playPage(): Page {
         }));
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
+        bindLevelCard(belowEl, (choice) => void doLevel(choice));
         belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
         belowEl.querySelector("#reroll")?.addEventListener("click", () => void begin(true));
         belowEl.querySelector("#retry")?.addEventListener("click", () => { lastError = null; retry ? retry() : renderBelow(); });
@@ -390,8 +406,10 @@ export function playPage(): Page {
           scrollDown(true);
         } else if (ev.type === "done") {
           endLive();
+          const before = levelOf();
           save!.state = ev.state;
           save!.pending = ev.pending;
+          announceLevel(before, levelOf(), data.rules);
           budget = ev.budget;
           lastCost = ev.turnCostUsd ?? null;
           persist();

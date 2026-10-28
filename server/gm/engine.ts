@@ -1,6 +1,7 @@
 // Solo-Modus: Der Spielstand liegt im Browser und ist vom Server signiert.
-import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest } from "../../shared/campaign";
+import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest } from "../../shared/campaign";
 import { emptyProgression, upgradeDue } from "../../shared/upgrades";
+import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared/levels";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
@@ -63,9 +64,10 @@ export class GameMaster {
   }
 
   /** Führt eine Aktion aus und meldet alle Ereignisse über `emit`. Fehler werden als Ereignis gemeldet. */
-  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
+  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
     try {
       if (kind === "choose") return void (await this.choose(body as UpgradeRequest, emit));
+      if (kind === "level") return void (await this.levelChoice(body as LevelRequest, emit));
       this.narrator.ensureReady();
       if (kind === "start") await this.start(body as StartRequest, who, emit);
       else if (kind === "turn") await this.turn(body as TurnRequest, who, emit);
@@ -87,22 +89,23 @@ export class GameMaster {
   private async turn(req: TurnRequest, who: string, emit: (ev: GmEvent) => void) {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
-    if (this.pendingFrom(messages, c, data, world)) throw new GmError("Erst muss die verlangte Probe gewürfelt werden.", "state");
+    if (this.pendingFrom(messages, effectiveCharacter(c, world), data, world)) throw new GmError("Erst muss die verlangte Probe gewürfelt werden.", "state");
     if (world.arc?.finished) throw new GmError("Dieses Abenteuer ist abgeschlossen. Beginne ein neues!", "state");
     const action = typeof req.action === "string" ? req.action.trim() : "";
     if (!action) throw new GmError("Was tust du? Schreib es in das Feld.", "state");
     if (action.length > MAX_ACTION_LENGTH) throw new GmError(`Bitte kürzer fassen (höchstens ${MAX_ACTION_LENGTH} Zeichen).`, "state");
     if (world.combat) world.combat.round++;
     countChapterTurn(world);
-    await this.converse([...messages, userTurn(held, `${action}\n\n<spielstand>\n${worldSummary(world, [c])}\n</spielstand>`)], world, c, data, who, emit);
+    await this.converse([...messages, userTurn(held, `${action}\n\n<spielstand>\n${worldSummary(world, [c], data.rules)}\n</spielstand>`)], world, c, data, who, emit);
   }
 
   private async roll(req: RollRequest, who: string, emit: (ev: GmEvent) => void) {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
-    const pending = this.pendingFrom(messages, c, data, world);
+    const ce = effectiveCharacter(c, world);
+    const pending = this.pendingFrom(messages, ce, data, world);
     if (!pending) throw new GmError("Gerade ist keine Probe offen.", "state");
-    const { record, content } = await this.narrator.rollPending(pending, { characters: [c], data, world }, held);
+    const { record, content } = await this.narrator.rollPending(pending, { characters: [ce], data, world }, held);
     emit({ type: "roll", record });
     await this.converse([...messages, { role: "user", content }], world, c, data, who, emit);
   }
@@ -115,7 +118,8 @@ export class GameMaster {
     if (prog.offer) throw new GmError("Die Verbesserungen liegen schon bereit – wähle eine aus.", "state");
     const tier = upgradeDue(world, c.id);
     if (!tier) throw new GmError("Gerade ist keine Verbesserung freigeschaltet.", "state");
-    const res = await this.forge.generate({ data, character: c, characters: [c], world, tier, recent: lastNarration(messages), who });
+    const ce = effectiveCharacter(c, world);
+    const res = await this.forge.generate({ data, character: ce, characters: [ce], world, tier, recent: lastNarration(messages), who });
     world.progress = { ...world.progress, [c.id]: { abilities: res.abilities, chosen: prog.chosen, offer: res.offer } };
     emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: res.offer, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
   }
@@ -131,13 +135,23 @@ export class GameMaster {
     emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: null, budget: await this.o.guard.info() });
   }
 
+  /** Wahl bei Stufe 4 (Fertigkeit) bzw. 7 (Attribute) – ohne Claude, kostet nichts. */
+  private async levelChoice(req: LevelRequest, emit: (ev: GmEvent) => void) {
+    const { c, data } = this.character(req?.character);
+    const { messages, world, held } = this.verified(req.state, c);
+    const problem = chooseLevelReward(world, c, data.classes, data.rules, { skill: req.skill, attrs: req.attrs });
+    if (problem) throw new GmError(problem, "state");
+    emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: world.progress?.[c.id]?.offer ?? null, budget: await this.o.guard.info() });
+  }
+
   private sign(messages: MessageParam[], world: WorldState, held: ToolResult[], c: Character): SignedState {
     return { ...signState(this.o.secret, { messages, world, held, toolset: TOOLSET }, characterHash(c)), model: this.narrator.model };
   }
 
   private async converse(messages: MessageParam[], world: WorldState, c: Character, data: GameData, who: string, emit: (ev: GmEvent) => void) {
-    const scene = { characters: [c], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }) };
+    const scene = { characters: [effectiveCharacter(c, world)], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }) };
     const res = await this.narrator.converse(messages, scene, who, (text) => emit({ type: "text", text }));
+    applyLevels(world, [c], data.classes, data.rules);
     emit({ type: "done", state: this.sign(res.history, world, res.held, c), pending: res.pending, budget: await this.o.guard.info(), turnCostUsd: res.costUsd });
   }
 }

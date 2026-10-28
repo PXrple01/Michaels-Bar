@@ -4,6 +4,8 @@ import { html, type Raw } from "./dom";
 import { term } from "./glossary";
 import { icon } from "./icons";
 import { arcProgress } from "./arc";
+import { levelTitle, xpProgress } from "../../../shared/levels";
+import type { Rules } from "../../../shared/schema";
 
 function bar(cur: number, max: number, cls = ""): Raw {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
@@ -11,23 +13,26 @@ function bar(cur: number, max: number, cls = ""): Raw {
   return html`<span class="hp-bar ${cls} ${tone}" role="meter" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${cur}"><span style="width:${pct}%"></span></span>`;
 }
 
-export function worldPanel(w: WorldState | null | undefined, characters: { id: string; name: string }[], meId?: string): Raw {
+export function worldPanel(w: WorldState | null | undefined, characters: { id: string; name: string }[], meId?: string, rules?: Rules): Raw {
   if (!w) return html``;
   const open = w.quests.filter((q) => q.status === "offen");
   const closed = w.quests.filter((q) => q.status !== "offen");
-  const xp = characters.length ? w.xp[characters[0].id] ?? 0 : 0;
+  // Stufe und Erfahrung der eigenen Figur (Solo: die einzige)
+  const mine = characters.find((c) => c.id === meId) ?? characters[0];
+  const xp = mine ? w.xp[mine.id] ?? 0 : 0;
+  const level = (mine && w.levels?.[mine.id]?.level) || 1;
   return html`<section class="world card ${w.combat ? "in-combat" : ""}" aria-label="Spielstand">
     ${w.arc ? arcProgress(w.arc) : ""}
     <div class="world-heroes">
       ${characters.map((c) => {
         const hp = w.hp[c.id] ?? 0, max = w.maxHp[c.id] ?? 0;
         return html`<div class="wh ${c.id === meId ? "me" : ""} ${hp <= 0 ? "down" : ""}">
-          <span class="wh-name">${icon("heart")} ${c.name}</span>
+          <span class="wh-name">${icon("heart")} ${c.name}${characters.length > 1 && w.levels?.[c.id] ? html` <small class="wh-lv">St. ${w.levels[c.id].level}</small>` : ""}</span>
           ${bar(hp, max)}
           <span class="wh-num">${hp}/${max} ${term("tp", "TP")}${hp <= 0 ? " · kampfunfähig" : ""}</span>
         </div>`;
       })}
-      <span class="chip xp" title="Erfahrungspunkte">${icon("star")} ${xp} EP</span>
+      ${rules ? levelBadge(level, xp, rules) : html`<span class="chip xp" title="Erfahrungspunkte">${icon("star")} ${xp} EP</span>`}
     </div>
     ${w.combat ? html`<div class="world-combat">
       <div class="wc-head">${icon("sword")} Kampf · Runde ${w.combat.round}</div>
@@ -43,4 +48,14 @@ export function worldPanel(w: WorldState | null | undefined, characters: { id: s
       ${w.memory.length ? html`<div class="memory"><div class="eyebrow">Der Spielleiter merkt sich</div><ul>${w.memory.slice().reverse().map((m) => html`<li>${m}</li>`)}</ul></div>` : ""}
     </details>` : ""}
   </section>`;
+}
+
+/** Stufe, Titel und Balken bis zur nächsten Stufe. */
+export function levelBadge(level: number, xp: number, rules: Rules): Raw {
+  const { from, to } = xpProgress(xp, level, rules);
+  const pct = to === null ? 100 : Math.max(0, Math.min(100, ((xp - from) / (to - from)) * 100));
+  return html`<div class="lv-badge" title="${to === null ? `${xp} EP – höchste Stufe` : `${xp} von ${to} EP bis Stufe ${level + 1}`}">
+    <span class="lv-num">${level}</span>
+    <span class="lv-text"><b>${levelTitle(level, rules)}</b><span class="lv-bar"><i style="width:${pct}%"></i></span><small>${to === null ? `${xp} EP` : `${xp} / ${to} EP`}</small></span>
+  </div>`;
 }

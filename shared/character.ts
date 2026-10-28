@@ -88,10 +88,13 @@ export function trainedSkills(c: Pick<Character, "classId" | "chosenSkills" | "s
   return new Set([...(cls?.trainedSkills ?? []), ...c.chosenSkills, ...(stand ? [stand.skill] : [])]);
 }
 
-export function maxHpAtLevel(cls: ClassDef, konValue: number, level: number): number {
+/** Trefferpunkte auf einer Stufe: Die `hpLevelUps` vollen Aufstiege verteilen sich gleichmäßig auf die Stufen 2 bis max. */
+export function maxHpAtLevel(cls: ClassDef, konValue: number, level: number, rules?: Rules): number {
   const kon = modifier(konValue);
-  const perLevel = Math.floor(cls.hitDie / 2) + 1;
-  return Math.max(1, cls.hitDie + kon + (level - 1) * Math.max(1, perLevel + kon));
+  const perLevel = Math.max(1, Math.floor(cls.hitDie / 2) + 1 + kon);
+  const max = rules?.levels.max ?? 10, ups = rules?.levels.hpLevelUps ?? 4;
+  const steps = Math.min(Math.max(level, 1), max) - 1;
+  return Math.max(1, cls.hitDie + kon + Math.floor((ups * perLevel * steps) / (max - 1)));
 }
 
 export function addMoney(a: Money, b: Money): Money {

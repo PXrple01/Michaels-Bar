@@ -92,28 +92,51 @@
     "max": 10,
     "xpTable": [
       0,
+      60,
+      130,
+      210,
       300,
-      900,
-      2700,
-      6500,
-      14000,
-      23000,
-      34000,
-      48000,
-      64000
+      400,
+      510,
+      630,
+      760,
+      900
     ],
     "skillBonus": [
       2,
       2,
       2,
       2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      3
+    ],
+    "titles": [
+      "Neuling",
+      "Wanderer",
+      "Knappe",
+      "Geselle",
+      "Recke",
+      "Streiter",
+      "Veteran",
+      "Held",
+      "Meister",
+      "Legende"
+    ],
+    "extraSkillAt": 4,
+    "attributeIncreaseAt": 7,
+    "hpLevelUps": 4,
+    "actCap": [
       3,
-      3,
-      3,
-      3,
-      4,
-      4
-    ]
+      6,
+      9
+    ],
+    "chapterXp": 50,
+    "actXp": 100,
+    "explanation": "Stufen gelten innerhalb einer Kampagne (Stufe 1 bis 10). Jede Stufe bringt etwas mehr Trefferpunkte – insgesamt so viel wie vier volle Aufstiege. Stufe 4: eine zusätzliche geübte Fertigkeit. Stufe 7: +2 auf ein Attribut oder +1 auf zwei. Stufe 10: Können +3. Höchstens Stufe 3 im Anfang, 6 in der Mitte, 9 im Finale; Stufe 10 im letzten Kapitel."
   },
   "checks": {
     "die": 20,

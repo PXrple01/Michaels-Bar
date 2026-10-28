@@ -12,7 +12,7 @@ import type { GameData } from "../rules/loader";
 
 export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
-const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 300 };
+const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
 export interface ToolContext {
   data: GameData;
@@ -56,7 +56,7 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       text: { type: "string", description: "Beschreibung bzw. Notiz" },
     }, ["aktion", "titel", "text"]),
     tool("merken", "Merkt sich eine wichtige Tatsache für später (Namen, Versprechen, Geheimnisse, Orte). Ein Satz.", { text: { type: "string" } }, ["text"]),
-    tool("erfahrung", "Vergibt Erfahrungspunkte an alle Figuren für einen gelösten Auftrag oder eine besiegte Gefahr (10–300).", { menge: { type: "integer" }, grund: { type: "string" } }, ["menge", "grund"]),
+    tool("erfahrung", "Vergibt Erfahrungspunkte an alle Figuren für einen gelösten Auftrag, eine überstandene Gefahr oder eine kluge Idee (10–100; kleine Gefahr 20, großer Auftrag 60–100). Abgeschlossene Kapitel und Akte belohnt der Server selbst.", { menge: { type: "integer" }, grund: { type: "string" } }, ["menge", "grund"]),
     tool("kampagne_planen", `Plant die Kampagne (nur für dich, die Spieler sehen den Plan nicht): großes Ziel, Bedrohung und eine lineare Folge von Kapiteln in drei Akten – Anfang ${ACTS[0].chapters[0]}–${ACTS[0].chapters[1]}, Mitte ${ACTS[1].chapters[0]}–${ACTS[1].chapters[1]}, Finale ${ACTS[2].chapters[0]}–${ACTS[2].chapters[1]} Kapitel. Jedes Kapitel hat einen Titel und ein Ziel, das erreicht sein muss. Erneut aufgerufen, ersetzt es die noch nicht gespielten Kapitel (z. B. wenn die Spieler die Richtung geändert haben).`, {
       ziel: { type: "string", description: "Was die Figuren am Ende erreichen sollen" },
       bedrohung: { type: "string", description: "Gegenspieler oder Gefahr hinter allem" },
@@ -246,9 +246,13 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       arc.current++;
       arc.turnsInChapter = 0;
       const nx = currentChapter(arc)!;
-      return { content: nx.act !== ch.act
+      // Feste Erfahrung für jedes Kapitel und jeden Akt – Fortschritt hängt nicht nur von erfahrung ab
+      const lv = ctx.data.rules.levels;
+      const xp = lv.chapterXp + (nx.act !== ch.act ? lv.actXp : 0);
+      for (const c of ctx.characters) w.xp[c.id] = (w.xp[c.id] ?? 0) + xp;
+      return { content: (nx.act !== ch.act
         ? `Kapitel „${ch.titel}“ und damit der Akt „${ACTS[ch.act].name}“ sind abgeschlossen. Jetzt beginnt Akt ${nx.act + 1} „${ACTS[nx.act].name}“ mit dem Kapitel „${nx.titel}“: ${nx.ziel}`
-        : `Kapitel „${ch.titel}“ ist abgeschlossen. Nächstes Kapitel: „${nx.titel}“: ${nx.ziel}` };
+        : `Kapitel „${ch.titel}“ ist abgeschlossen. Nächstes Kapitel: „${nx.titel}“: ${nx.ziel}`) + ` Alle erhalten ${xp} Erfahrungspunkte.` };
     }
     case "abzweigung": {
       const arc = arcOf(w);

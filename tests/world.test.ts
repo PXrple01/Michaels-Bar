@@ -125,7 +125,7 @@ describe("Aufträge, Gedächtnis, Erfahrung", () => {
     const w = done(evs).state.world!;
     expect(w.quests[0]).toMatchObject({ title: "Der verschwundene Kelch", status: "offen" });
     expect(w.memory).toEqual(["Bruder Anselm schuldet Hagen einen Gefallen."]);
-    expect(w.xp[character.id]).toBe(300);
+    expect(w.xp[character.id]).toBe(100); // höchstens 100 pro Vergabe (Kapitel und Akte belohnt der Server)
 
     const forged: SignedState = { ...done(evs).state, world: { ...w, hp: { [character.id]: 999 } } };
     expect((await run("turn", { character, state: forged, action: "Ich gehe." })).at(-1)).toMatchObject({ type: "error", code: "state" });

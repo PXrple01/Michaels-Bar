@@ -40,6 +40,7 @@ export const partyApi = {
   state: (m: Membership) => post<PartyView>("state", { code: m.code, token: m.token }),
   leave: (m: Membership) => post<{ ok: true }>("leave", { code: m.code, token: m.token }),
   choose: (m: Membership, option: number) => post<PartyView>("choose", { code: m.code, token: m.token, option }),
+  level: (m: Membership, choice: { skill?: string; attrs?: Record<string, number> }) => post<PartyView>("level", { code: m.code, token: m.token, ...choice }),
   stream: (op: "start" | "action" | "roll" | "upgrade", m: Membership, extra: Record<string, unknown>, onEvent: (ev: PartyEvent) => void) =>
     streamSse<PartyEvent>(`/api/party/${op}`, { code: m.code, token: m.token, ...extra }, onEvent),
 };

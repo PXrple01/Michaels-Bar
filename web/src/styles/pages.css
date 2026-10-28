@@ -896,3 +896,27 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .mod-chip.neg { color: var(--bad); border-color: rgba(253, 164, 175, 0.35); background: rgba(253, 164, 175, 0.08); }
 .ar-mod-note { display: block; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.02em; }
 .ar-mod-note.pos { color: var(--good); } .ar-mod-note.neg { color: var(--bad); }
+
+/* Stufen */
+.lv-badge { display: inline-flex; align-items: center; gap: 10px; padding: 4px 12px 4px 4px; border-radius: 999px; border: 1px solid rgba(245, 214, 138, 0.35); background: rgba(245, 214, 138, 0.06); }
+.lv-num { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; font-family: var(--font-display); font-size: 1.05rem; color: #2a1a00; background: radial-gradient(circle at 30% 30%, var(--gold), #b7791f); box-shadow: 0 6px 18px -8px rgba(245, 214, 138, 0.8); }
+.lv-text { display: grid; gap: 2px; min-width: 96px; }
+.lv-text b { font-size: 0.82rem; color: var(--gold); }
+.lv-text small { font-size: 0.7rem; color: var(--muted); }
+.lv-bar { position: relative; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.lv-bar i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, #b7791f, var(--gold)); transition: width 0.9s var(--ease-spring); }
+.wh-lv, .hud-lv { font-size: 0.7rem; font-weight: 600; color: var(--gold); }
+.hud-lv { margin-left: 2px; }
+.level-card { display: grid; gap: 14px; margin-bottom: 16px; padding: 18px 20px; border-color: rgba(245, 214, 138, 0.4); animation: pop-in 0.6s var(--ease-spring) both; }
+.lc-head { display: flex; gap: 14px; align-items: center; }
+.lc-head h3 { margin: 2px 0; } .lc-head p { margin: 0; }
+.lc-num { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; font-family: var(--font-display); font-size: 1.5rem; color: #2a1a00; background: radial-gradient(circle at 30% 30%, var(--gold), #b7791f); box-shadow: 0 10px 30px -10px rgba(245, 214, 138, 0.8); animation: up-glow 2.2s ease-in-out infinite; }
+.lc-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.lc-skill { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(8, 5, 15, 0.5); color: var(--text); font: inherit; cursor: pointer; text-align: left; transition: border-color 0.2s, transform 0.2s var(--ease-spring); }
+.lc-skill:hover, .lc-skill:focus-visible { border-color: var(--gold); transform: translateY(-2px); }
+.lc-skill small { color: var(--muted); font-size: 0.72rem; }
+.lc-attrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.lc-attr { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 6px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(8, 5, 15, 0.5); }
+.lc-attr span { display: grid; } .lc-attr small { color: var(--muted); font-size: 0.75rem; }
+.lc-attr [aria-pressed="true"] { border-color: var(--gold); color: var(--gold); background: rgba(245, 214, 138, 0.1); }
+@media (prefers-reduced-motion: reduce) { .lc-num { animation: none; } }

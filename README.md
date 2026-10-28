@@ -155,6 +155,23 @@ Attribute kommen – z. B. Söldner Stärke +2, Konstitution +1, Verstand −1, 
   der Code kürzt auf die Grenzen.
 - Figuren von vor den Grundwerten behalten ihre Werte (`statsVersion` fehlt) und bleiben gültig.
 
+## Erfahrung und Stufen (nur innerhalb einer Kampagne)
+
+Jede Kampagne beginnt bei Stufe 1 und kann bis Stufe 10 führen (`shared/levels.ts`, Werte in `rules.json → levels`).
+
+- **Erfahrung:** jedes abgeschlossene Kapitel +50, jeder abgeschlossene Akt +100 (vom Server), dazu Claudes Vergaben
+  für Aufträge und Gefahren (höchstens 100 pro Vergabe).
+- **Schwellen:** 0 / 60 / 130 / 210 / 300 / 400 / 510 / 630 / 760 / 900 EP. Der Kampagnenbogen deckelt: höchstens Stufe 3
+  im Anfang, 6 in der Mitte, 9 im Finale; Stufe 10 erst im letzten Kapitel.
+- **Wirkung** – insgesamt so stark wie fünf Stufen, nur feiner verteilt:
+  - jede Stufe: etwas mehr Trefferpunkte (zusammen vier volle Aufstiege: Trefferwürfel/2 + 1 + KON), sofort dazu;
+  - Stufe 4: eine zusätzliche geübte Fertigkeit nach Wahl;
+  - Stufe 7: +2 auf ein Attribut oder +1 auf zwei (höchstens 18);
+  - Stufe 10: Können-Bonus +3 statt +2;
+  - jede Stufe hat einen Titel (Neuling … Legende).
+- Claude sieht die Stufen im `<spielstand>` und stimmt Gegner darauf ab. In Chat-Apps (OpenAI-Schnittstelle) trifft der
+  Server die Wahl bei Stufe 4 und 7 selbst.
+
 ## Verbesserte Fähigkeiten
 
 Zweimal pro Kampagne entwickelt sich eine Fähigkeit weiter (`shared/upgrades.ts`, Claude-Teil in `server/gm/upgrades.ts`).
@@ -259,4 +276,4 @@ tests/    Vitest
 
 ## Nächste Etappen
 
-6. Oberfläche, Speichern/Laden, Kostenlimit, Stufenaufstieg (Erfahrungspunkte werden schon gesammelt)
+6. Oberfläche, Speichern/Laden, Kostenlimit

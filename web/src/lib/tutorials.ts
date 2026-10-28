@@ -26,7 +26,7 @@ const QUESTS: TutorialStep = {
 };
 const GROWTH: TutorialStep = {
   icon: "star", title: "Erfahrung zahlt sich aus",
-  text: "Für gelöste Aufträge und überstandene Gefahren gibt es Erfahrungspunkte (EP). Zweimal in der Kampagne – einmal in der Mitte, einmal im Finale – entwickelt sich dadurch eine Fähigkeit deiner Figur weiter. Welche, verrät der Spielleiter erst dann. Du bekommst zwei Möglichkeiten und wählst eine; manchmal passt eine davon genau zu eurer Lage.",
+  text: "Für abgeschlossene Kapitel, gelöste Aufträge und überstandene Gefahren gibt es Erfahrungspunkte (EP). Damit steigst du bis Stufe 10 auf: Jede Stufe bringt mehr Lebenspunkte, Stufe 4 eine neue Fertigkeit, Stufe 7 stärkere Attribute. Zweimal in der Kampagne – einmal in der Mitte, einmal im Finale – entwickelt sich dadurch eine Fähigkeit deiner Figur weiter. Welche, verrät der Spielleiter erst dann. Du bekommst zwei Möglichkeiten und wählst eine; manchmal passt eine davon genau zu eurer Lage.",
 };
 const ABILITIES: TutorialStep = {
   icon: "sparkles", title: "Deine Fähigkeiten",
