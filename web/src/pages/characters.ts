@@ -1,3 +1,5 @@
+import { ACHIEVEMENTS } from "../../../shared/achievements";
+import { unlockedAchievements } from "../lib/achievements";
 import { enhance } from "../fx/effects";
 import { api, loadGameData } from "../lib/api";
 import { campaignStore } from "../lib/campaigns";
@@ -24,6 +26,7 @@ export function charactersPage(): Page {
             <div class="eyebrow">Deine Heldinnen und Helden</div>
             <h1>Figuren</h1>
             <p class="lead">${list.length ? "Wähle eine Figur, um ihren Bogen zu öffnen, oder erschaffe eine neue." : "Noch keine Figur – Zeit, die erste zu erschaffen!"}</p>
+            <a class="ach-link" href="#/erfolge">${icon("crown")} Erfolge <b>${Object.keys(unlockedAchievements()).length} / ${ACHIEVEMENTS.length}</b> ${icon("arrowRight")}</a>
           </header>
           <div class="char-grid">
             <a class="card char-card new-card tilt" href="#/figur/neu" data-reveal="scale">

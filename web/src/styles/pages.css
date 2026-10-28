@@ -1214,3 +1214,47 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 /* Kleine Klappen links (Gepäck, Kapitel): Kopfzeile mit Kurzinfo */
 .world-log summary small { font-size: 0.78rem; }
 .arc-block[open] > .arc { margin-top: 10px; }
+
+/* ───────────── Erfolge ───────────── */
+.ach-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; padding: 7px 14px; border-radius: 999px; font-size: 0.88rem; color: var(--text-2);
+  border: 1px solid rgba(245, 214, 138, 0.35); background: rgba(245, 214, 138, 0.06); transition: background 0.3s, color 0.3s; }
+.ach-link:hover { background: rgba(245, 214, 138, 0.14); color: #fff; }
+.ach-link svg { width: 16px; height: 16px; color: var(--gold); }
+.ach-link b { color: var(--gold); }
+.hero-text .ach-link { margin: 4px 0 18px; }
+.ach-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.ach-ring { --p: 0; flex: none; width: 116px; height: 116px; border-radius: 50%; display: grid; place-content: center; text-align: center;
+  background: radial-gradient(closest-side, rgb(var(--c-s08)) 78%, transparent 80%), conic-gradient(var(--gold) calc(var(--p) * 1%), rgba(255, 255, 255, 0.08) 0);
+  box-shadow: 0 0 40px -10px rgba(245, 214, 138, 0.5); }
+.ach-ring b { font-family: var(--font-display); font-size: 2.2rem; line-height: 1; color: var(--gold); }
+.ach-ring small { color: var(--muted); }
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; padding-bottom: 40px; }
+.ach { display: flex; gap: 14px; align-items: flex-start; padding: 16px; opacity: 0.72; }
+.ach.got { opacity: 1; border-color: rgba(245, 214, 138, 0.4); background: linear-gradient(150deg, rgba(245, 214, 138, 0.1), transparent 55%), var(--card-bg, rgba(var(--c-s14), 0.8)); }
+.ach-medal { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.04); color: var(--muted); }
+.ach-medal svg { width: 22px; height: 22px; }
+.ach.got .ach-medal { color: #3a2208; border-color: transparent; background: radial-gradient(circle at 35% 30%, #fff3c4, #f5d68a 40%, #b8862c 100%); box-shadow: 0 0 18px rgba(245, 214, 138, 0.45), inset 0 -3px 6px rgba(90, 50, 0, 0.35); }
+.ach-body { display: grid; gap: 4px; min-width: 0; }
+.ach-body b { color: var(--text); }
+.ach-body > span { font-size: 0.88rem; color: var(--text-2); }
+.ach-date { display: inline-flex; align-items: center; gap: 5px; color: var(--gold); font-size: 0.78rem; }
+.ach-date svg { width: 13px; height: 13px; }
+.ach-bar { display: block; height: 5px; margin-top: 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.ach-bar i { display: block; height: 100%; background: linear-gradient(90deg, #b8862c, var(--gold)); }
+@media (max-width: 640px) { .ach-head { flex-direction: column-reverse; align-items: flex-start; } .ach-ring { width: 92px; height: 92px; } .ach-ring b { font-size: 1.7rem; } }
+
+/* Einblendung beim Freischalten: Medaille dreht sich herein, ein Lichtstreif läuft darüber */
+.toast.achievement-toast { display: flex; align-items: center; gap: 14px; padding: 12px 16px 12px 12px; color: var(--text); text-decoration: none; overflow: hidden; position: relative;
+  border-color: rgba(245, 214, 138, 0.55); background: linear-gradient(120deg, rgba(60, 38, 10, 0.97), rgb(var(--c-s10)) 70%); box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.8), 0 0 30px -8px rgba(245, 214, 138, 0.45); }
+.toast.achievement-toast::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 240, 200, 0.22) 50%, transparent 70%); transform: translateX(-120%); animation: ach-shine 1.4s 0.5s ease-out forwards; pointer-events: none; }
+.at-medal { position: relative; flex: none; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: #3a2208;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #f5d68a 40%, #b8862c 100%); box-shadow: 0 0 20px rgba(245, 214, 138, 0.6); animation: ach-medal 0.9s var(--ease-spring) both; }
+.toast .at-medal svg { width: 22px; height: 22px; color: #3a2208; margin: 0; }
+.at-medal i { position: absolute; inset: -6px; border-radius: 50%; border: 2px solid rgba(245, 214, 138, 0.7); animation: ach-ring 1.2s 0.3s ease-out both; }
+.at-text { display: grid; gap: 1px; min-width: 0; }
+.at-text small { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); font-weight: 700; }
+.at-text b { font-family: var(--font-head); font-size: 1.05rem; }
+.at-text span { font-size: 0.82rem; color: var(--text-2); }
+@keyframes ach-medal { 0% { transform: rotateY(90deg) scale(0.4); opacity: 0; } 60% { transform: rotateY(-20deg) scale(1.1); opacity: 1; } 100% { transform: none; } }
+@keyframes ach-ring { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes ach-shine { to { transform: translateX(120%); } }

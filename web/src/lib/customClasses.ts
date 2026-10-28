@@ -18,7 +18,7 @@ function write(list: SignedClass[]) {
 export const classStore = {
   list: read,
   get: (id: string) => read().find((s) => s.cls.id === id) ?? null,
-  save(s: SignedClass, replaces?: string) { write([...read().filter((x) => x.cls.id !== s.cls.id && x.cls.id !== replaces), s]); },
+  save(s: SignedClass, replaces?: string) { write([...read().filter((x) => x.cls.id !== s.cls.id && x.cls.id !== replaces), s]); dispatchEvent(new Event("wus:progress")); },
   remove(id: string) { write(read().filter((x) => x.cls.id !== id)); },
 };
 

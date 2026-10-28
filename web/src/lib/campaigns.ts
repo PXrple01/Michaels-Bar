@@ -23,6 +23,7 @@ export const campaignStore = {
   save(c: CampaignSave) {
     c.updatedAt = new Date().toISOString();
     write(KEY, [...read<CampaignSave[]>(KEY, []).filter((x) => x.id !== c.id), c]);
+    dispatchEvent(new Event("wus:progress"));
   },
   remove(id: string) { write(KEY, read<CampaignSave[]>(KEY, []).filter((x) => x.id !== id)); },
   /** Kurzfassungen aller bisherigen Einstiege (auch verworfener), damit sich nichts wiederholt. */

@@ -30,6 +30,7 @@ export const characterStore = {
   },
   save(c: Character) {
     write(CHARS, [...read<Character[]>(CHARS, []).filter((x) => x.id !== c.id), c]);
+    dispatchEvent(new Event("wus:progress"));
   },
   remove(id: string) {
     write(CHARS, read<Character[]>(CHARS, []).filter((x) => x.id !== id));

@@ -1,3 +1,5 @@
+import { ACHIEVEMENTS } from "../../../shared/achievements";
+import { unlockedAchievements } from "../lib/achievements";
 import { legacySummary, summaryText } from "../lib/account";
 import { mountHeroDie } from "../dice3d/heroDie";
 import { enhance, splitLetters } from "../fx/effects";
@@ -17,7 +19,6 @@ const DICE_INFO = [
   { sides: 100, name: "W100", use: "Prozentwurf: Zufallstabellen und Glück." },
 ];
 
-
 export function homePage(): Page {
   let disposeDie: (() => void) | null = null;
   return {
@@ -33,6 +34,7 @@ export function homePage(): Page {
               <a class="btn btn-lg magnetic glow-border" href="#/figur/neu">${icon("sparkles")} Figur erschaffen</a>
               <a class="btn btn-ghost btn-lg" href="#/lernen">${icon("book")} So funktioniert's</a>
             </div>
+            ${Object.keys(unlockedAchievements()).length ? html`<a class="ach-link" href="#/erfolge" data-reveal style="--i:9">${icon("crown")} Erfolge <b>${Object.keys(unlockedAchievements()).length} / ${ACHIEVEMENTS.length}</b> ${icon("arrowRight")}</a>` : ""}
             <div class="hero-stats" data-reveal style="--i:10">
               <div><b data-stat="classes">6</b><span>Klassen</span></div>
               <div><b data-stat="skills">16</b><span>Fertigkeiten</span></div>

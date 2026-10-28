@@ -20,6 +20,8 @@ import { settingsPage } from "./pages/settings";
 import { adventuresPage, playPage } from "./pages/adventure";
 import { classEditorPage, classesPage } from "./pages/classes";
 import { partyHomePage, partyPage } from "./pages/party";
+import { achievementsPage } from "./pages/achievements";
+import { scheduleAchievementCheck } from "./lib/achievements";
 
 const NAV = [
   { id: "home", href: "#/", label: "Start", icon: "home" },
@@ -77,6 +79,7 @@ route("/klassen/neu", "chars", classEditorPage);
 route("/klassen/:id/:mode", "chars", classEditorPage);
 route("/abenteuer/:id", "adventure", playPage);
 route("/einstellungen", "settings", settingsPage);
+route("/erfolge", "chars", achievementsPage);
 
 applyPalette(settings().palette);
 renderChrome();
@@ -89,6 +92,9 @@ onSettings((s) => {
   if (s.diceTheme !== lastTheme) { lastTheme = s.diceTheme; clearDieCache(); }
 });
 document.body.classList.toggle("calm", !settings().backgroundFx);
+// Erfolge: beim Start und bei jedem Seitenwechsel prüfen (Speichern löst es zusätzlich aus)
+scheduleAchievementCheck();
+addEventListener("hashchange", scheduleAchievementCheck);
 
 // Kopfleiste beim Runterscrollen ausblenden, beim Hochscrollen zeigen
 let lastY = 0;

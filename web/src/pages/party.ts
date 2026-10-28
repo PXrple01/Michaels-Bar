@@ -15,6 +15,7 @@ import { memberships, partyApi, PartyApiError, type Membership } from "../lib/pa
 import { go, type Page } from "../lib/router";
 import { confirmDialog, toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
+import { noteParty } from "../lib/achievements";
 import { bindSides, fillSide, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
@@ -350,6 +351,7 @@ export function partyPage(): Page {
         fillSide(root.querySelector("#side-right"), lageSide(v.world));
         setMapData(root, v.world?.map);
         setSkyPhase(v.world?.time?.phase);
+        noteParty(v);
       }
 
       /** Unten: die eigenen Fähigkeiten mit Erklärung. */
