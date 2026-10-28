@@ -1074,3 +1074,10 @@ body.auth main { padding-bottom: 40px; }
 .sync-dot.offline { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
 .legacy-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 18px auto 0; padding: 14px 18px; border-radius: var(--radius); border: 1px dashed rgba(245, 214, 138, 0.45); background: rgba(245, 214, 138, 0.07); }
 .legacy-banner p { margin: 0; flex: 1 1 260px; }
+
+/* Wiederherstellung (Betreiber) */
+.recover-list { display: grid; gap: 10px; }
+.recover-party { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(var(--c-s08), 0.45); }
+.rp-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.rp-players { display: grid; gap: 6px; }
+.rp-player { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 6px; border-top: 1px solid var(--line); }

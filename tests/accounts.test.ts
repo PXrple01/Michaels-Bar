@@ -92,3 +92,37 @@ describe("Konten", () => {
     expect((await call(again, "GET", "data", null, token)).body).toEqual({ data: { "wus.campaigns.v1": "[\"x\"]" } });
   });
 });
+
+describe("Figuren aus Gruppen zurückholen (nur Betreiber)", () => {
+  it("nur ADMIN_USER sieht die Gruppen; Zurückholen liefert Figur und neuen Zugang, der alte gilt nicht mehr", async () => {
+    const { MemoryPartyStore, PartyService } = await import("../server/gm/party");
+    const { Narrator } = await import("../server/gm/narrator");
+    const { RollLog } = await import("../server/dice/log");
+    const { UsageGuard } = await import("../server/gm/usage");
+    const { buildCharacter } = await import("../server/characters");
+    const { loadGameData } = await import("../server/rules/loader");
+    const data = await loadGameData(path.resolve(__dirname, "../data"));
+    const ritter = data.classes.find((c) => c.id === "ritter")!;
+    const hagen = buildCharacter({ name: "Hagen", stand: "bauer", classId: "ritter", attributes: ritter.recommendedAttributes, chosenSkills: ["reiten", "wahrnehmung"] }, data);
+    const parties = new MemoryPartyStore();
+    const guard = new UsageGuard(new MemoryCounterStore(), 10, 100);
+    const party = new PartyService({ data: () => data, narrator: new Narrator({ llm: null, rolls: new RollLog(), guard }), guard, store: parties, secret: SECRET });
+    const host = await party.create({ character: hagen });
+
+    const s = new AccountService({ store: new MemoryAccountStore(), secret: SECRET, counters: new MemoryCounterStore(), admin: "Chefin", parties });
+    const chef = ((await call(s, "POST", "register", { username: "chefin", password: "passwort1" })).body as { token: string }).token;
+    const other = ((await call(s, "POST", "register", { username: "Gast", password: "passwort1" })).body as { token: string }).token;
+    expect((await call(s, "GET", "recover", null, other)).status).toBe(403);
+    const list = await call(s, "GET", "recover", null, chef);
+    expect(list.status).toBe(200);
+    expect((list.body as { parties: { code: string; players: { name: string }[] }[] }).parties[0]).toMatchObject({ code: host.code, players: [{ name: "Hagen" }] });
+
+    const r = await call(s, "POST", "recover", { code: host.code, characterId: hagen.id }, chef);
+    expect(r.status).toBe(200);
+    const body = r.body as { character: { name: string }; token: string; playerId: string };
+    expect(body.character.name).toBe("Hagen");
+    expect(body.playerId).toBe(host.playerId);
+    await expect(party.state({ code: host.code, token: host.token })).rejects.toThrow(/gehörst nicht/);
+    expect((await party.state({ code: host.code, token: body.token })).you).toBe(host.playerId);
+  });
+});

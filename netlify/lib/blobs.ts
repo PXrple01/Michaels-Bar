@@ -48,6 +48,11 @@ export class BlobPartyStore implements PartyStore {
     return res.modified;
   }
   async delete(code: string) { await this.store.delete(code); }
+  async list() {
+    const { blobs } = await this.store.list();
+    const all = await Promise.all(blobs.map((b) => this.store.get(b.key, { type: "json" }) as Promise<Party | null>));
+    return all.filter((p): p is Party => !!p);
+  }
 }
 
 /** Konten und ihre Spielstände: user/<name> und data/<name>/<schlüssel>. */

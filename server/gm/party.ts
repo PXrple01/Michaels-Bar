@@ -71,6 +71,8 @@ export interface PartyStore {
   get(code: string): Promise<{ party: Party; etag: string } | null>;
   put(party: Party, etag: string | null): Promise<boolean>;
   delete(code: string): Promise<void>;
+  /** Alle Gruppen (nur für die Wiederherstellung durch den Betreiber). */
+  list(): Promise<Party[]>;
 }
 
 export class MemoryPartyStore implements PartyStore {
@@ -86,6 +88,7 @@ export class MemoryPartyStore implements PartyStore {
     return true;
   }
   async delete(code: string) { this.map.delete(code); }
+  async list() { return [...this.map.values()].map((e) => JSON.parse(e.json) as Party); }
 }
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -531,6 +534,42 @@ export class PartyService {
       throw e;
     }
   }
+}
+
+/* ── Wiederherstellung (nur Betreiber): Figuren aus Gruppen zurückholen ── */
+
+export interface RecoverItem {
+  code: string; status: "lobby" | "playing" | "finished"; createdAt: string; updatedAt: string; title: string | null;
+  players: { characterId: string; name: string; classId: string; className: string; host: boolean; level: number }[];
+}
+
+/** Alle Gruppen mit ihren Figuren – neueste zuerst. */
+export async function listPartyCharacters(store: PartyStore): Promise<RecoverItem[]> {
+  const parties = await store.list();
+  return parties.map((p) => ({
+    code: p.code, status: p.status === "lobby" ? "lobby" as const : p.world?.arc?.finished ? "finished" as const : "playing" as const,
+    createdAt: p.createdAt, updatedAt: p.updatedAt, title: p.opening?.ort ?? null,
+    players: p.players.map((pl) => ({ characterId: pl.character.id, name: pl.character.name, classId: pl.character.classId, className: pl.character.customClass?.cls.name ?? pl.character.classId, host: pl.host, level: p.world?.levels?.[pl.character.id]?.level ?? 1 })),
+  })).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+/**
+ * Eine Figur aus einer Gruppe zurückholen: liefert die Figur (mit eigener Klasse) und einen neuen Zugang zu ihrem Platz
+ * in der Gruppe – der alte Zugang (z. B. im verlorenen Browser-Speicher) gilt danach nicht mehr.
+ */
+export async function reclaimPlayer(store: PartyStore, code: string, characterId: string): Promise<{ character: Character; code: string; playerId: string; token: string }> {
+  for (let i = 0; i < 6; i++) {
+    const got = await store.get(String(code).trim().toUpperCase());
+    if (!got) throw new PartyError("Diese Gruppe gibt es nicht (mehr).");
+    const pl = got.party.players.find((x) => x.character.id === characterId);
+    if (!pl) throw new PartyError("Diese Figur ist nicht in der Gruppe.");
+    const token = randomBytes(24).toString("base64url");
+    pl.tokenHash = hash(token);
+    got.party.version++;
+    got.party.updatedAt = new Date().toISOString();
+    if (await store.put(got.party, got.etag)) return { character: pl.character, code: got.party.code, playerId: pl.id, token };
+  }
+  throw new PartyError("Zu viele gleichzeitige Änderungen – bitte nochmal versuchen.");
 }
 
 export { GmError };

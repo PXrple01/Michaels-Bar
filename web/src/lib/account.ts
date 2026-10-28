@@ -317,3 +317,31 @@ export function legacySummary(): MergeSummary | null {
   const n = (k: string) => (Array.isArray(l[k]) ? (l[k] as unknown[]).length : 0);
   return { characters: n("wus.characters.v1"), campaigns: n("wus.campaigns.v1"), classes: n("wus.classes.v1"), parties: n("wus.parties.v1") };
 }
+
+/* ── Wiederherstellung (nur Betreiber, ADMIN_USER): Figuren aus Gruppen zurückholen ── */
+
+export interface RecoverParty {
+  code: string; status: "lobby" | "playing" | "finished"; createdAt: string; updatedAt: string; title: string | null;
+  players: { characterId: string; name: string; classId: string; className: string; host: boolean; level: number }[];
+}
+
+/** Alle Gruppen mit Figuren – oder null, wenn man nicht der Betreiber ist. */
+export async function recoverList(): Promise<RecoverParty[] | null> {
+  try { return (await call<{ parties: RecoverParty[] }>("GET", "recover")).parties; } catch { return null; }
+}
+
+/** Figur ins Konto holen (mit eigener Klasse) und wieder Zugang zu ihrer Gruppe bekommen. */
+export async function recoverCharacter(code: string, characterId: string) {
+  const r = await call<{ character: Record<string, unknown> & { id: string; customClass?: { cls: { id: string } } }; code: string; playerId: string; token: string }>("POST", "recover", { code, characterId });
+  const read = (k: string) => { try { const v = JSON.parse(get(k) ?? "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const now = new Date().toISOString();
+  const chars = read("wus.characters.v1").filter((c: { id: string }) => c.id !== r.character.id);
+  localStorage.setItem("wus.characters.v1", JSON.stringify([...chars, { ...r.character, updatedAt: (r.character.updatedAt as string) ?? now }]));
+  if (r.character.customClass) {
+    const cls = read("wus.classes.v1").filter((c: { cls: { id: string } }) => c.cls.id !== r.character.customClass!.cls.id);
+    localStorage.setItem("wus.classes.v1", JSON.stringify([...cls, r.character.customClass]));
+  }
+  const parties = read("wus.parties.v1").filter((m: { code: string }) => m.code !== r.code);
+  localStorage.setItem("wus.parties.v1", JSON.stringify([{ code: r.code, playerId: r.playerId, token: r.token, characterId: r.character.id, joinedAt: now }, ...parties].slice(0, 20)));
+  return r;
+}

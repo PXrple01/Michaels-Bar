@@ -6,6 +6,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { promisify } from "node:util";
 import type { CounterStore } from "./gm/usage";
+import { listPartyCharacters, reclaimPlayer, type PartyStore } from "./gm/party";
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: object) => Promise<Buffer>;
 
@@ -103,7 +104,23 @@ export function readSession(secret: string, token: unknown): { id: string; pv: n
 }
 
 export class AccountService {
-  constructor(private o: { store: AccountStore; secret: string; counters: CounterStore; inviteCode?: string }) {}
+  /** `admin`: Benutzername des Betreibers (ADMIN_USER) – nur er darf Figuren aus Gruppen wiederherstellen. */
+  constructor(private o: { store: AccountStore; secret: string; counters: CounterStore; inviteCode?: string; admin?: string; parties?: PartyStore }) {}
+
+  private async adminUser(token: unknown) {
+    const u = await this.user(token);
+    if (!this.o.admin || !this.o.parties) throw new AccountError("Die Wiederherstellung ist nicht eingerichtet: Trage bei Netlify ADMIN_USER = dein Benutzername ein.", 403);
+    if (u.id !== this.o.admin.trim().toLowerCase()) throw new AccountError("Nur der Betreiber der Seite darf das.", 403);
+    return u;
+  }
+
+  async recoverList(token: unknown) { await this.adminUser(token); return { parties: await listPartyCharacters(this.o.parties!) }; }
+
+  async recover(token: unknown, body: { code?: unknown; characterId?: unknown }) {
+    await this.adminUser(token);
+    try { return await reclaimPlayer(this.o.parties!, String(body?.code ?? ""), String(body?.characterId ?? "")); }
+    catch (e) { throw new AccountError((e as Error).message); }
+  }
 
   private token(u: UserRecord): string {
     const payload = b64(JSON.stringify({ u: u.id, pv: u.pv, exp: Date.now() + SESSION_DAYS * 86_400_000 }));
@@ -191,6 +208,8 @@ export class AccountService {
         : key === "POST password" ? await this.changePassword(session, b)
         : key === "GET data" ? await this.getData(session)
         : key === "PUT data" ? await this.putData(session, b)
+        : key === "GET recover" ? await this.recoverList(session)
+        : key === "POST recover" ? await this.recover(session, b)
         : null;
       if (!out) return { status: 404, body: { error: "Unbekannter Endpunkt" } };
       return { status: 200, body: out };

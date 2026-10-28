@@ -4,7 +4,8 @@ import { DICE_THEMES } from "../dice3d/textures";
 import { enhance } from "../fx/effects";
 import { api, loadGameData } from "../lib/api";
 import { $$, html, setHTML, uuid, type Raw } from "../lib/dom";
-import { changePassword, downloadExport, dropLegacy, exportData, legacyData, legacySummary, logout, mergeData, onSyncState, parseExport, session, summaryText, syncState, type SyncState } from "../lib/account";
+import { characterStore } from "../lib/store";
+import { changePassword, recoverCharacter, recoverList, type RecoverParty, downloadExport, dropLegacy, exportData, legacyData, legacySummary, logout, mergeData, onSyncState, parseExport, session, summaryText, syncState, type SyncState } from "../lib/account";
 import { icon } from "../lib/icons";
 import type { Page } from "../lib/router";
 import { settings, updateSettings, useSimpleDice, type DiceThemeId, type PaletteId, type Settings } from "../lib/settings";
@@ -138,6 +139,7 @@ export function settingsPage(): Page {
         void rollWithOverlay("Probewurf", () => api.roll({ requestId: uuid(), notation: "1W20", label: "Probewurf" }));
       });
       bindAccount(root);
+      void mountRecover(root);
       enhance(root);
     },
   };
@@ -182,6 +184,40 @@ function accountSection(): Raw {
       <p class="hint">Andere Geräte werden danach abgemeldet.</p>
     </details>
   </section>`;
+}
+
+/** Nur für den Betreiber: Figuren aus Gruppen auf dem Server zurück ins Konto holen. */
+async function mountRecover(root: HTMLElement) {
+  const list = await recoverList();
+  const anchor = root.querySelector(".account-section");
+  if (!list || !anchor?.isConnected) return;
+  const mine = new Set(characterStore.list().map((c) => c.id));
+  const base = await loadGameData().then((d) => d.classes).catch(() => []);
+  const className = (pl: RecoverParty["players"][number]) => base.find((c) => c.id === pl.classId)?.name ?? pl.className;
+  const STATUS = { lobby: "Lobby", playing: "läuft", finished: "beendet" } as const;
+  const el = document.createElement("section");
+  el.className = "card set-section recover-section";
+  el.innerHTML = html`<h2>${icon("refresh")} Figuren aus Gruppen zurückholen</h2>
+    <p>Nur für dich als Betreiber sichtbar. Hier stehen alle Figuren, die in Gruppen auf dem Server liegen. Hol deine zurück ins Konto – mit eigener Klasse. Läuft die Gruppe noch, kannst du danach direkt weiterspielen.</p>
+    ${list.length ? html`<div class="recover-list">${list.map((p) => html`<div class="recover-party">
+      <div class="rp-head"><b class="party-code">${p.code}</b><span>${p.title ? p.title.charAt(0).toUpperCase() + p.title.slice(1) : "Gemeinsames Abenteuer"}</span><span class="chip pr-status ${p.status}">${STATUS[p.status]}</span><small class="muted">${new Date(p.updatedAt).toLocaleDateString("de-DE")}</small></div>
+      <div class="rp-players">${p.players.map((pl) => html`<div class="rp-player">
+        <span><b>${pl.name}</b> <small class="muted">${className(pl)} · Stufe ${pl.level}${pl.host ? " · Gastgeber" : ""}</small></span>
+        ${mine.has(pl.characterId) ? html`<span class="chip good">${icon("check")} in deinem Konto</span>` : html`<button class="btn btn-sm" data-recover="${p.code}" data-char="${pl.characterId}">${icon("download")} Ins Konto holen</button>`}
+      </div>`)}</div>
+    </div>`)}</div>` : html`<p class="muted">Auf dem Server liegen keine Gruppen.</p>`}`.value;
+  anchor.after(el);
+  el.addEventListener("click", async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-recover]");
+    if (!b) return;
+    if (!(await confirmDialog("Figur zurückholen?", "Die Figur kommt in dein Konto, und du bekommst wieder Zugang zu ihrem Platz in der Gruppe. Ein anderes Gerät, das diesen Platz noch hatte, verliert ihn dabei.", "Zurückholen"))) return;
+    b.disabled = true;
+    try {
+      const r = await recoverCharacter(b.dataset.recover!, b.dataset.char!);
+      b.outerHTML = html`<span class="chip good">${icon("check")} in deinem Konto</span>`.value;
+      toast(`${String(r.character.name)} ist zurück in deinem Konto – die Gruppe ${r.code} findest du unter Abenteuer → Gruppe.`, "success", 8000);
+    } catch (err) { toast((err as Error).message, "error", 6000); b.disabled = false; }
+  });
 }
 
 const SYNC_TEXT: Record<SyncState, string> = { saved: "Alles ist im Konto gespeichert.", saving: "Speichert …", offline: "Gerade keine Verbindung – Änderungen werden gespeichert, sobald sie wieder da ist." };

@@ -50,6 +50,7 @@ npx netlify-cli deploy --build --prod
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | für Abenteuer | Claude als Spielleiter |
 | `GAME_SECRET` | für Abenteuer | Langes Zufallsgeheimnis (≥ 16 Zeichen), signiert die Spielstände |
+| `ADMIN_USER` | optional | Dein Benutzername – nur dieses Konto darf Figuren aus Gruppen wiederherstellen |
 | `ACCESS_CODE` | dringend empfohlen | Einladungscode: Wer ein Konto erstellen will, braucht ihn einmal – sonst kann jeder ein Konto anlegen und auf deine Kosten spielen. Angemeldete brauchen ihn danach nicht mehr. |
 | `MONTHLY_BUDGET_USD` | nein (10) | Harte Kostengrenze pro Monat |
 | `TURNS_PER_HOUR` | nein (60) | Züge pro Stunde und Besucher |
@@ -74,6 +75,7 @@ Netlify Blobs (Wurf-Protokoll, Budgetzähler) ist automatisch dabei.
 - Passwörter werden nur als scrypt-Hash gespeichert; nach 10 Fehlversuchen ist ein Name 15 Minuten gesperrt.
 - **Export/Import** in den Einstellungen: alle Spielstände als Datei sichern und in ein (anderes) Konto übernehmen.
 - **Spielstände von vor den Konten** (im Browser gespeichert) werden nach der ersten Anmeldung erkannt und lassen sich mit einem Klick übernehmen.
+- **Figuren aus Gruppen zurückholen** (nur Betreiber): Mit `ADMIN_USER` = eigener Benutzername erscheint in den Einstellungen eine Liste aller Gruppen-Figuren auf dem Server; ein Klick holt eine Figur (mit eigener Klasse) ins Konto und gibt wieder Zugang zu ihrer Gruppe.
 - Ein vergessenes Passwort lässt sich nicht zurücksetzen (es gibt keine E-Mail) – daher im Zweifel regelmäßig exportieren.
 
 ## Funktionen
