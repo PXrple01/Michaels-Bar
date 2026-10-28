@@ -1,5 +1,6 @@
 // Mehrspieler im Browser: Mitgliedschaften merken, Server fragen, Zugangscode bei Bedarf abfragen.
 import { sessionToken } from "./account";
+import type { Character } from "../../../shared/schema";
 import type { PartyEvent, PartyJoinResult, PartyOverview, PartyView } from "../../../shared/party";
 import { accessCode, setAccessCode, streamSse } from "./gm";
 import { promptDialog } from "./ui";
@@ -44,6 +45,7 @@ export const partyApi = {
   remove: (m: Membership) => post<{ deleted: boolean }>("remove", { code: m.code, token: m.token }),
   choose: (m: Membership, option: number) => post<PartyView>("choose", { code: m.code, token: m.token, option }),
   shop: (m: Membership, action: "kaufen" | "verkaufen", ref: string) => post<PartyView>("shop", { code: m.code, token: m.token, action, ref }),
+  sheet: (m: Membership, playerId: string) => post<{ character: Character }>("sheet", { code: m.code, token: m.token, playerId }),
   level: (m: Membership, choice: { skill?: string; attrs?: Record<string, number> }) => post<PartyView>("level", { code: m.code, token: m.token, ...choice }),
   stream: (op: "start" | "action" | "roll" | "upgrade", m: Membership, extra: Record<string, unknown>, onEvent: (ev: PartyEvent) => void) =>
     streamSse<PartyEvent>(`/api/party/${op}`, { code: m.code, token: m.token, ...extra }, onEvent),

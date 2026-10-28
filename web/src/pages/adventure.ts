@@ -1,3 +1,5 @@
+import { openSheet } from "../lib/sheetModal";
+import { effectiveCharacter } from "../../../shared/levels";
 import { splitSuggestions, MAX_ACTION_LENGTH, type CampaignSave, type GmEvent, type Opening, type PendingCheck } from "../../../shared/campaign";
 import { characterRoll } from "../../../shared/character";
 import { formatModifier, type RollRecord } from "../../../shared/dice";
@@ -191,7 +193,7 @@ export function playPage(): Page {
             <div id="below"></div>
             <div id="my-abilities"></div>`)}
         </div>`);
-      unbindSides = bindSides(root);
+      unbindSides = bindSides(root, () => openSheet(async () => effectiveCharacter(character, save!.state.world), data, () => save!.state.world));
       const storyEl = $("#story", root);
       $("#help", root).addEventListener("click", () => showTutorial(`solo-${save.id}`, SOLO_TUTORIAL, true));
       const belowEl = $("#below", root);

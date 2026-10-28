@@ -1,3 +1,4 @@
+import { openSheet } from "../lib/sheetModal";
 import { MAX_ACTION_LENGTH, splitSuggestions } from "../../../shared/campaign";
 import { characterRoll } from "../../../shared/character";
 import { formatModifier, type RollRecord } from "../../../shared/dice";
@@ -202,7 +203,10 @@ export function partyPage(): Page {
           <div id="below"></div>
           <div id="my-abilities"></div>`)}
       </div>`);
-      unbindSides = bindSides(root);
+      unbindSides = bindSides(root, (charId) => {
+        const p = view?.players.find((x) => x.characterId === charId);
+        if (p) openSheet(async () => (await partyApi.sheet(me, p.id)).character, data, () => view?.world);
+      });
       const storyEl = $("#story", root), belowEl = $("#below", root);
       $("#help", root).addEventListener("click", () => showTutorial(`gruppe-${code}`, PARTY_TUTORIAL, true));
 

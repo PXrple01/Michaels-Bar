@@ -942,7 +942,7 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .tm-sigil svg { width: 30px; height: 30px; color: var(--purple-2); }
 .tm-body { display: grid; gap: 4px; min-width: 0; }
 .tm-line { display: flex; align-items: center; gap: 5px; font-size: 0.88rem; }
-.tm-line b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-line b, .tm-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-line > svg { width: 13px; height: 13px; color: var(--gold); flex: none; }
 .tm-lv { margin-left: auto; }
 .tm-sub { color: var(--muted); font-size: 0.75rem; }
@@ -1258,3 +1258,47 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 @keyframes ach-medal { 0% { transform: rotateY(90deg) scale(0.4); opacity: 0; } 60% { transform: rotateY(-20deg) scale(1.1); opacity: 1; } 100% { transform: none; } }
 @keyframes ach-ring { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
 @keyframes ach-shine { to { transform: translateX(120%); } }
+
+/* ───────────── Figurenblatt im Abenteuer ───────────── */
+.tm-name { all: unset; cursor: pointer; font-weight: 700; border-bottom: 1px dashed rgba(var(--c-accent3), 0.5); transition: color 0.2s, border-color 0.2s; }
+.tm-name:hover, .tm-name:focus-visible { color: var(--gold); border-bottom-color: var(--gold); }
+.char-sheet-modal { width: min(560px, 100%); position: relative; display: grid; gap: 12px; }
+.cs-close { position: absolute; top: 12px; right: 12px; z-index: 1; }
+.cs-content { display: grid; gap: 12px; }
+.cs-head { display: flex; gap: 14px; align-items: center; padding-right: 40px; }
+.cs-sigil { flex: none; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 16px; border: 1px solid var(--line-strong); background: rgba(var(--c-accent), 0.1); color: var(--purple-3); }
+.cs-sigil svg { width: 46px; height: 46px; }
+.cs-id { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.cs-id h3 { margin: 0; font-size: 1.4rem; }
+.cs-lv { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 8px; font-size: 0.82rem; color: var(--text-2); margin-top: 4px; }
+.cs-lv b { color: var(--gold); }
+.cs-lv .lv-bar { grid-column: 1 / -1; grid-row: 2; }
+.cs-lv small { color: var(--muted); grid-column: 3; grid-row: 1; }
+.cs-vitals { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.cs-vitals > div { display: grid; justify-items: center; gap: 2px; padding: 10px 6px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); }
+.cs-vitals svg { width: 18px; height: 18px; color: var(--purple-2); }
+.cs-vitals b { font-family: var(--font-display); font-size: 1.25rem; color: #fff; line-height: 1.1; }
+.cs-vitals small { color: var(--muted); font-size: 0.74rem; }
+.cs-weapon { margin-top: -4px; }
+.cs-sec { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--purple-2); }
+.cs-sec svg { width: 14px; height: 14px; }
+.cs-attrs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.cs-attrs > div { display: grid; justify-items: center; padding: 8px 2px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); }
+.cs-attrs > div.primary { border-color: rgba(245, 214, 138, 0.45); background: rgba(245, 214, 138, 0.07); }
+.cs-attrs small { font-size: 0.68rem; letter-spacing: 0.08em; color: var(--muted); }
+.cs-attrs b { font-size: 1.15rem; color: #fff; }
+.cs-attrs span { font-size: 0.72rem; color: var(--text-2); }
+@media (max-width: 460px) { .cs-attrs { grid-template-columns: repeat(3, 1fr); } }
+.cs-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+.cs-skill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: 0.84rem; }
+.cs-skill b { color: var(--gold); }
+.cs-skill small { color: var(--muted); font-size: 0.7rem; }
+.cs-abilities { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cs-abilities li { display: flex; gap: 10px; align-items: flex-start; }
+.cs-ab-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--line-strong); color: var(--purple-2); }
+.cs-ab-icon svg { width: 16px; height: 16px; }
+.cs-abilities p { margin: 2px 0 0; font-size: 0.86rem; }
+.cs-persona { margin: 0; display: grid; gap: 6px; }
+.cs-persona div { display: grid; grid-template-columns: 90px 1fr; gap: 8px; font-size: 0.86rem; }
+.cs-persona dt { color: var(--muted); }
+.cs-persona dd { margin: 0; color: var(--text-2); }

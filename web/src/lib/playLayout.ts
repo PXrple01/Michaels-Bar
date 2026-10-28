@@ -68,7 +68,7 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
         return html`<div class="tm ${m.me ? "me" : ""} ${down ? "down" : ""}">
           <span class="tm-sigil">${sigil(m.sigil)}</span>
           <div class="tm-body">
-            <div class="tm-line"><b>${m.name}</b>${m.host ? icon("crown") : ""}<span class="tm-lv" title="Stufe ${lv} · ${levelTitle(lv, rules)}">St. ${lv}</span></div>
+            <div class="tm-line"><button type="button" class="tm-name" data-sheet="${m.id}" title="Figurenblatt von ${m.name} ansehen">${m.name}</button>${m.host ? icon("crown") : ""}<span class="tm-lv" title="Stufe ${lv} · ${levelTitle(lv, rules)}">St. ${lv}</span></div>
             <small class="tm-sub">${m.className}${m.status ? ` · ${m.status}` : ""}</small>
             ${w ? html`<div class="tm-hp">${bar(hp, max)}<small>${hp}/${max} TP</small></div>` : ""}
             ${down ? html`<small class="tm-down">${allDown ? "gefallen" : "bewusstlos – kann gerettet werden"}</small>` : ""}
@@ -186,7 +186,7 @@ export function lageSide(w: WorldState | null | undefined): Raw {
  * Seitenleisten verdrahten: breit immer offen, schmal eingeklappt (antippen öffnet, nur eine zugleich, Tippen daneben schließt).
  * Gibt eine Aufräumfunktion zurück.
  */
-export function bindSides(root: HTMLElement): () => void {
+export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => void): () => void {
   const sides = [...root.querySelectorAll<HTMLDetailsElement>(".side")];
   const mq = matchMedia(WIDE);
   const apply = () => sides.forEach((d) => { d.open = mq.matches; });
@@ -210,6 +210,11 @@ export function bindSides(root: HTMLElement): () => void {
     ta.focus();
   };
   root.addEventListener("click", onUse);
+  // Name einer Figur antippen: Figurenblatt
+  root.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>("[data-sheet]");
+    if (b && onSheet) onSheet(b.dataset.sheet!);
+  });
   // Karte groß öffnen (die Daten hängen am Element, siehe fillSide)
   root.addEventListener("click", (e) => {
     if (!(e.target as HTMLElement).closest("[data-map-open]")) return;

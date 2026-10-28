@@ -345,6 +345,15 @@ export class PartyService {
     return this.view(done, me.id, await this.o.guard.info());
   }
 
+  /** Figurenblatt eines Mitspielers (mit den Stufenaufstiegen dieser Kampagne) – nur für Mitglieder der Gruppe. */
+  async sheet(body: { code?: unknown; token?: unknown; playerId?: unknown }): Promise<{ character: Character }> {
+    const { party } = await this.load(body?.code);
+    this.player(party, body?.token);
+    const target = party.players.find((p) => p.id === body?.playerId);
+    if (!target) throw new PartyError("Diese Figur ist nicht (mehr) in der Gruppe.");
+    return { character: effectiveCharacter(target.character, party.world) };
+  }
+
   async choose(body: { code?: unknown; token?: unknown; option?: unknown }): Promise<PartyView> {
     const { party } = await this.load(body?.code);
     const me = this.player(party, body?.token);
