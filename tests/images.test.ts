@@ -39,3 +39,27 @@ describe("Bilder (fal.ai)", () => {
     expect(m).toContain("Langschwert");
   });
 });
+
+describe("Porträt-Beschreibung durch Claude", async () => {
+  const { portraitPrompt } = await import("../server/gm/portrait");
+  const { UsageGuard, MemoryCounterStore } = await import("../server/gm/usage");
+  const c = { id: "x", classId: "ritter", stand: "bauer", appearance: "rotes Haar, Narbe", personality: { trait: "stur", ideal: "", bond: "", flaw: "jähzornig" }, equipment: ["schwert"] } as never;
+  const data = { classes: [{ id: "ritter", name: "Ritter", tagline: "Schild und Schwert" }], rules: { stands: [{ id: "bauer", name: "Bauernkind", description: "vom Land" }], items: [{ id: "schwert", name: "Langschwert" }] } } as never;
+
+  it("schickt Aussehen und Klasse an Claude und nimmt dessen Beschreibung", async () => {
+    let asked = "";
+    const llm = { stream: async (p: { messages: { content: string }[] }) => { asked = p.messages[0].content; return { content: [{ type: "text", text: "A weathered knight in his forties with fiery red hair and a scar across his brow, stubborn frown." }], usage: { input_tokens: 400, output_tokens: 60 } }; } };
+    const r = await portraitPrompt({ llm: llm as never, guard: new UsageGuard(new MemoryCounterStore(), 10, 60) }, c, data);
+    expect(asked).toContain("rotes Haar, Narbe");
+    expect(asked).toContain("Ritter");
+    expect(r.prompt).toContain("fiery red hair");
+    expect(r.claudeUsd).toBeGreaterThan(0);
+  });
+
+  it("ohne Claude oder bei Fehler: einfache Beschreibung", async () => {
+    const guard = new UsageGuard(new MemoryCounterStore(), 10, 60);
+    expect((await portraitPrompt({ llm: null, guard }, c, data)).prompt).toContain("rotes Haar");
+    const broken = { stream: async () => { throw new Error("weg"); } };
+    expect(await portraitPrompt({ llm: broken as never, guard }, c, data)).toMatchObject({ claudeUsd: 0 });
+  });
+});

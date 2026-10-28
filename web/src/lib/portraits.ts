@@ -24,11 +24,11 @@ export function avatar(characterId: string, sigilName: string, opts: { probe?: b
   return html`<span class="avatar">${sigil(sigilName, opts.draw ? "draw" : "")}${url ? raw(`<img class="avatar-img" src="${url}" alt="" loading="lazy" onload="this.parentElement.classList.add('has-img')" onerror="this.remove()">`) : ""}</span>`;
 }
 
-/** Porträt malen lassen (ca. 0,5 Cent). Gibt den neuen Link und die Bildkosten zurück. */
-export async function paintPortrait(c: Character): Promise<{ url: string; costUsd: number }> {
+/** Porträt malen lassen: Claude beschreibt, fal.ai malt (zusammen unter 1 Cent). Gibt Link und beide Kosten zurück. */
+export async function paintPortrait(c: Character): Promise<{ url: string; costUsd: number; claudeUsd: number }> {
   const res = await fetch("/api/portrait", { method: "POST", headers: { "content-type": "application/json", "x-access-code": accessCode(), "x-session": sessionToken() }, body: JSON.stringify({ character: c }) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.url) throw new Error(data.error ?? `Fehler ${res.status}`);
   try { localStorage.setItem(KEY, JSON.stringify({ ...read(), [c.id]: data.url })); } catch { /* Speicher voll */ }
-  return { url: data.url, costUsd: Number(data.costUsd) || 0 };
+  return { url: data.url, costUsd: Number(data.costUsd) || 0, claudeUsd: Number(data.claudeUsd) || 0 };
 }

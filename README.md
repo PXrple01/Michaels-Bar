@@ -212,7 +212,8 @@ Mit einem fal.ai-Schlüssel malt die Seite Bilder (`server/images.ts`, Modell **
 
 - **Szenenbilder:** Claude ruft das Werkzeug `bild` auf, wenn ein Moment ein Bild verdient (eindrucksvoller Ort, wichtige
   Person, Wendepunkt). Das Bild erscheint nach dem Text in der Erzählung; antippen zeigt es groß.
-- **Figurenporträts:** Neue Figuren bekommen automatisch eines, auf dem Figurenbogen gibt es „Porträt malen“. Es erscheint
+- **Figurenporträts:** Neue Figuren bekommen automatisch eines, auf dem Figurenbogen gibt es „Porträt malen“. Vorher
+  schreibt Claude (Haiku, Bruchteil eines Cents) aus Klasse, Herkunft und Aussehens-Beschreibung eine genaue Bildbeschreibung. Es erscheint
   auf den Figurenkarten, in der Seitenleiste und im Figurenblatt – in der Gruppe auch bei den Mitspielern.
 - **Einschalten:** Umgebungsvariable `FAL_KEY` anlegen (in Netlify als geheim markieren) und neu veröffentlichen.
 - Die Bilder werden selbst gespeichert (Netlify Blobs „images“, lokal `saves/images`), damit sie dauerhaft bleiben.

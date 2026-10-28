@@ -210,13 +210,15 @@ export function sheetPage(): Page {
       const paintBtn = $<HTMLButtonElement>("#paint-portrait", root);
       const paint = async () => {
         paintBtn.disabled = true;
+        const label = paintBtn.innerHTML;
+        paintBtn.innerHTML = html`${icon("feather")} Claude beschreibt das Aussehen, dann wird gemalt …`.value;
         $("#sh-portrait", root).classList.add("painting");
         try {
-          const { costUsd } = await paintPortrait(c);
-          toast(`Porträt gemalt – Bildkosten ${costText(costUsd)} (fal.ai)`, "success");
+          const { costUsd, claudeUsd } = await paintPortrait(c);
+          toast(`Porträt gemalt – Claude ${costText(claudeUsd)} · Bild ${costText(costUsd)}`, "success");
           $("#sh-portrait", root).innerHTML = avatar(c.id, cls.sigil).value;
           paintBtn.innerHTML = html`${icon("feather")} Neues Porträt malen`.value;
-        } catch (e) { toast(`Porträt: ${(e as Error).message}`, "error"); }
+        } catch (e) { toast(`Porträt: ${(e as Error).message}`, "error"); paintBtn.innerHTML = label; }
         $("#sh-portrait", root).classList.remove("painting");
         paintBtn.disabled = false;
       };
