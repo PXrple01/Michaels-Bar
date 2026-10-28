@@ -2,7 +2,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Opening, PendingCheck } from "../../shared/campaign";
 import { MAX_ACTION_LENGTH } from "../../shared/campaign";
-import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyStoryEntry, type PartyView } from "../../shared/party";
+import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../shared/party";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, worldSummary, type WorldState } from "../../shared/world";
@@ -52,6 +52,7 @@ export interface Party {
 export interface PartyStore {
   get(code: string): Promise<{ party: Party; etag: string } | null>;
   put(party: Party, etag: string | null): Promise<boolean>;
+  delete(code: string): Promise<void>;
 }
 
 export class MemoryPartyStore implements PartyStore {
@@ -66,6 +67,7 @@ export class MemoryPartyStore implements PartyStore {
     this.map.set(party.code, { json: JSON.stringify(party), etag: randomBytes(6).toString("hex") });
     return true;
   }
+  async delete(code: string) { this.map.delete(code); }
 }
 
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -211,6 +213,45 @@ export class PartyService {
       if (p.players.length && !p.players.some((x) => x.host)) p.players[0].host = true;
     });
     return { ok: true };
+  }
+
+  /** Überblick für „Deine Gruppen“: Status je Gruppe – nur für Gruppen, zu denen der Zugang passt. */
+  async overview(body: { items?: unknown }): Promise<{ items: PartyOverview[] }> {
+    const list = (Array.isArray(body?.items) ? body.items : []).slice(0, 20) as { code?: unknown; token?: unknown }[];
+    const items = await Promise.all(list.map(async (it): Promise<PartyOverview> => {
+      const code = typeof it?.code === "string" ? it.code.trim().toUpperCase() : "";
+      try {
+        const { party } = await this.load(code);
+        const me = this.player(party, it.token);
+        const arc = party.world?.arc;
+        return {
+          code: party.code, status: party.status === "lobby" ? "lobby" : arc?.finished ? "finished" : "playing", outcome: arc?.finished ? arc.outcome ?? "sieg" : undefined,
+          title: party.opening?.ort, players: party.players.map((p) => p.character.name), host: me.host,
+        };
+      } catch { return { code, status: "gone" }; }
+    }));
+    return { items };
+  }
+
+  /**
+   * „Gruppe löschen“ aus der eigenen Liste. Auf dem Server gelöscht wird nur, wo niemand sonst etwas verliert:
+   * in der Lobby, wenn man allein ist; im Spiel, wenn man allein ist oder als Gastgeber eine beendete Gruppe löscht.
+   * Sonst verlässt man nur die Lobby bzw. vergisst die Gruppe – laufende Abenteuer der anderen bleiben unberührt.
+   */
+  async remove(body: { code?: unknown; token?: unknown }): Promise<{ deleted: boolean }> {
+    const c = typeof body?.code === "string" ? body.code.trim().toUpperCase() : "";
+    const got = /^[A-Z0-9]{6}$/.test(c) ? await this.o.store.get(c) : null;
+    if (!got) return { deleted: true }; // gibt es schon nicht mehr
+    const { party } = got;
+    const me = this.player(party, body?.token);
+    const alone = party.players.length === 1;
+    if (party.status === "lobby") {
+      if (alone) { await this.o.store.delete(party.code); return { deleted: true }; }
+      await this.leave(body);
+      return { deleted: false };
+    }
+    if (alone || (me.host && party.world?.arc?.finished)) { await this.o.store.delete(party.code); return { deleted: true }; }
+    return { deleted: false };
   }
 
   /* ── Spielleiter-Züge (mit Claude, gestreamt) ── */

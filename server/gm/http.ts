@@ -46,7 +46,7 @@ async function sseExpress(res: import("express").Response, run: (write: (chunk: 
   try { await run(write); } catch (e) { console.error(e); } finally { clearInterval(ping); res.end(); }
 }
 
-const PARTY_JSON = ["create", "join", "state", "leave", "choose", "level"] as const;
+const PARTY_JSON = ["create", "join", "state", "leave", "choose", "level", "overview", "remove"] as const;
 const PARTY_STREAM = ["start", "action", "roll", "upgrade"] as const;
 
 /** Gruppen-Anfragen ohne Claude: direkte JSON-Antwort. */
@@ -54,7 +54,8 @@ async function partyJson(claude: Claude, op: (typeof PARTY_JSON)[number], body: 
   try {
     const b = (body ?? {}) as Record<string, unknown>;
     const svc = claude.party;
-    const out = op === "create" ? await svc.create(b) : op === "join" ? await svc.join(b) : op === "state" ? await svc.state(b) : op === "choose" ? await svc.choose(b) : op === "level" ? await svc.levelChoice(b) : await svc.leave(b);
+    const out = op === "create" ? await svc.create(b) : op === "join" ? await svc.join(b) : op === "state" ? await svc.state(b) : op === "choose" ? await svc.choose(b) : op === "level" ? await svc.levelChoice(b)
+      : op === "overview" ? await svc.overview(b) : op === "remove" ? await svc.remove(b) : await svc.leave(b);
     return { status: 200, body: out };
   } catch (e) {
     const err = e as Error & { code?: string };

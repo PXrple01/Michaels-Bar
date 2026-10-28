@@ -46,4 +46,5 @@ export class BlobPartyStore implements PartyStore {
       : await this.store.setJSON(party.code, party, { onlyIfMatch: etag });
     return res.modified;
   }
+  async delete(code: string) { await this.store.delete(code); }
 }

@@ -1,7 +1,7 @@
 import { MAX_ACTION_LENGTH, splitSuggestions } from "../../../shared/campaign";
 import { characterRoll } from "../../../shared/character";
 import { formatModifier, type RollRecord } from "../../../shared/dice";
-import { MAX_PARTY_SIZE, type PartyEvent, type PartyStoryEntry, type PartyView } from "../../../shared/party";
+import { MAX_PARTY_SIZE, type PartyEvent, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../../shared/party";
 import type { Character } from "../../../shared/schema";
 import { rollWithOverlay } from "../dice3d/roller";
 import { enhance } from "../fx/effects";
@@ -13,7 +13,7 @@ import { term } from "../lib/glossary";
 import { icon, sigil } from "../lib/icons";
 import { memberships, partyApi, PartyApiError, type Membership } from "../lib/party";
 import { go, type Page } from "../lib/router";
-import { toast } from "../lib/ui";
+import { confirmDialog, toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
 import { bindSides, fillSide, lageSide, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
@@ -54,7 +54,7 @@ export function partyHomePage(): Page {
             <p class="lead">Bis zu ${MAX_PARTY_SIZE} Personen erleben ein Abenteuer gemeinsam – jede auf ihrem eigenen Gerät, mit ihrer eigenen Figur. Ihr handelt reihum, der Spielleiter erzählt die Runde für alle.</p>
           </header>
           ${mine.length ? html`<h2 class="sec-title" data-reveal>${icon("users")} Deine Gruppen</h2>
-            <div class="party-list">${mine.map((m) => html`<a class="card party-row tilt" href="#/gruppe/${m.code}" data-reveal><b class="party-code">${m.code}</b><span class="muted">beigetreten ${new Date(m.joinedAt).toLocaleDateString("de-DE")}</span>${icon("arrowRight")}</a>`)}</div>` : ""}
+            <div class="party-list" id="party-list">${mine.map((m) => partyRow(m, null))}</div>` : ""}
           <div class="party-split">
             <section class="card" data-reveal>
               <h2>${icon("plus")} Neue Gruppe gründen</h2>
@@ -68,7 +68,16 @@ export function partyHomePage(): Page {
             </section>
           </div>
         </div>`);
+      // Status der Gruppen nachladen (läuft / Lobby / beendet)
+      const overview = new Map<string, PartyOverview>();
+      if (mine.length) partyApi.overview(mine).then((r) => {
+        for (const it of r.items) overview.set(it.code, it);
+        const list = root.querySelector("#party-list");
+        if (list) list.innerHTML = mine.filter((m) => memberships.get(m.code)).map((m) => partyRow(m, overview.get(m.code) ?? null).value).join("");
+      }).catch(() => { /* ohne Status weiter */ });
       root.addEventListener("click", async (e) => {
+        const del = (e.target as HTMLElement).closest<HTMLElement>("[data-del]");
+        if (del) { e.preventDefault(); await removeParty(del.dataset.del!, overview.get(del.dataset.del!) ?? null, root); return; }
         const b = (e.target as HTMLElement).closest<HTMLElement>("[data-create]");
         if (!b) return;
         b.setAttribute("disabled", "");
@@ -87,6 +96,45 @@ export function partyHomePage(): Page {
       enhance(root);
     },
   };
+}
+
+const STATUS: Record<PartyOverview["status"], string> = { lobby: "Lobby", playing: "läuft", finished: "beendet", gone: "nicht mehr vorhanden" };
+
+/** Eine Zeile in „Deine Gruppen“ – mit Status (sobald vom Server geladen) und Löschen-Knopf. */
+function partyRow(m: Membership, info: PartyOverview | null): Raw {
+  const status = info ? (info.status === "finished" && info.outcome === "niederlage" ? "beendet · Niederlage" : STATUS[info.status]) : "";
+  return html`<div class="party-row-wrap" data-row="${m.code}">
+    <a class="card party-row" href="#/gruppe/${m.code}">
+      <b class="party-code">${m.code}</b>
+      <span class="pr-text"><b>${info?.title ? info.title.charAt(0).toUpperCase() + info.title.slice(1) : "Gemeinsames Abenteuer"}</b>
+        <small class="muted">${info?.players?.length ? `${info.players.join(", ")} · ` : ""}beigetreten ${new Date(m.joinedAt).toLocaleDateString("de-DE")}</small></span>
+      ${status ? html`<span class="chip pr-status ${info!.status}">${status}</span>` : ""}
+      ${icon("arrowRight")}
+    </a>
+    <button class="icon-btn party-del" data-del="${m.code}" aria-label="Gruppe ${m.code} löschen" title="Gruppe löschen">${icon("trash")}</button>
+  </div>`;
+}
+
+/** Löschen mit Rückfrage. Was auf dem Server passiert, entscheidet der Server (laufende Abenteuer anderer bleiben). */
+async function removeParty(code: string, info: PartyOverview | null, root: HTMLElement) {
+  const m = memberships.get(code);
+  if (!m) return;
+  const others = (info?.players?.length ?? 1) > 1;
+  const gone = info?.status === "gone";
+  const full = gone || !others || info?.status === "lobby" || (info?.host && info.status === "finished");
+  const text = gone ? "Diese Gruppe gibt es auf dem Server nicht mehr. Sie wird aus deiner Liste entfernt."
+    : !others ? "Die Gruppe und ihr Spielstand werden endgültig gelöscht."
+    : info?.status === "lobby" ? "Du verlässt die Gruppe und sie verschwindet aus deiner Liste. Die anderen können weiter warten und starten."
+    : info?.host && info.status === "finished" ? "Das Abenteuer ist beendet. Die Gruppe wird für alle endgültig gelöscht."
+    : "Die anderen spielen weiter – die Gruppe verschwindet nur aus deiner Liste. Zurück kommst du danach nicht mehr.";
+  if (!(await confirmDialog(`Gruppe ${code} löschen?`, text, full ? "Löschen" : "Entfernen", true))) return;
+  let deleted = false;
+  try { deleted = (await partyApi.remove(m)).deleted; }
+  catch (e) { if (!(e instanceof PartyApiError) || e.status === 0) { toast("Keine Verbindung – bitte später nochmal versuchen.", "error"); return; } }
+  memberships.remove(code);
+  root.querySelector(`[data-row="${code}"]`)?.remove();
+  if (!memberships.list().length) root.querySelector("#party-list")?.previousElementSibling?.remove();
+  toast(deleted ? "Gruppe gelöscht." : "Gruppe aus deiner Liste entfernt.", "success");
 }
 
 /* ───────────── Lobby und gemeinsames Spiel ───────────── */

@@ -49,6 +49,16 @@ export interface PartyView {
   failed: string | null;
 }
 
+/** Eintrag in „Deine Gruppen“: Status vom Server (nur mit gültigem Zugang). */
+export interface PartyOverview {
+  code: string;
+  status: "lobby" | "playing" | "finished" | "gone";
+  outcome?: "sieg" | "niederlage";
+  title?: string;
+  players?: string[];
+  host?: boolean;
+}
+
 export interface PartyJoinResult { code: string; playerId: string; token: string; view: PartyView }
 
 export type PartyEvent =
