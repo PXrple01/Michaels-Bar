@@ -528,13 +528,13 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .opening summary { display: flex; align-items: center; gap: 10px; padding: 14px 20px; cursor: pointer; list-style: none; font-weight: 600; color: var(--text-2); font-size: 0.92rem; }
 .opening summary::-webkit-details-marker { display: none; }
 .opening summary svg { width: 18px; height: 18px; color: var(--purple-2); }
-.opening-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 0 16px 18px; perspective: 1000px; }
-@media (max-width: 760px) { .opening-cards { grid-template-columns: 1fr 1fr; } .opening-cards .oc:last-child { grid-column: span 2; } }
-.oc { min-height: 130px; }
-.oc-inner { position: relative; height: 100%; min-height: 130px; transform-style: preserve-3d; }
+.opening-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 0 16px 18px; perspective: 1000px; }
+.oc-text { overflow-wrap: break-word; hyphens: auto; }
+.oc { min-height: 112px; }
+.oc-inner { position: relative; height: 100%; min-height: 112px; display: grid; transform-style: preserve-3d; }
 .opening-cards.reveal .oc-inner { animation: card-flip 0.9s var(--ease-spring) both; animation-delay: calc(0.35s + var(--i) * 0.42s); }
 @keyframes card-flip { 0% { transform: rotateY(180deg) translateY(30px) scale(0.85); opacity: 0; } 25% { opacity: 1; } 100% { transform: none; } }
-.oc-front, .oc-back { position: absolute; inset: 0; border-radius: 14px; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.oc-front, .oc-back { grid-area: 1 / 1; position: relative; border-radius: 14px; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .oc-back { display: grid; place-items: center; transform: rotateY(180deg); background: linear-gradient(135deg, rgb(var(--c-deep)), #1e1236); border: 1px solid var(--line-strong); }
 .oc-back svg { width: 36px; height: 36px; color: var(--purple-3); }
 .oc-front { display: flex; flex-direction: column; gap: 8px; padding: 14px; background: linear-gradient(160deg, rgba(var(--c-s46), 0.9), rgba(var(--c-s14), 0.95)); border: 1px solid var(--line-strong); box-shadow: 0 14px 30px -18px var(--purple); }
@@ -1174,24 +1174,42 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 .map-head span, .map-head h3 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 0.86rem; color: var(--text-2); }
 .map-head h3 { font-size: 1.1rem; color: var(--text); }
 .map-head svg { width: 16px; height: 16px; color: var(--purple-2); }
-.map-frame { display: block; width: 100%; padding: 6px; border-radius: var(--radius-sm); border: 1px solid var(--line); cursor: zoom-in; font: inherit;
-  background: radial-gradient(ellipse at 50% 40%, rgba(var(--c-accent3), 0.07), transparent 70%), repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.015) 0 6px, transparent 6px 12px), rgba(var(--c-s08), 0.6); }
-.map-frame.big { cursor: default; max-height: 60vh; overflow: auto; }
-.map-svg { width: 100%; height: auto; max-height: 220px; display: block; }
-.map-svg.big { max-height: none; min-height: 260px; }
-.map-road { fill: none; stroke: rgba(var(--c-accent3), 0.45); stroke-width: 1.6; stroke-dasharray: 4 4; }
+/* Rund wie ein alter Kartentisch: Pergament-Dunkel, doppelter Goldring, Kompass darüber */
+.map-frame { display: block; width: min(100%, 212px); aspect-ratio: 1; margin: 0 auto; padding: 0; border-radius: 50%; overflow: hidden; cursor: zoom-in; font: inherit;
+  border: 1.5px solid rgba(245, 214, 138, 0.45);
+  background: radial-gradient(circle at 50% 45%, rgba(var(--c-accent3), 0.1), transparent 62%), repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.018) 0 2px, transparent 2px 9px), rgb(var(--c-s08));
+  box-shadow: inset 0 0 26px rgba(0, 0, 0, 0.75), 0 0 0 4px rgb(var(--c-s07)), 0 0 0 5px rgba(245, 214, 138, 0.22), 0 12px 30px -14px rgba(var(--c-accent), 0.6);
+  transition: transform 0.4s var(--ease-out), box-shadow 0.4s; }
+.map-frame:hover { transform: rotate(-2deg) scale(1.02); }
+.map-frame.big { width: min(100%, 62vh, 520px); cursor: default; }
+.map-frame.big:hover { transform: none; }
+.map-svg { width: 100%; height: 100%; display: block; }
+.map-here { display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; color: var(--muted); font-size: 0.82rem; }
+.map-here svg { width: 14px; height: 14px; color: var(--purple-2); flex: none; }
+.map-here b { color: var(--text); }
+.map-rose { fill: rgba(245, 214, 138, 0.07); stroke: rgba(245, 214, 138, 0.14); stroke-width: 0.6; }
+.map-rose.minor { fill: rgba(245, 214, 138, 0.04); }
+.map-ring { fill: none; stroke: rgba(245, 214, 138, 0.35); stroke-width: 1; }
+.map-ring.inner { stroke: rgba(245, 214, 138, 0.14); stroke-dasharray: 2 3; }
+.map-ticks { stroke: rgba(245, 214, 138, 0.4); stroke-width: 0.8; }
+.map-cardinal { fill: rgba(245, 214, 138, 0.55); text-anchor: middle; font-family: var(--font-head); font-weight: 700; }
+.map-cardinal.north { fill: var(--gold); }
+.map-road { fill: none; stroke: rgba(var(--c-accent3), 0.5); stroke-dasharray: 4 3; }
 .map-dot { fill: rgb(var(--c-s15)); stroke: rgba(var(--c-accent3), 0.55); stroke-width: 1.2; }
 .map-glyph { fill: none; stroke: rgb(var(--c-accent3)); stroke-width: 1; stroke-linejoin: round; }
 .map-place.current .map-dot { stroke: var(--gold); stroke-width: 1.8; }
 .map-place.current .map-glyph { stroke: var(--gold); }
 .map-glow { fill: rgba(var(--c-accent), 0.25); animation: map-pulse 2.2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes map-pulse { 50% { opacity: 0.35; transform: scale(1.25); } }
-.map-label { fill: var(--text-2); font-size: 8px; text-anchor: middle; font-family: var(--font-body); paint-order: stroke; stroke: rgb(var(--c-s07)); stroke-width: 3px; }
-.map-svg.big .map-label { font-size: 11px; }
+.map-label { fill: var(--text-2); text-anchor: middle; font-family: var(--font-body); paint-order: stroke; stroke: rgb(var(--c-s07)); stroke-width: 3px; }
 .map-place.current .map-label { fill: #fff; font-weight: 600; }
-.map-modal { width: min(760px, 100%); display: grid; gap: 12px; }
+.map-modal { width: min(640px, 100%); display: grid; gap: 14px; }
 .map-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 24vh; overflow: auto; }
 .map-list li { display: grid; gap: 2px; padding: 6px 10px; border-left: 3px solid var(--line-strong); }
 .map-list li.current { border-left-color: var(--gold); }
 .map-list span { font-size: 0.84rem; color: var(--text-2); }
 @media (prefers-reduced-motion: reduce) { .map-glow { animation: none; } }
+
+/* Kleine Klappen links (Gepäck, Kapitel): Kopfzeile mit Kurzinfo */
+.world-log summary small { font-size: 0.78rem; }
+.arc-block[open] > .arc { margin-top: 10px; }

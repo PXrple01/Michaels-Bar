@@ -20,37 +20,60 @@ const GLYPH: Record<PlaceKind, string> = {
 
 const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+/** Kompass: Windrose hinter der Karte (back), Ring mit Strichen und N/O/S/W darüber (front). */
+function compass(size: number): { back: string; front: string } {
+  const c = size / 2, r = c - 3, k = size / 200;
+  const ticks = Array.from({ length: 72 }, (_, i) => {
+    const a = (i * 5 * Math.PI) / 180, long = i % 18 === 0 ? 9 : i % 6 === 0 ? 5 : 2.5;
+    const r1 = r - 2 * k, r2 = r - (2 + long) * k;
+    return `M${(c + Math.sin(a) * r1).toFixed(1)} ${(c - Math.cos(a) * r1).toFixed(1)}L${(c + Math.sin(a) * r2).toFixed(1)} ${(c - Math.cos(a) * r2).toFixed(1)}`;
+  }).join("");
+  const star = (len: number, w: number, rot: number) => [0, 90, 180, 270].map((d) => {
+    const a = ((d + rot) * Math.PI) / 180, b = a + Math.PI / 2;
+    return `M${c} ${c}L${c + Math.sin(a) * len} ${c - Math.cos(a) * len}L${c + Math.sin(b) * w} ${c - Math.cos(b) * w}Z`;
+  }).join("");
+  const rose = r * 0.62;
+  const letters = ([["N", 0], ["O", 90], ["S", 180], ["W", 270]] as const).map(([l, d]) => {
+    const a = (d * Math.PI) / 180, rr = r - 17 * k;
+    return `<text class="map-cardinal ${l === "N" ? "north" : ""}" x="${(c + Math.sin(a) * rr).toFixed(1)}" y="${(c - Math.cos(a) * rr + 3.5 * k).toFixed(1)}" style="font-size:${(l === "N" ? 11 : 9) * k}px">${l}</text>`;
+  }).join("");
+  return {
+    back: `<path class="map-rose" d="${star(rose, rose * 0.12, 0)}"/><path class="map-rose minor" d="${star(rose * 0.6, rose * 0.08, 45)}"/>`,
+    front: `<circle class="map-ring" cx="${c}" cy="${c}" r="${r}"/><circle class="map-ring inner" cx="${c}" cy="${c}" r="${r - 13 * k}"/><path class="map-ticks" d="${ticks}"/>${letters}`,
+  };
+}
+
 export function mapSvg(map: TravelMap, big = false): Raw {
-  // Wenige Orte etwas größer auseinanderziehen, damit die Karte den Rahmen füllt; viele Orte machen die Karte größer.
-  const base = big ? 70 : 46, padX = big ? 90 : 60, padY = big ? 50 : 34, VW = big ? 420 : 240, VH = big ? 300 : 150;
+  // Runde Karte: alles muss in den inneren Kreis passen. Wenige Orte etwas auseinanderziehen, viele verkleinern.
+  const base = big ? 64 : 34, VW = big ? 400 : 200, padX = VW * 0.3, padY = VW * 0.25;
   const xs = map.places.map((p) => p.x), ys = map.places.map((p) => p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const spanX = maxX - minX, spanY = maxY - minY;
-  const S = Math.max(base, Math.min(base * 1.8, spanX ? (VW - padX * 2) / spanX : Infinity, spanY ? (VH - padY * 2) / spanY : Infinity));
-  const W = Math.max(VW, spanX * S + padX * 2), H = Math.max(VH, spanY * S + padY * 2);
-  const offX = (W - spanX * S) / 2, offY = (H - spanY * S) / 2;
+  const S = Math.max(base, Math.min(base * 1.8, spanX ? (VW - padX * 2) / spanX : Infinity, spanY ? (VW - padY * 2) / spanY : Infinity));
+  const size = Math.max(VW, spanX * S + padX * 2, spanY * S + padY * 2), k = size / VW;
+  const offX = (size - spanX * S) / 2, offY = (size - spanY * S) / 2;
   const pos = (p: { x: number; y: number }) => [(p.x - minX) * S + offX, (p.y - minY) * S + offY] as const;
   const byName = new Map(map.places.map((p) => [p.name, p]));
-  const roads = map.roads.map(([a, b]) => { const A = byName.get(a), B = byName.get(b); if (!A || !B) return ""; const [x1, y1] = pos(A), [x2, y2] = pos(B); const mx = (x1 + x2) / 2 + (y2 - y1) * 0.12, my = (y1 + y2) / 2 - (x2 - x1) * 0.12; return `<path class="map-road" d="M${x1} ${y1}Q${mx} ${my} ${x2} ${y2}"/>`; }).join("");
+  const roads = map.roads.map(([a, b]) => { const A = byName.get(a), B = byName.get(b); if (!A || !B) return ""; const [x1, y1] = pos(A), [x2, y2] = pos(B); const mx = (x1 + x2) / 2 + (y2 - y1) * 0.12, my = (y1 + y2) / 2 - (x2 - x1) * 0.12; return `<path class="map-road" style="stroke-width:${1.4 * k}" d="M${x1} ${y1}Q${mx} ${my} ${x2} ${y2}"/>`; }).join("");
   const nodes = map.places.map((p) => {
     const [x, y] = pos(p);
     const cur = p.name === map.current;
-    const g = big ? 1.6 : 1.1;
+    const g = (big ? 1.5 : 0.95) * k, dot = (big ? 12 : 8) * k;
     return `<g class="map-place ${cur ? "current" : ""}"><title>${esc(p.name)} – ${PLACE_NAME[p.kind]}${p.note ? `: ${esc(p.note)}` : ""}</title>
-      ${cur ? `<circle class="map-glow" cx="${x}" cy="${y}" r="${big ? 18 : 13}"/>` : ""}
-      <circle class="map-dot" cx="${x}" cy="${y}" r="${big ? 13 : 9}"/>
+      ${cur ? `<circle class="map-glow" cx="${x}" cy="${y}" r="${dot * 1.45}"/>` : ""}
+      <circle class="map-dot" cx="${x}" cy="${y}" r="${dot}"/>
       <path class="map-glyph k-${p.kind}" d="${GLYPH[p.kind]}" transform="translate(${x - 5 * g} ${y - 5 * g}) scale(${g})"/>
-      <text class="map-label" x="${x}" y="${y + (big ? 28 : 20)}">${esc(short(p.name, big ? 32 : 18))}</text></g>`;
+      <text class="map-label" style="font-size:${(big ? 11 : 7.5) * k}px" x="${x}" y="${y + dot + (big ? 13 : 9) * k}">${esc(short(p.name, big ? 28 : 16))}</text></g>`;
   }).join("");
-  return raw(`<svg class="map-svg ${big ? "big" : ""}" viewBox="0 0 ${Math.round(W)} ${Math.round(H)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Karte der Reise">${roads}${nodes}</svg>`);
+  const { back, front } = compass(size);
+  return raw(`<svg class="map-svg ${big ? "big" : ""}" viewBox="0 0 ${Math.round(size)} ${Math.round(size)}" role="img" aria-label="Karte der Reise">${back}${roads}${nodes}${front}</svg>`);
 }
 
 export function mapBlock(map: TravelMap | undefined): Raw {
   if (!map?.places.length) return html``;
   return html`<div class="side-sec map-block">
-    <div class="map-head"><span>${icon("map")} Karte</span><button type="button" class="link-btn" data-map-open>groß ansehen</button></div>
-    <button type="button" class="map-frame" data-map-open aria-label="Karte groß ansehen">${mapSvg(map)}</button>
-    ${map.current ? html`<small class="muted">Ihr seid in: <b>${map.current}</b></small>` : ""}
+    <button type="button" class="map-frame" data-map-open aria-label="Karte groß ansehen" title="Karte groß ansehen">${mapSvg(map)}</button>
+    ${map.current ? html`<small class="map-here">${icon("map")} <span>Ihr seid in <b>${map.current}</b></span></small>` : ""}
   </div>`;
 }
 

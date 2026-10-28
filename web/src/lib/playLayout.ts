@@ -1,6 +1,6 @@
 // Spielansicht für Solo und Gruppe: links das Team mit Fortschritt und Auftragsbuch, rechts Gegner und Kernauftrag,
 // in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
-import { currentChapter, isArc, type WorldState } from "../../../shared/world";
+import { currentChapter, isArc, type Arc, type WorldState } from "../../../shared/world";
 import { PHASE_NAME } from "../../../shared/time";
 import { itemText, moneyText, type Inventory, type ItemKind } from "../../../shared/inventory";
 import { ATTITUDE_NAME } from "../../../shared/people";
@@ -78,7 +78,7 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
       })}</div>
       ${w?.inventory ? inventoryBlock(w, members) : ""}
       ${w && me && rules ? levelBadge(w.levels?.[me.id]?.level ?? 1, w.xp[me.id] ?? 0, rules) : ""}
-      ${w?.arc && isArc(w.arc) ? html`<div class="side-sec">${arcProgress(w.arc)}</div>` : ""}
+      ${w?.arc && isArc(w.arc) ? arcBlock(w.arc) : ""}
       ${w && (side.length || closed.length || w.memory.length) ? html`<details class="world-log side-sec" ${side.length ? "open" : ""}>
         <summary>${icon("scroll")} Auftragsbuch${side.length ? ` · ${side.length} offen` : ""}</summary>
         ${side.length ? html`<ul class="quests">${side.map((q) => html`<li><b>${q.title}</b><span>${q.description}</span>${q.notes.length ? html`<small>${q.notes.at(-1)}</small>` : ""}</li>`)}</ul>` : ""}
@@ -88,14 +88,27 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
     </div>`;
 }
 
+/** Anfang/Mitte/Finale als kleine Klappe; zu sehen ist nur, in welchem Kapitel man steckt. */
+function arcBlock(arc: Arc): Raw {
+  const ch = currentChapter(arc);
+  const inAct = ch ? arc.chapters.filter((c) => c.act === ch.act) : [];
+  const label = arc.finished ? "abgeschlossen" : ch && arc.plan ? `Akt ${ch.act + 1} · Kapitel ${inAct.indexOf(ch) + 1}/${inAct.length}` : "beginnt";
+  return html`<details class="world-log side-sec arc-block">
+    <summary>${icon("scroll")} Kapitel <small class="muted">· ${label}</small></summary>
+    ${arcProgress(arc)}
+  </details>`;
+}
+
 const KIND_ICON: Record<ItemKind, string> = { waffe: "sword", ruestung: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star" };
 
 /** Gepäck: eigenes zuerst und aufgeklappt; eigene Gegenstände antippen = „Ich benutze …“ ins Eingabefeld. */
 function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
   const list = [...members].sort((a, b) => Number(b.me) - Number(a.me)).filter((m) => w.inventory![m.id]);
   if (!list.length) return html``;
-  return html`<details class="world-log side-sec inv-block" open>
-    <summary>${icon("bag")} Gepäck</summary>
+  const mine = w.inventory![list[0].id];
+  const count = mine.items.reduce((n, i) => n + i.qty, 0);
+  return html`<details class="world-log side-sec inv-block">
+    <summary>${icon("bag")} Gepäck <small class="muted">· ${count} ${count === 1 ? "Ding" : "Dinge"} · ${moneyText(mine.money, true)}</small></summary>
     ${list.map((m) => {
       const inv = w.inventory![m.id];
       return html`<div class="inv ${m.me ? "me" : ""}">
@@ -135,6 +148,7 @@ export function lageSide(w: WorldState | null | undefined): Raw {
   const aufgabe = arc?.known?.aufgabe ?? null;
   return html`<summary class="side-pill ${combat ? "combat" : ""}">${icon(combat ? "sword" : w?.time ? (w.time.phase === "nacht" ? "moon" : w.time.phase === "abend" ? "sunset" : "sun") : "target")}<b>${combat ? `${standing} Gegner` : "Ziel"}</b><span class="pill-caret">${icon("arrowRight")}</span></summary>
     <div class="side-body">
+      ${mapBlock(w?.map)}
       ${w?.time ? html`<div class="sky sky-${w.time.phase}" title="Tageszeit und Wetter">
         <span class="sky-icon">${icon(w.time.phase === "nacht" ? "moon" : w.time.phase === "abend" ? "sunset" : "sun")}</span>
         <span class="sky-text"><b>Tag ${w.time.day} · ${PHASE_NAME[w.time.phase]}</b><small>${icon("cloud")} ${w.time.weather}</small></span>
@@ -158,7 +172,6 @@ export function lageSide(w: WorldState | null | undefined): Raw {
           ${ch ? html`<b>${ch.titel}</b>` : ""}
           ${aufgabe ? html`<p>${aufgabe}</p>` : ""}
         </div>` : ""}`}
-      ${mapBlock(w?.map)}
       ${w?.people?.length ? html`<details class="world-log side-sec people" ${w.people.length <= 6 ? "open" : ""}>
         <summary>${icon("users")} Personen · ${w.people.length}</summary>
         <ul class="people-list">${[...w.people].sort((a, b) => b.seen - a.seen).map((p) => html`<li class="person att-${p.attitude}">
@@ -208,7 +221,7 @@ export function bindSides(root: HTMLElement): () => void {
     if (!(e.target as HTMLElement).closest(".play-bars")) sides.forEach((d) => { d.open = false; });
   };
   document.addEventListener("click", onDoc);
-  return () => { mq.removeEventListener("change", apply); document.removeEventListener("click", onDoc); };
+  return () => { mq.removeEventListener("change", apply); document.removeEventListener("click", onDoc); setSkyPhase(undefined); };
 }
 
 /** Inhalt einer Seitenleiste ersetzen, ohne den Auf-/Zu-Zustand der inneren Klappen (Auftragsbuch, Gepäck, Personen) zu verlieren. */
@@ -222,6 +235,12 @@ export function fillSide(el: HTMLElement | null, content: Raw) {
   el.querySelectorAll<HTMLDetailsElement>(".side-body details").forEach((d) => { const o = open.get(keyOf(d)); if (o !== undefined) d.open = o; });
   const body = el.querySelector(".side-body");
   if (body) body.scrollTop = scroll;
+}
+
+/** Tageszeit für den Hintergrund (etwas heller am Tag, dunkler in der Nacht); ohne Angabe zurück zum Normalzustand. */
+export function setSkyPhase(phase: string | undefined) {
+  if (phase) document.documentElement.dataset.phase = phase;
+  else delete document.documentElement.dataset.phase;
 }
 
 /** Kartendaten für „groß ansehen“ merken. */

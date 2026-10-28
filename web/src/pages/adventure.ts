@@ -9,7 +9,7 @@ import { campaignStore } from "../lib/campaigns";
 import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
-import { bindSides, fillSide, lageSide, lootText, playLayout, setMapData, teamSide, type TeamMember } from "../lib/playLayout";
+import { bindSides, fillSide, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { bindShop, shopCard } from "../lib/shopUi";
@@ -204,6 +204,7 @@ export function playPage(): Page {
         fillSide(root.querySelector("#side-left"), teamSide(w, [me], data.rules));
         fillSide(root.querySelector("#side-right"), lageSide(w));
         setMapData(root, w?.map);
+        setSkyPhase(w?.time?.phase);
         renderAbilities();
       };
 
