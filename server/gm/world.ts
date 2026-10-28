@@ -22,6 +22,9 @@ export interface ToolContext {
   onRoll: (record: RollRecord) => void;
 }
 
+/** Diese Felder sehen die Spieler in der Seitenleiste – darum ohne Geheimnisse aus dem Plan. */
+const SHOWN = "Wird den Spielern angezeigt – ein kurzer Satz ohne Geheimnisse oder Wendungen aus dem Plan: ";
+
 const nameProp = (characters: Character[], description: string) =>
   characters.length > 1 ? { type: "string", enum: characters.map((c) => c.name), description } : { type: "string", description };
 
@@ -60,13 +63,20 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
     tool("kampagne_planen", `Plant die Kampagne (nur für dich, die Spieler sehen den Plan nicht): großes Ziel, Bedrohung und eine lineare Folge von Kapiteln in drei Akten – Anfang ${ACTS[0].chapters[0]}–${ACTS[0].chapters[1]}, Mitte ${ACTS[1].chapters[0]}–${ACTS[1].chapters[1]}, Finale ${ACTS[2].chapters[0]}–${ACTS[2].chapters[1]} Kapitel. Jedes Kapitel hat einen Titel und ein Ziel, das erreicht sein muss. Erneut aufgerufen, ersetzt es die noch nicht gespielten Kapitel (z. B. wenn die Spieler die Richtung geändert haben).`, {
       ziel: { type: "string", description: "Was die Figuren am Ende erreichen sollen" },
       bedrohung: { type: "string", description: "Gegenspieler oder Gefahr hinter allem" },
+      kernauftrag: { type: "string", description: SHOWN + "der große Auftrag, so wie die Figuren ihn gerade kennen." },
+      aufgabe: { type: "string", description: SHOWN + "was die Figuren als Nächstes tun wollen oder müssen." },
       anfang: chapterList, mitte: chapterList, finale: chapterList,
-    }, ["ziel", "bedrohung", "anfang", "mitte", "finale"]),
-    tool("kapitel_abschliessen", "Schließt das laufende Kapitel ab, sobald sein Ziel erreicht ist (auf welchem Weg auch immer die Spieler dorthin gekommen sind). Danach beginnt das nächste Kapitel – ist es das letzte des Akts, beginnt der nächste Akt.", { rueckblick: { type: "string", description: "Ein Satz: Was ist in diesem Kapitel passiert?" } }, ["rueckblick"]),
+    }, ["ziel", "bedrohung", "kernauftrag", "aufgabe", "anfang", "mitte", "finale"]),
+    tool("kapitel_abschliessen", "Schließt das laufende Kapitel ab, sobald sein Ziel erreicht ist (auf welchem Weg auch immer die Spieler dorthin gekommen sind). Danach beginnt das nächste Kapitel – ist es das letzte des Akts, beginnt der nächste Akt.", {
+      rueckblick: { type: "string", description: "Ein Satz: Was ist in diesem Kapitel passiert?" },
+      aufgabe: { type: "string", description: SHOWN + "die Aufgabe im nächsten Kapitel." },
+      kernauftrag: { type: "string", description: "Nur wenn sich der große Auftrag aus Sicht der Figuren geändert hat (" + SHOWN.trim() + ")" },
+    }, ["rueckblick", "aufgabe"]),
     tool("abzweigung", "Die Spieler verlassen mit einer Entscheidung den geplanten Weg: Schiebt ein Kapitel für diese Abzweigung ein. Das unterbrochene Kapitel folgt danach. Die Zahl der Abzweigungen je Akt ist begrenzt (siehe <spielstand>).", {
       titel: { type: "string" }, ziel: { type: "string", description: "Woran man merkt, dass die Abzweigung abgeschlossen ist" },
       rueckweg: { type: "string", description: "Wie die Geschichte danach zur Hauptlinie zurückfindet" },
-    }, ["titel", "ziel", "rueckweg"]),
+      aufgabe: { type: "string", description: SHOWN + "die Aufgabe in dieser Abzweigung." },
+    }, ["titel", "ziel", "rueckweg", "aufgabe"]),
     tool("abenteuer_beenden", "Beendet die Kampagne. sieg: im letzten Kapitel des Finales – erzähle vorher die Entscheidung, den Ausgang und einen Epilog. niederlage: nur wenn alle Figuren kampfunfähig sind und niemand sie retten kann – erzähle vorher ein kurzes, würdiges Ende. Danach geht die Geschichte nicht weiter.", {
       epilog: { type: "string", description: "Zwei, drei Sätze: Wie geht es für die Figuren aus?" },
       ausgang: { type: "string", enum: ["sieg", "niederlage"] },
@@ -233,6 +243,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
         next.push(...items.map((c) => ({ ...c, act, detour: false, rueckweg: null, done: false, rueckblick: null })));
       }
       arc.plan = { ziel, bedrohung };
+      setKnown(arc, input.kernauftrag, input.aufgabe);
       arc.chapters = [...kept, ...next];
       if (!replan) { arc.current = 0; arc.turnsInChapter = 0; }
       const cut = lists.filter((_, act) => act >= actNow).reduce((n, l) => n + l.length, 0) - next.length;
@@ -247,6 +258,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       ch.done = true;
       ch.rueckblick = text(input.rueckblick, 240) || null;
       arc.current++;
+      setKnown(arc, input.kernauftrag, input.aufgabe ?? null);
       arc.turnsInChapter = 0;
       const nx = currentChapter(arc)!;
       // Feste Erfahrung für jedes Kapitel und jeden Akt – Fortschritt hängt nicht nur von erfahrung ab
@@ -268,6 +280,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       if (!titel || !ziel) return err("titel und ziel fehlen.");
       arc.chapters.splice(arc.current, 0, { titel, ziel, act, detour: true, rueckweg: text(input.rueckweg, 240) || null, done: false, rueckblick: null });
       arc.detoursUsed[act]++;
+      setKnown(arc, undefined, input.aufgabe ?? ziel);
       arc.turnsInChapter = 0;
       return { content: `Abzweigung „${titel}“ beginnt (${arc.detoursUsed[act]} von ${ACTS[act].detours} in diesem Akt). Danach geht es weiter mit „${arc.chapters[arc.current + 1].titel}“.` };
     }
@@ -299,6 +312,14 @@ const text = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
 function arcOf(w: WorldState): Arc {
   if (!isArc(w.arc)) w.arc = initArc();
   return w.arc;
+}
+
+/** Für die Spieler sichtbarer Kernauftrag und aktuelle Aufgabe. `undefined` lässt den Wert, wie er ist. */
+function setKnown(arc: Arc, kern: unknown, aufgabe: unknown) {
+  const known = arc.known ?? { kern: null, aufgabe: null };
+  if (kern !== undefined && text(kern, 200)) known.kern = text(kern, 200);
+  if (aufgabe !== undefined) known.aufgabe = text(aufgabe, 200) || null;
+  arc.known = known;
 }
 
 function finishDefeat(w: WorldState, epilog: string | null) {

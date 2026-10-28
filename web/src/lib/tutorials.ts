@@ -12,7 +12,7 @@ const LUCK: TutorialStep = {
 };
 const FIGHT: TutorialStep = {
   icon: "sword", title: "Kämpfe",
-  text: "Kommt es zum Kampf, erscheinen oben die Gegner mit ihren Lebensbalken. Greifst du an, würfelst du – triffst du, würfelst du danach den Schaden. Greifen Gegner an, würfelt der Server für sie, und du siehst den Wurf in der Geschichte.",
+  text: "Kommt es zum Kampf, erscheinen rechts die Gegner mit Lebensbalken und Rüstung (auf dem Handy oben unter „Gegner“). Greifst du an, würfelst du – triffst du, würfelst du danach den Schaden. Greifen Gegner an, würfelt der Server für sie, und du siehst den Wurf in der Geschichte.",
   example: "Du schreibst: „Ich schlage mit dem Schwert nach dem Räuber.“",
 };
 const HP: TutorialStep = {
@@ -22,7 +22,7 @@ const HP: TutorialStep = {
 };
 const QUESTS: TutorialStep = {
   icon: "scroll", title: "Auftragsbuch",
-  text: "Bekommst du eine Aufgabe, trägt der Spielleiter sie ins Auftragsbuch ein. Dort steht auch, was er sich gemerkt hat – Namen, Versprechen, Geheimnisse. So geht in langen Geschichten nichts verloren. Für erledigte Aufträge gibt es Erfahrungspunkte (EP).",
+  text: "Links findest du deine Figur, den Fortschritt der Kampagne und das Auftragsbuch (auf dem Handy oben unter „Deine Figur“). Rechts steht dein Kernauftrag – also worum es gerade geht. Bekommst du eine Aufgabe, trägt der Spielleiter sie ins Auftragsbuch ein. Dort steht auch, was er sich gemerkt hat – Namen, Versprechen, Geheimnisse. So geht in langen Geschichten nichts verloren. Für erledigte Aufträge gibt es Erfahrungspunkte (EP).",
 };
 const GROWTH: TutorialStep = {
   icon: "star", title: "Erfahrung zahlt sich aus",
@@ -46,7 +46,7 @@ export const PARTY_TUTORIAL: TutorialStep[] = [
   { icon: "users", title: "Willkommen in der Gruppe!", text: "Ihr spielt zusammen eine Geschichte – jede Person mit ihrer eigenen Figur, auf ihrem eigenen Gerät. Claude ist der Spielleiter: Er erzählt, was passiert, und spricht für alle anderen Personen." },
   { icon: "play", title: "So läuft eine Runde", text: "1. Alle lesen, was der Spielleiter erzählt. 2. Jede Person schreibt unten, was ihre Figur tut – in ganz normalen Worten. 3. Sobald alle abgegeben haben, erzählt der Spielleiter, was passiert – für alle zusammen.", example: "Du schreibst: „Ich lenke die Wache ab, während Agnes durch das Tor schlüpft.“" },
   { icon: "lock", title: "Abgegeben ist abgegeben", text: "Hast du deine Handlung abgeschickt, kannst du sie nicht mehr ändern. Überleg also kurz – ihr könnt euch auch vorher absprechen. Wer gerade noch tippt, wird dabei nicht gestört." },
-  { icon: "users", title: "Oben links: euer Team", text: "Dort siehst du, auf wen noch gewartet wird, wie viele Lebenspunkte jede Figur hat und kleine Symbole für ihre Fähigkeiten. Tippe auf ein Symbol, um zu sehen, was deine Mitspieler können. Auf dem Handy tippst du auf „Team“, um die Leiste zu öffnen." },
+  { icon: "users", title: "Links: euer Team", text: "Dort siehst du, auf wen noch gewartet wird, wie viele Lebenspunkte jede Figur hat und kleine Symbole für ihre Fähigkeiten. Tippe auf ein Symbol, um zu sehen, was deine Mitspieler können. Rechts stehen Gegner und euer Kernauftrag. Auf dem Handy tippst du oben auf „Team“ bzw. „Ziel“, um die Leisten zu öffnen." },
   { icon: "crown", title: "Der Gastgeber", text: "Wer die Gruppe gegründet hat, ist Gastgeber (Krone). Er kann die Runde auch früher erzählen lassen, wenn jemand gerade nicht da ist." },
   { ...PROBE, text: PROBE.text + " Der Spielleiter sagt dabei, wer würfeln muss – nur diese Person sieht den Knopf, alle anderen schauen beim Wurf zu." },
   LUCK, FIGHT, HP, QUESTS, GROWTH, ABILITIES,

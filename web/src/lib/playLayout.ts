@@ -1,0 +1,171 @@
+// Spielansicht für Solo und Gruppe: links das Team mit Fortschritt und Auftragsbuch, rechts Gegner und Kernauftrag,
+// in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
+import { currentChapter, isArc, type WorldState } from "../../../shared/world";
+import type { Rules } from "../../../shared/schema";
+import { levelTitle, xpProgress } from "../../../shared/levels";
+import { html, type Raw } from "./dom";
+import { icon, sigil } from "./icons";
+import { arcProgress } from "./arc";
+import { abilityChips, type AbilityInfo } from "./abilities";
+
+export interface TeamMember {
+  /** Figuren-ID (Schlüssel im Spielstand) */
+  id: string;
+  name: string;
+  sigil: string;
+  className: string;
+  host?: boolean;
+  me: boolean;
+  /** Gruppe: Status in dieser Runde („hat gehandelt“ …) */
+  status?: string;
+  abilities: AbilityInfo[];
+}
+
+/** Ab dieser Breite stehen Team und Lage als Spalten neben der Erzählung. */
+export const WIDE = "(min-width: 1180px)";
+
+/** Gerüst: zwei Seitenleisten (als <details>, damit sie auf dem Handy einklappen) und die Mitte. */
+export function playLayout(main: Raw): Raw {
+  return html`<div class="play-layout">
+    <div class="play-bars">
+      <details class="side side-left card" id="side-left" aria-label="Team und Fortschritt"></details>
+      <details class="side side-right card" id="side-right" aria-label="Kampf und Kernauftrag"></details>
+    </div>
+    <div class="play-main">${main}</div>
+  </div>`;
+}
+
+function bar(cur: number, max: number, cls = ""): Raw {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+  const tone = pct <= 0 ? "down" : pct < 34 ? "low" : pct < 67 ? "mid" : "";
+  return html`<span class="hp-bar ${cls} ${tone}" role="meter" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${cur}"><span style="width:${pct}%"></span></span>`;
+}
+
+/** Linke Seite: Team (Lebenspunkte, Stufe, Fähigkeiten), Kapitel-Fortschritt, Nebenaufträge und Gedächtnis. */
+export function teamSide(w: WorldState | null | undefined, members: TeamMember[], rules: Rules, waiting: TeamMember[] = []): Raw {
+  const allDown = !!w && members.every((m) => (w.hp[m.id] ?? 0) <= 0);
+  const someDown = !!w && members.some((m) => (w.hp[m.id] ?? 0) <= 0);
+  const me = members.find((m) => m.me) ?? members[0];
+  const open = w?.quests.filter((q) => q.status === "offen") ?? [];
+  const closed = w?.quests.filter((q) => q.status !== "offen") ?? [];
+  const kern = w ? coreQuestId(w) : null;
+  const side = open.filter((q) => q.id !== kern);
+  return html`<summary class="side-pill">${icon("users")}<b>${members.length > 1 ? "Team" : "Deine Figur"}</b>
+      ${waiting.length ? html`<span class="pill-badge" title="Warten auf ${waiting.map((m) => m.name).join(", ")}"><span class="wp-dot"></span>${waiting.length}</span>` : ""}
+      ${someDown ? html`<span class="pill-alert" title="Jemand ist bewusstlos">!</span>` : ""}
+      <span class="pill-caret">${icon("arrowRight")}</span>
+    </summary>
+    <div class="side-body">
+      ${waiting.length ? html`<div class="hud-waiting">Warten auf ${waiting.map((m) => html`<b class="${m.me ? "me" : ""}">${m.me ? "dich" : m.name}</b>`)}</div>` : ""}
+      <div class="team-list">${members.map((m) => {
+        const hp = w?.hp[m.id] ?? 0, max = w?.maxHp[m.id] ?? 0;
+        const lv = w?.levels?.[m.id]?.level ?? 1;
+        const down = !!w && hp <= 0;
+        return html`<div class="tm ${m.me ? "me" : ""} ${down ? "down" : ""}">
+          <span class="tm-sigil">${sigil(m.sigil)}</span>
+          <div class="tm-body">
+            <div class="tm-line"><b>${m.name}</b>${m.host ? icon("crown") : ""}<span class="tm-lv" title="Stufe ${lv} · ${levelTitle(lv, rules)}">St. ${lv}</span></div>
+            <small class="tm-sub">${m.className}${m.status ? ` · ${m.status}` : ""}</small>
+            ${w ? html`<div class="tm-hp">${bar(hp, max)}<small>${hp}/${max} TP</small></div>` : ""}
+            ${down ? html`<small class="tm-down">${allDown ? "gefallen" : "bewusstlos – kann gerettet werden"}</small>` : ""}
+            ${abilityChips(m.abilities)}
+          </div>
+        </div>`;
+      })}</div>
+      ${w && me && rules ? levelBadge(w.levels?.[me.id]?.level ?? 1, w.xp[me.id] ?? 0, rules) : ""}
+      ${w?.arc && isArc(w.arc) ? html`<div class="side-sec">${arcProgress(w.arc)}</div>` : ""}
+      ${w && (side.length || closed.length || w.memory.length) ? html`<details class="world-log side-sec" ${side.length ? "open" : ""}>
+        <summary>${icon("scroll")} Auftragsbuch${side.length ? ` · ${side.length} offen` : ""}</summary>
+        ${side.length ? html`<ul class="quests">${side.map((q) => html`<li><b>${q.title}</b><span>${q.description}</span>${q.notes.length ? html`<small>${q.notes.at(-1)}</small>` : ""}</li>`)}</ul>` : ""}
+        ${closed.length ? html`<ul class="quests closed">${closed.map((q) => html`<li class="${q.status}"><b>${q.status === "erledigt" ? "✓" : "✗"} ${q.title}</b></li>`)}</ul>` : ""}
+        ${w.memory.length ? html`<div class="memory"><div class="eyebrow">Der Spielleiter merkt sich</div><ul>${w.memory.slice().reverse().map((m) => html`<li>${m}</li>`)}</ul></div>` : ""}
+      </details>` : ""}
+    </div>`;
+}
+
+/** Der Kernauftrag aus dem Auftragsbuch (Ersatz, solange Claude keinen eigenen genannt hat): der älteste offene Auftrag. */
+function coreQuestId(w: WorldState): string | null {
+  if (w.arc?.known?.kern) return null;
+  return w.quests.find((q) => q.status === "offen")?.id ?? null;
+}
+
+/** Rechte Seite: im Kampf die Gegner, immer der Kernauftrag und die aktuelle Aufgabe (ohne Geheimnisse aus dem Plan). */
+export function lageSide(w: WorldState | null | undefined): Raw {
+  const combat = w?.combat;
+  const standing = combat?.enemies.filter((e) => e.hp > 0).length ?? 0;
+  const arc = w?.arc && isArc(w.arc) ? w.arc : null;
+  const ch = arc ? currentChapter(arc) : null;
+  const fallback = w?.quests.find((q) => q.status === "offen");
+  const kern = arc?.known?.kern ?? fallback?.title ?? null;
+  const kernText = arc?.known?.kern ? null : fallback?.description ?? null;
+  const aufgabe = arc?.known?.aufgabe ?? null;
+  return html`<summary class="side-pill ${combat ? "combat" : ""}">${icon(combat ? "sword" : "target")}<b>${combat ? `${standing} Gegner` : "Ziel"}</b><span class="pill-caret">${icon("arrowRight")}</span></summary>
+    <div class="side-body">
+      ${combat ? html`<div class="side-combat">
+        <div class="wc-head">${icon("sword")} Kampf · Runde ${combat.round}</div>
+        <div class="enemy-list">${combat.enemies.map((e) => html`<div class="we ${e.hp <= 0 ? "down" : ""}">
+          <span class="we-name">${e.name}</span>${bar(e.hp, e.maxHp, "enemy")}
+          <span class="we-num">${e.hp <= 0 ? "besiegt" : `${e.hp}/${e.maxHp} TP`} · ${icon("shield")} Rüstung ${e.armor}</span>
+        </div>`)}</div>
+        <small class="muted">Rüstung = was ein Angriff mindestens erreichen muss.</small>
+      </div>` : ""}
+      ${arc?.finished ? html`<div class="core done"><div class="eyebrow">${arc.outcome === "niederlage" ? "Niederlage" : "Abgeschlossen"}</div><p>${arc.outcome === "niederlage" ? "Die Geschichte endet hier." : "Der Auftrag ist erfüllt."}</p></div>` : html`
+        <div class="core">
+          <div class="eyebrow">${icon("crown")} Kernauftrag</div>
+          ${kern ? html`<p class="core-main">${kern}</p>${kernText ? html`<small class="muted">${kernText}</small>` : ""}` : html`<p class="muted">Der Auftrag zeigt sich bald …</p>`}
+        </div>
+        ${ch || aufgabe ? html`<div class="core">
+          <div class="eyebrow">${icon(ch?.detour ? "map" : "scroll")} ${ch?.detour ? "Abzweigung" : "Jetzt"}</div>
+          ${ch ? html`<b>${ch.titel}</b>` : ""}
+          ${aufgabe ? html`<p>${aufgabe}</p>` : ""}
+        </div>` : ""}`}
+    </div>`;
+}
+
+/**
+ * Seitenleisten verdrahten: breit immer offen, schmal eingeklappt (antippen öffnet, nur eine zugleich, Tippen daneben schließt).
+ * Gibt eine Aufräumfunktion zurück.
+ */
+export function bindSides(root: HTMLElement): () => void {
+  const sides = [...root.querySelectorAll<HTMLDetailsElement>(".side")];
+  const mq = matchMedia(WIDE);
+  const apply = () => sides.forEach((d) => { d.open = mq.matches; });
+  apply();
+  mq.addEventListener("change", apply);
+  const onToggle = (e: Event) => {
+    const d = e.target as HTMLDetailsElement;
+    if (mq.matches) { if (!d.open) d.open = true; return; }
+    if (d.open) sides.forEach((o) => { if (o !== d) o.open = false; });
+  };
+  sides.forEach((d) => d.addEventListener("toggle", onToggle));
+  const onDoc = (e: Event) => {
+    if (mq.matches) return;
+    if (!(e.target as HTMLElement).closest(".play-bars")) sides.forEach((d) => { d.open = false; });
+  };
+  document.addEventListener("click", onDoc);
+  return () => { mq.removeEventListener("change", apply); document.removeEventListener("click", onDoc); };
+}
+
+/** Inhalt einer Seitenleiste ersetzen, ohne den Auf-/Zu-Zustand (auch der inneren Auftragsbuch-Klappe) zu verlieren. */
+export function fillSide(el: HTMLElement | null, content: Raw) {
+  if (!el) return;
+  const log = el.querySelector<HTMLDetailsElement>(".world-log");
+  const logOpen = log ? log.open : null;
+  const scroll = el.querySelector(".side-body")?.scrollTop ?? 0, outer = el.scrollTop;
+  el.innerHTML = content.value;
+  el.scrollTop = outer;
+  const nl = el.querySelector<HTMLDetailsElement>(".world-log");
+  if (nl && logOpen !== null) nl.open = logOpen;
+  const body = el.querySelector(".side-body");
+  if (body) body.scrollTop = scroll;
+}
+
+/** Stufe, Titel und Balken bis zur nächsten Stufe. */
+export function levelBadge(level: number, xp: number, rules: Rules): Raw {
+  const { from, to } = xpProgress(xp, level, rules);
+  const pct = to === null ? 100 : Math.max(0, Math.min(100, ((xp - from) / (to - from)) * 100));
+  return html`<div class="lv-badge" title="${to === null ? `${xp} EP – höchste Stufe` : `${xp} von ${to} EP bis Stufe ${level + 1}`}">
+    <span class="lv-num">${level}</span>
+    <span class="lv-text"><b>${levelTitle(level, rules)}</b><span class="lv-bar"><i style="width:${pct}%"></i></span><small>${to === null ? `${xp} EP` : `${xp} / ${to} EP`}</small></span>
+  </div>`;
+}

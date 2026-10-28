@@ -15,11 +15,11 @@ import { memberships, partyApi, PartyApiError, type Membership } from "../lib/pa
 import { go, type Page } from "../lib/router";
 import { toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
-import { worldPanel } from "../lib/worldPanel";
+import { bindSides, fillSide, lageSide, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
-import { abilityChips, abilityList } from "../lib/abilities";
+import { abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
 import { PARTY_TUTORIAL } from "../lib/tutorials";
 
@@ -94,14 +94,9 @@ export function partyHomePage(): Page {
 export function partyPage(): Page {
   let timer = 0;
   let alive = true;
-  // Hängt direkt am <body>: im animierten Seitenbereich würde „position: fixed“ nicht am Bildschirm kleben.
-  const hud = document.createElement("details");
-  hud.className = "team-hud card";
-  hud.hidden = true;
-  // Auf breiten Bildschirmen offen, auf schmalen eingeklappt (antippen zum Öffnen)
-  hud.open = matchMedia("(min-width: 1180px)").matches;
+  let unbindSides = () => {};
   return {
-    leave() { alive = false; clearTimeout(timer); hud.remove(); },
+    leave() { alive = false; clearTimeout(timer); unbindSides(); },
     async render(root, params) {
       const [rawCode, query] = params.code.split("?");
       const code = rawCode.toUpperCase();
@@ -151,12 +146,13 @@ export function partyPage(): Page {
           <button class="icon-btn" id="help" aria-label="Einführung öffnen" title="Wie funktioniert das?">?</button>
         </header>
         <div class="party-players" id="players"></div>
-        <div id="world"></div>
-        <div id="opening"></div>
-        <div class="story" id="story" aria-live="polite"></div>
-        <div id="below"></div>
-        <div id="my-abilities"></div>
+        ${playLayout(html`
+          <div id="opening"></div>
+          <div class="story" id="story" aria-live="polite"></div>
+          <div id="below"></div>
+          <div id="my-abilities"></div>`)}
       </div>`);
+      unbindSides = bindSides(root);
       const storyEl = $("#story", root), belowEl = $("#below", root);
       $("#help", root).addEventListener("click", () => showTutorial(`gruppe-${code}`, PARTY_TUTORIAL, true));
 
@@ -172,6 +168,9 @@ export function partyPage(): Page {
       function renderPlayers() {
         if (!view) return;
         const v = view;
+        // Im Spiel stehen alle links im Team – die Zeile oben braucht es nur in der Lobby
+        root.querySelector(".play-layout")!.classList.toggle("lobby-mode", v.status !== "playing");
+        $("#players", root).hidden = v.status === "playing";
         $("#players", root).innerHTML = html`${v.players.map((p) => {
           const rolling = v.pending?.playerId === p.id;
           const status = v.status === "lobby" ? (p.host ? "Gastgeber" : "bereit") : rolling ? "muss würfeln" : p.acted ? "hat gehandelt" : "überlegt …";
@@ -279,35 +278,18 @@ export function partyPage(): Page {
         enhance(belowEl);
       }
 
-      /** Oben links: das ganze Team mit Lebenspunkten und Fähigkeiten, dazu wer noch handeln muss. */
+      /** Seitenleisten: links das Team (wer noch handeln muss, Lebenspunkte, Fähigkeiten), rechts Kampf und Kernauftrag. */
       function renderHud() {
         const v = view!;
-        hud.hidden = v.status !== "playing";
-        if (hud.hidden) return;
-        if (!hud.isConnected) document.body.append(hud);
+        if (v.status !== "playing") return;
         const open = !v.busy && !busyLocal && !v.pending && !v.world?.arc?.finished;
-        const waiting = open ? v.players.filter((p) => !p.acted) : [];
-        const w = v.world;
-        const hpOf = (p: PartyView["players"][number]) => ({ hp: w?.hp[p.characterId] ?? 0, max: w?.maxHp[p.characterId] ?? 0 });
-        const total = v.players.reduce((s, p) => s + hpOf(p).hp, 0), totalMax = v.players.reduce((s, p) => s + hpOf(p).max, 0);
-        hud.innerHTML = html`
-          <summary>
-            ${icon("users")}<b>Team</b><span class="hud-total">${icon("heart")} ${total}/${totalMax}</span>
-            ${waiting.length ? html`<span class="hud-wait"><span class="wp-dot"></span>${waiting.length}</span>` : ""}
-          </summary>
-          ${waiting.length ? html`<div class="hud-waiting">Warten auf ${waiting.map((p) => html`<b class="${p.id === me.playerId ? "me" : ""}">${p.id === me.playerId ? "dich" : p.name}</b>`)}</div>` : ""}
-          <div class="hud-members">${v.players.map((p) => {
-            const { hp, max } = hpOf(p);
-            const pct = max ? Math.max(0, Math.min(100, (hp / max) * 100)) : 0;
-            return html`<div class="hud-m ${p.id === me.playerId ? "me" : ""} ${hp <= 0 ? "down" : ""}">
-              <span class="hud-sigil">${sigil(p.sigil)}</span>
-              <div class="hud-body">
-                <div class="hud-line"><b>${p.name}</b>${p.host ? icon("crown") : ""}${w?.levels?.[p.characterId] ? html`<span class="hud-lv">St. ${w.levels[p.characterId].level}</span>` : ""}<small>${hp}/${max}</small></div>
-                <span class="hp-bar ${pct <= 0 ? "down" : pct < 34 ? "low" : pct < 67 ? "mid" : ""}"><span style="width:${pct}%"></span></span>
-                ${abilityChips(p.abilities)}
-              </div>
-            </div>`;
-          })}</div>`.value;
+        const members: TeamMember[] = v.players.map((p) => ({
+          id: p.characterId, name: p.name, sigil: p.sigil, className: p.className, host: p.host, me: p.id === me.playerId, abilities: p.abilities,
+          status: v.pending?.playerId === p.id ? "muss würfeln" : open ? (p.acted ? "hat gehandelt" : "überlegt …") : undefined,
+        }));
+        const waiting = open ? members.filter((m, i) => !v.players[i].acted) : [];
+        fillSide(root.querySelector("#side-left"), teamSide(v.world, members, data.rules, waiting));
+        fillSide(root.querySelector("#side-right"), lageSide(v.world));
       }
 
       /** Unten: die eigenen Fähigkeiten mit Erklärung. */
@@ -375,7 +357,6 @@ export function partyPage(): Page {
         renderPlayers();
         renderAbilities();
         if (v.status === "playing") showTutorial(`gruppe-${code}`, PARTY_TUTORIAL);
-        $("#world", root).innerHTML = worldPanel(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), myChar?.id, data.rules).value;
         renderOpening();
         renderStory();
         renderBelow();

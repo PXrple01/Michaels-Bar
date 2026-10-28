@@ -9,7 +9,7 @@ import { campaignStore } from "../lib/campaigns";
 import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
-import { worldPanel } from "../lib/worldPanel";
+import { bindSides, fillSide, lageSide, playLayout, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
@@ -155,8 +155,9 @@ export function adventuresPage(): Page {
 
 export function playPage(): Page {
   let alive = true;
+  let unbindSides = () => {};
   return {
-    leave() { alive = false; },
+    leave() { alive = false; unbindSides(); },
     async render(root, params) {
       const [id, query] = params.id.split("?");
       const save = campaignStore.get(id);
@@ -183,18 +184,25 @@ export function playPage(): Page {
             <span class="chip budget" id="budget" hidden></span>
             <button class="icon-btn" id="help" aria-label="Einführung öffnen" title="Wie funktioniert das?">?</button>
           </header>
-          <div id="world"></div>
-          <div id="opening"></div>
-          <div class="story" id="story" aria-live="polite"></div>
-          <div id="below"></div>
-          <div id="my-abilities"></div>
+          ${playLayout(html`
+            <div id="opening"></div>
+            <div class="story" id="story" aria-live="polite"></div>
+            <div id="below"></div>
+            <div id="my-abilities"></div>`)}
         </div>`);
+      unbindSides = bindSides(root);
       const storyEl = $("#story", root);
       $("#help", root).addEventListener("click", () => showTutorial(`solo-${save.id}`, SOLO_TUTORIAL, true));
       const belowEl = $("#below", root);
 
       const persist = () => campaignStore.save(save);
-      const renderWorld = () => { $("#world", root).innerHTML = worldPanel(save!.state.world, [character], character.id, data.rules).value; };
+      const renderWorld = () => {
+        const w = save!.state.world;
+        const cls = myClassDef();
+        const me: TeamMember = { id: character.id, name: character.name, sigil: cls?.sigil ?? "shield", className: cls?.name ?? character.classId, me: true, abilities: effectiveAbilities(cls?.abilities ?? [], w?.progress?.[character.id]) };
+        fillSide(root.querySelector("#side-left"), teamSide(w, [me], data.rules));
+        fillSide(root.querySelector("#side-right"), lageSide(w));
+      };
 
       function renderOpening(animate: boolean) {
         const el = $("#opening", root);

@@ -60,6 +60,8 @@ export interface Arc {
   turnsInChapter: number;
   finished: boolean;
   epilog: string | null;
+  /** Was die Spieler sehen dürfen (ohne Geheimnisse aus dem Plan): Kernauftrag und die gerade anstehende Aufgabe. */
+  known?: { kern: string | null; aufgabe: string | null };
   /** Wie die Kampagne endete: Sieg im Finale oder Niederlage, weil die ganze Gruppe gefallen ist. Fehlt = Sieg (ältere Stände). */
   outcome?: "sieg" | "niederlage";
 }
