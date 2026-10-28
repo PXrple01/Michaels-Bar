@@ -75,8 +75,8 @@ export function requestBase(model: ModelId, effort: "low" | "medium" | "high") {
 export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
-/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 9;
+/** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo. Ältere Verläufe werden einmalig umgestellt. */
+export const TOOLSET = 10;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
