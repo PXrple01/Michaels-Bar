@@ -69,10 +69,13 @@ export function mapSvg(map: TravelMap, big = false): Raw {
   return raw(`<svg class="map-svg ${big ? "big" : ""}" viewBox="0 0 ${Math.round(size)} ${Math.round(size)}" role="img" aria-label="Karte der Reise">${back}${roads}${nodes}${front}</svg>`);
 }
 
+/** Gemalter Kartenhintergrund als CSS-Variable (fehlt er, bleibt der dunkle Kartentisch). */
+const bgStyle = (map: TravelMap) => (map.bg ? `--map-bg: url("${map.bg}")` : "");
+
 export function mapBlock(map: TravelMap | undefined): Raw {
   if (!map?.places.length) return html``;
   return html`<div class="side-sec map-block">
-    <button type="button" class="map-frame" data-map-open aria-label="Karte groß ansehen" title="Karte groß ansehen">${mapSvg(map)}</button>
+    <button type="button" class="map-frame ${map.bg ? "has-bg" : ""}" style="${bgStyle(map)}" data-map-open aria-label="Karte groß ansehen" title="Karte groß ansehen">${mapSvg(map)}</button>
     ${map.current ? html`<small class="map-here">${icon("map")} <span>Ihr seid in <b>${map.current}</b></span></small>` : ""}
   </div>`;
 }
@@ -82,7 +85,7 @@ export function openMap(map: TravelMap) {
   const el = fragment(html`<div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Karte der Reise">
     <div class="modal card map-modal">
       <div class="map-head"><h3>${icon("map")} Karte der Reise</h3><button class="icon-btn" data-close aria-label="Schließen">${icon("x")}</button></div>
-      <div class="map-frame big">${mapSvg(map, true)}</div>
+      <div class="map-frame big ${map.bg ? "has-bg" : ""}" style="${bgStyle(map)}">${mapSvg(map, true)}</div>
       <ul class="map-list">${[...map.places].reverse().map((p) => html`<li class="${p.name === map.current ? "current" : ""}"><b>${p.name}</b> <small class="muted">${PLACE_NAME[p.kind]}${p.visits > 1 ? ` · ${p.visits}× besucht` : ""}</small>${p.note ? html`<span>${p.note}</span>` : ""}</li>`)}</ul>
     </div>
   </div>`);

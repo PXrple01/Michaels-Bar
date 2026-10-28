@@ -86,6 +86,8 @@ const MAX_LOOPS = 5;
  * Darum: nach TURN_BUDGET_MS wird abgebrochen (sauberer Fehler), und ein weiterer Modellaufruf beginnt nur, wenn noch MIN_CALL_MS übrig sind.
  */
 export const TURN_BUDGET_MS = 50_000;
+/** Gelände je Ortsart für den gemalten Kartenhintergrund. */
+const MAP_TERRAIN: Record<string, string> = { dorf: "small villages", stadt: "a walled town", burg: "a castle on a hill", kloster: "a monastery", wald: "dense forests", hoehle: "rocky caves", ruine: "ancient ruins", gasthaus: "a roadside inn", fluss: "a winding river with a bridge", berg: "mountains" };
 /** Kleines Modell für Bildbeschreibungen. */
 const IMAGE_PROMPT_MODEL: ModelId = "claude-haiku-5-5";
 /** Kapitelmarke: ändert sie sich in einem Zug, hat ein neues Kapitel (oder die Kampagne) begonnen. */
@@ -180,39 +182,70 @@ export class Narrator {
   get model(): ModelId { return this.o.model ?? "claude-opus-5-5"; }
 
   /**
-   * Bild am Anfang der Kampagne und jedes Kapitels – falls Claude in diesem Zug keines bestellt hat.
-   * Die Bildbeschreibung schreibt dann Claude Haiku aus dem eben erzählten Text (Bruchteil eines Cents).
+   * Nach jedem Zug: ein Szenenbild, falls Claude keines bestellt hat (Beschreibung von Claude Haiku aus der Erzählung),
+   * und einmal je Kampagne ein gemalter Kartenhintergrund. Beides läuft gleichzeitig.
    */
   async imageIfDue(o: { mark: string; first: boolean; painted: boolean; narration: string; scene: Scene }): Promise<{ imageUsd: number; claudeUsd: number }> {
-    const none = { imageUsd: 0, claudeUsd: 0 };
     const { world } = o.scene;
+    if (!this.o.images?.ready) return { imageUsd: 0, claudeUsd: 0 };
+    const [scene, map] = await Promise.all([
+      !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
+      this.mapBackground(world),
+    ]);
+    return { imageUsd: scene.imageUsd + map, claudeUsd: scene.claudeUsd };
+  }
+
+  private async autoScene(o: { mark: string; first: boolean; narration: string; scene: Scene }): Promise<{ imageUsd: number; claudeUsd: number }> {
+    const { world } = o.scene;
+    const story = o.narration.split("»")[0];
+    // Neues Kapitel (oder Kampagnenstart): Kapiteltitel als Bildunterschrift
     const now = chapterMark(world);
-    const due = !o.painted && !world.arc?.finished && (o.first || (now !== "" && now !== o.mark));
-    if (!due || !this.o.images?.ready || o.narration.trim().length < 40) return none;
     const ch = world.arc ? currentChapter(world.arc) : null;
-    let claudeUsd = 0, motif = o.narration.split("»")[0].trim().slice(0, 900);
+    let caption = o.first ? ch?.titel ?? "Der Anfang" : now !== "" && now !== o.mark ? ch?.titel ?? "" : "";
+    let claudeUsd = 0, motif = story.trim().slice(0, 900);
     if (this.o.llm) {
       try {
         const msg = await this.o.llm.stream({
           ...requestBase(IMAGE_PROMPT_MODEL, "low"),
           max_tokens: 400,
-          system: [{ type: "text", text: "You write prompts for an image model that paints scenes of a medieval role-playing game (Holy Roman Empire, around 1400). From the German narration, describe in 2–4 English sentences the most striking moment as one picture: place, light, weather, time of day, important figures with appearance and clothing, mood. No names, no text, no style instructions. Answer with the prompt only." }],
-          messages: [{ role: "user", content: `${world.time ? `Time: ${world.time.phase}, weather: ${world.time.weather}.\n` : ""}Narration:\n${o.narration.split("»")[0].slice(-3000)}` }],
+          system: [{ type: "text", text: "You write prompts for an image model that paints scenes of a medieval role-playing game (Holy Roman Empire, around 1400). From the German narration, pick the most striking moment and answer in exactly two lines:\nCAPTION: a German caption of 2–5 words\nPROMPT: 2–4 English sentences describing it as one picture – place, light, weather, time of day, important figures with appearance and clothing, mood. No names, no text, no style instructions." }],
+          messages: [{ role: "user", content: `${world.time ? `Time: ${world.time.phase}, weather: ${world.time.weather}.\n` : ""}Narration:\n${story.slice(-3000)}` }],
         }, () => {}, AbortSignal.timeout(15_000));
         await this.o.guard.record(msg.usage, IMAGE_PROMPT_MODEL);
         claudeUsd = costUsd(msg.usage, IMAGE_PROMPT_MODEL);
         const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
-        if (text.length >= 40) motif = text;
+        const p = text.match(/PROMPT:\s*([\s\S]+)/i)?.[1]?.trim() ?? (/CAPTION:/i.test(text) ? "" : text);
+        if (p.length >= 40) motif = p;
+        if (!caption) caption = text.match(/CAPTION:\s*(.+)/i)?.[1]?.trim().replace(/^["„“]|["“”]$/g, "").slice(0, 60) ?? "";
       } catch (e) { console.error("[Bilder] Bildbeschreibung fehlgeschlagen:", (e as Error).message); }
     }
     try {
-      const { url, costUsd: imageUsd } = await this.o.images.make(motif, "landscape_4_3");
+      const { url, costUsd: imageUsd } = await this.o.images!.make(motif, "landscape_4_3");
       await this.o.guard.addUsd(imageUsd);
-      o.scene.onImage?.({ url, caption: ch?.titel ?? "Der Anfang" });
+      o.scene.onImage?.({ url, caption });
       return { imageUsd, claudeUsd };
     } catch (e) {
       console.error("[Bilder]", (e as Error).message);
       return { imageUsd: 0, claudeUsd };
+    }
+  }
+
+  /** Kartenhintergrund: einmal je Kampagne, sobald es Orte gibt – eine alte, gemalte Landkarte der Gegend (ohne Schrift). */
+  private async mapBackground(world: WorldState): Promise<number> {
+    const map = world.map;
+    if (!map?.places.length || map.bg) return 0;
+    const kinds = [...new Set(map.places.map((p) => p.kind))];
+    const terrain = kinds.map((k) => MAP_TERRAIN[k]).filter(Boolean).join(", ");
+    try {
+      const { url, costUsd: usd } = await this.o.images!.make(
+        `Top-down antique hand-painted map of a medieval central European countryside: ${terrain || "forests, hills, a river and small villages"}, winding dirt roads between them. Dark aged parchment in deep brown and sepia tones, faded ink and watercolour, strong dark vignette towards the edges, worn and stained. No text, no labels, no letters, no compass rose, no border.`,
+        "square", undefined, { style: false });
+      map.bg = url;
+      await this.o.guard.addUsd(usd);
+      return usd;
+    } catch (e) {
+      console.error("[Bilder] Kartenhintergrund:", (e as Error).message);
+      return 0;
     }
   }
 
@@ -266,7 +299,7 @@ export class Narrator {
       },
     }, ...autoToolDefs(characters), {
       name: "bild",
-      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Nutze es oft: immer in deiner ersten Antwort einer Kampagne und wenn ein neues Kapitel beginnt, außerdem bei jedem Ortswechsel, wenn eine wichtige Person oder ein besonderer Gegner auftritt und bei dramatischen Wendepunkten – etwa jede zweite bis dritte Antwort. Höchstens eins pro Antwort.",
+      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Rufe es in JEDER Antwort genau einmal auf – mit dem eindrucksvollsten Moment dieser Antwort.",
       input_schema: {
         type: "object",
         properties: {

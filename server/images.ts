@@ -39,7 +39,9 @@ const USD_PER_MP = 0.005;
 /** Einheitlicher Stil, damit alle Bilder zusammenpassen. */
 const STYLE = "Dark medieval fantasy oil painting, painterly brushwork, dramatic chiaroscuro, warm ember and candle light against deep shadows, muted earthy palette with deep reds, Holy Roman Empire around 1400, detailed, cinematic composition. No text, no letters, no watermark, no frame.";
 
-export type ImageShape = "landscape_4_3" | "portrait_4_3";
+export type ImageShape = "landscape_4_3" | "portrait_4_3" | "square";
+/** Quadratisch mit knapp 1 Megapixel – kostet so viel wie ein Querformat-Bild. */
+const SIZE: Record<ImageShape, string | { width: number; height: number }> = { landscape_4_3: "landscape_4_3", portrait_4_3: "portrait_4_3", square: { width: 992, height: 992 } };
 
 export class ImageMaker {
   constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch }) {}
@@ -48,13 +50,13 @@ export class ImageMaker {
   get store() { return this.o.store; }
 
   /** Malt ein Bild und speichert es. `id` überschreibt ein vorhandenes (z. B. das Porträt einer Figur). */
-  async make(motif: string, shape: ImageShape, id?: string): Promise<{ url: string; costUsd: number }> {
+  async make(motif: string, shape: ImageShape, id?: string, opts: { style?: boolean } = {}): Promise<{ url: string; costUsd: number }> {
     if (!this.o.key) throw new Error("Bilder sind nicht eingerichtet (FAL_KEY fehlt).");
     const f = this.o.fetch ?? fetch;
     const res = await f(`https://fal.run/${IMAGE_MODEL}`, {
       method: "POST",
       headers: { authorization: `Key ${this.o.key}`, "content-type": "application/json" },
-      body: JSON.stringify({ prompt: `${motif.trim().slice(0, 1200)}\n\n${STYLE}`, image_size: shape, num_images: 1, output_format: "webp", sync_mode: true, enable_safety_checker: true }),
+      body: JSON.stringify({ prompt: opts.style === false ? motif.trim().slice(0, 1600) : `${motif.trim().slice(0, 1200)}\n\n${STYLE}`, image_size: SIZE[shape], num_images: 1, output_format: "webp", sync_mode: true, enable_safety_checker: true }),
       signal: AbortSignal.timeout(40_000),
     });
     if (!res.ok) {

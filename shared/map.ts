@@ -5,7 +5,7 @@ import type { WorldState } from "./world";
 export const PLACE_KINDS = ["dorf", "stadt", "burg", "kloster", "wald", "hoehle", "ruine", "gasthaus", "fluss", "berg", "sonstiges"] as const;
 export type PlaceKind = (typeof PLACE_KINDS)[number];
 export interface Place { name: string; kind: PlaceKind; x: number; y: number; note?: string; visits: number; day: number }
-export interface TravelMap { places: Place[]; roads: [string, string][]; current: string | null }
+export interface TravelMap { places: Place[]; roads: [string, string][]; current: string | null; /** Gemalter Hintergrund (Link zu /api/images/…). */ bg?: string }
 
 export const MAX_PLACES = 40;
 export const PLACE_NAME: Record<PlaceKind, string> = { dorf: "Dorf", stadt: "Stadt", burg: "Burg", kloster: "Kloster", wald: "Wald", hoehle: "Höhle", ruine: "Ruine", gasthaus: "Gasthaus", fluss: "Fluss", berg: "Berg", sonstiges: "Ort" };

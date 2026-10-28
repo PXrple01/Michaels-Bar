@@ -46,10 +46,6 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85em
 .hero-sub { font-size: clamp(1.05rem, 2vw, 1.25rem); max-width: 560px; }
 .hero-sub strong { color: #fff; }
 .hero-cta { display: flex; gap: 14px; flex-wrap: wrap; margin: 30px 0 40px; }
-.hero-stats { display: flex; gap: clamp(20px, 5vw, 48px); }
-.hero-stats div { display: grid; }
-.hero-stats b { font-family: var(--font-display); font-size: 2rem; color: #fff; line-height: 1.1; text-shadow: 0 0 20px var(--purple); }
-.hero-stats span { color: var(--muted); font-size: 0.85rem; }
 .hero-die { position: relative; aspect-ratio: 1; width: 100%; max-width: 520px; justify-self: center; }
 .hero-die-host { position: absolute; inset: 0; cursor: pointer; z-index: 2; }
 .hero-die-host canvas { width: 100% !important; height: 100% !important; }
@@ -70,7 +66,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85em
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; text-align: center; padding-top: 10px; min-height: auto; }
   .hero-die { order: -1; max-width: 300px; }
-  .hero-cta, .hero-stats { justify-content: center; }
+  .hero-cta { justify-content: center; }
   .hero-sub { margin-inline: auto; }
   .hero .eyebrow::before { display: none; }
   .scroll-cue { display: none; }
@@ -1383,3 +1379,10 @@ a.saga:hover { background: rgba(255, 255, 255, 0.05); }
 .saga-epilog { display: block; margin-top: 4px; font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 0.92rem; color: var(--text-2); quotes: "„" "“"; }
 .empty-hall { display: grid; gap: 14px; justify-items: center; text-align: center; padding: 32px 20px; }
 @media (max-width: 560px) { .hall-medals { flex-wrap: wrap; } .saga { flex-direction: column; } .saga-img { width: 100%; } }
+.hero-learn { color: var(--gold); text-decoration: underline; text-decoration-color: rgba(245, 214, 138, 0.45); text-underline-offset: 3px; }
+.hero-learn:hover { color: #fff; text-decoration-color: currentColor; }
+/* Gemalter Kartenhintergrund (fal.ai): abgedunkelt, damit Orte und Kompass lesbar bleiben */
+.map-frame.has-bg { background: radial-gradient(circle at 50% 50%, rgba(10, 6, 4, 0.2), rgba(10, 6, 4, 0.72) 72%), var(--map-bg) center / cover no-repeat, rgb(var(--c-s08)); }
+.map-frame.has-bg .map-rose { fill: rgba(245, 214, 138, 0.05); stroke: rgba(245, 214, 138, 0.18); }
+.map-frame.has-bg .map-road { stroke: rgba(255, 220, 170, 0.75); }
+.map-frame.has-bg .map-label { stroke: rgba(12, 8, 6, 0.9); }

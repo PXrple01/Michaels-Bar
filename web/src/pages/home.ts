@@ -3,7 +3,6 @@ import { unlockedAchievements } from "../lib/achievements";
 import { legacySummary, summaryText } from "../lib/account";
 import { mountHeroDie } from "../dice3d/heroDie";
 import { enhance, splitLetters } from "../fx/effects";
-import { loadGameData } from "../lib/api";
 import { $, html, setHTML } from "../lib/dom";
 import { term } from "../lib/glossary";
 import { diceShape, icon } from "../lib/icons";
@@ -29,17 +28,12 @@ export function homePage(): Page {
           <div class="hero-text">
             <div class="eyebrow">Ein Erzähl-Abenteuer im Mittelalter</div>
             <h1 class="hero-title"><span class="ht-word ht-small" data-split>The Last</span> <span class="ht-word ht-ember" data-split>Ember</span></h1>
-            <p class="hero-sub" data-reveal style="--i:6">Du erschaffst eine Figur. Ein Spielleiter erzählt die Geschichte. Und die Würfel entscheiden, ob dein Plan gelingt. <strong>Keine Vorkenntnisse nötig</strong> – wir erklären dir alles unterwegs.</p>
+            <p class="hero-sub" data-reveal style="--i:6">Du erschaffst eine Figur. Ein Spielleiter erzählt die Geschichte. Und die Würfel entscheiden, ob dein Plan gelingt. <strong>Keine Vorkenntnisse nötig</strong> – wir erklären dir alles unterwegs, und <a class="hero-learn" href="#/lernen">hier zeigen wir dir in wenigen Minuten, wie es funktioniert</a>.</p>
             <div class="hero-cta" data-reveal style="--i:8">
-              <a class="btn btn-lg magnetic glow-border" href="#/figur/neu">${icon("sparkles")} Figur erschaffen</a>
-              <a class="btn btn-ghost btn-lg" href="#/lernen">${icon("book")} So funktioniert's</a>
+              <a class="btn btn-lg magnetic glow-border" href="#/abenteuer">${icon("scroll")} Abenteuer</a>
+              <a class="btn btn-ghost btn-lg" href="#/figur/neu">${icon("sparkles")} Figur erschaffen</a>
             </div>
             ${Object.keys(unlockedAchievements()).length ? html`<a class="ach-link" href="#/erfolge" data-reveal style="--i:9">${icon("crown")} Erfolge <b>${Object.keys(unlockedAchievements()).length} / ${ACHIEVEMENTS.length}</b> ${icon("arrowRight")}</a>` : ""}
-            <div class="hero-stats" data-reveal style="--i:10">
-              <div><b data-stat="classes">6</b><span>Klassen</span></div>
-              <div><b data-stat="skills">16</b><span>Fertigkeiten</span></div>
-              <div><b>7</b><span>Würfelarten</span></div>
-            </div>
           </div>
           <div class="hero-die" data-reveal="scale" style="--i:3">
             <div class="hero-orbit"><i></i><i></i><i></i></div>
@@ -126,10 +120,6 @@ export function homePage(): Page {
       enhance(root);
       disposeDie = mountHeroDie($(".hero-die-host", root));
 
-      loadGameData().then(({ rules, classes }) => {
-        root.querySelector('[data-stat="classes"]')!.textContent = String(classes.length);
-        root.querySelector('[data-stat="skills"]')!.textContent = String(rules.skills.length);
-      }).catch(() => {});
     },
     leave() { disposeDie?.(); },
   };
