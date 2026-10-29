@@ -33,6 +33,8 @@ export class FileImageStore implements ImageStore {
 /** Gültige Bild-IDs (auch als Dateiname sicher). */
 export const IMAGE_ID = /^[a-z0-9-]{6,80}$/;
 export const IMAGE_MODEL = "fal-ai/flux-2";
+/** Mit Referenzbildern (Porträts der Figuren, bis zu 4): gleiche Gesichter, Haare und Kleidung in der Szene. */
+export const IMAGE_EDIT_MODEL = "fal-ai/flux-2/edit";
 /** Preis laut fal.ai: ca. 0,012 $ pro angefangenem Megapixel. */
 const USD_PER_MP = 0.012;
 
@@ -49,14 +51,41 @@ export class ImageMaker {
   get ready() { return !!this.o.key; }
   get store() { return this.o.store; }
 
-  /** Malt ein Bild und speichert es. `id` überschreibt ein vorhandenes (z. B. das Porträt einer Figur). */
-  async make(motif: string, shape: ImageShape, id?: string, opts: { style?: boolean } = {}): Promise<{ url: string; costUsd: number }> {
+  /**
+   * Malt ein Bild und speichert es. `id` überschreibt ein vorhandenes (z. B. das Porträt einer Figur).
+   * `refs`: Figuren, die im Bild zu sehen sind – ihre Porträts gehen als Referenz mit (ohne Porträt: ohne Referenz).
+   * Klappt es mit Referenzen nicht, wird ohne gemalt.
+   */
+  async make(motif: string, shape: ImageShape, id?: string, opts: { style?: boolean; refs?: { characterId: string; label: string }[] } = {}): Promise<{ url: string; costUsd: number }> {
     if (!this.o.key) throw new Error("Bilder sind nicht eingerichtet (FAL_KEY fehlt).");
+    const refs = await this.references(opts.refs ?? []);
+    if (refs.length) {
+      try { return await this.paint(motif, shape, id, opts.style, refs); }
+      catch (e) { console.error("[Bilder] Mit Porträt-Referenz fehlgeschlagen, male ohne:", (e as Error).message); }
+    }
+    return this.paint(motif, shape, id, opts.style, []);
+  }
+
+  /** Porträts der Figuren als data-URI (höchstens 4). */
+  private async references(list: { characterId: string; label: string }[]): Promise<{ label: string; uri: string }[]> {
+    const out: { label: string; uri: string }[] = [];
+    for (const r of list.slice(0, 4)) {
+      const img = await this.o.store.get(`portrait-${r.characterId}`);
+      if (img) out.push({ label: r.label, uri: `data:${img.type};base64,${Buffer.from(img.bytes).toString("base64")}` });
+    }
+    return out;
+  }
+
+  private async paint(motif: string, shape: ImageShape, id: string | undefined, style: boolean | undefined, refs: { label: string; uri: string }[]): Promise<{ url: string; costUsd: number }> {
     const f = this.o.fetch ?? fetch;
-    const res = await f(`https://fal.run/${IMAGE_MODEL}`, {
+    const base = style === false ? motif.trim().slice(0, 1600) : `${motif.trim().slice(0, 1200)}\n\n${STYLE}`;
+    const prompt = refs.length
+      ? `${refs.map((r, i) => `The person in image ${i + 1} is ${r.label}.`).join(" ")} Show them in this scene with the same face, hair, build and clothing as in their reference image, but as part of a new painting (not a copy of the portrait).\n\n${base}`
+      : base;
+    const res = await f(`https://fal.run/${refs.length ? IMAGE_EDIT_MODEL : IMAGE_MODEL}`, {
       method: "POST",
       headers: { authorization: `Key ${this.o.key}`, "content-type": "application/json" },
-      body: JSON.stringify({ prompt: opts.style === false ? motif.trim().slice(0, 1600) : `${motif.trim().slice(0, 1200)}\n\n${STYLE}`, image_size: SIZE[shape], num_images: 1, output_format: "webp", sync_mode: true, enable_safety_checker: true }),
+      body: JSON.stringify({ prompt, ...(refs.length ? { image_urls: refs.map((r) => r.uri) } : {}), image_size: SIZE[shape], num_images: 1, output_format: "webp", sync_mode: true, enable_safety_checker: true }),
       signal: AbortSignal.timeout(40_000),
     });
     if (!res.ok) {
@@ -71,7 +100,8 @@ export class ImageMaker {
     const stored = await download(img.url, f);
     const finalId = id ?? `img-${randomBytes(9).toString("hex")}`;
     await this.o.store.put(finalId, stored);
-    const mp = Math.max(1, Math.ceil(((img.width ?? 1024) * (img.height ?? 768)) / 1_000_000));
+    // Referenzbilder werden wie zusätzliche Megapixel berechnet (je Porträt knapp 1 MP)
+    const mp = Math.max(1, Math.ceil(((img.width ?? 1024) * (img.height ?? 768)) / 1_000_000)) + refs.length;
     // Version im Link: ein neu gemaltes Porträt unter derselben ID wird nicht aus dem Browser-Zwischenspeicher genommen
     return { url: `/api/images/${finalId}?v=${Date.now().toString(36)}`, costUsd: mp * USD_PER_MP };
   }

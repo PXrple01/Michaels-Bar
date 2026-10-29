@@ -79,7 +79,7 @@ export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
 /** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo; 11 = Tageszeit und Wetter; 12 = Inventar und Geld; 13 = Händler und Schmied; 14 = Personenverzeichnis; 15 = Karte. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 17;
+export const TOOLSET = 18;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
@@ -210,25 +210,26 @@ export class Narrator {
     const now = chapterMark(world);
     const ch = world.arc ? currentChapter(world.arc) : null;
     let caption = o.first ? ch?.titel ?? "Der Anfang" : now !== "" && now !== o.mark ? ch?.titel ?? "" : "";
-    let claudeUsd = 0, motif = story.trim().slice(0, 900);
+    let claudeUsd = 0, motif = story.trim().slice(0, 900), figures: string[] = [];
     if (this.o.llm) {
       try {
         const msg = await this.o.llm.stream({
           ...requestBase(IMAGE_PROMPT_MODEL, "low"),
           max_tokens: 400,
-          system: [{ type: "text", text: "You write prompts for an image model that paints scenes of a medieval role-playing game (Holy Roman Empire, around 1400). From the German narration, pick the most striking moment and answer in exactly two lines (keep the picture simple: one clear focal point, at most two or three figures, no crowds):\nCAPTION: a German caption of 2–5 words\nPROMPT: 2–4 English sentences describing it as one picture – place, light, weather, time of day, important figures with appearance and clothing, mood. No names, no text, no style instructions." }],
-          messages: [{ role: "user", content: `${world.time ? `Time: ${world.time.phase}, weather: ${world.time.weather}.\n` : ""}Narration:\n${story.slice(-3000)}` }],
+          system: [{ type: "text", text: "You write prompts for an image model that paints scenes of a medieval role-playing game (Holy Roman Empire, around 1400). From the German narration, pick the most striking moment and answer in exactly three lines (keep the picture simple: one clear focal point, at most two or three figures, no crowds):\nCAPTION: a German caption of 2–5 words\nFIGURES: which of the player characters are visible, comma-separated, or none\nPROMPT: 2–4 English sentences describing it as one picture – place, light, weather, time of day, important figures with appearance and clothing, mood. No names, no text, no style instructions." }],
+          messages: [{ role: "user", content: `Player characters: ${o.scene.characters.map((c) => c.name).join(", ")}.\n${world.time ? `Time: ${world.time.phase}, weather: ${world.time.weather}.\n` : ""}Narration:\n${story.slice(-3000)}` }],
         }, () => {}, AbortSignal.timeout(15_000));
         await this.o.guard.record(msg.usage, IMAGE_PROMPT_MODEL);
         claudeUsd = costUsd(msg.usage, IMAGE_PROMPT_MODEL);
         const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim();
         const p = text.match(/PROMPT:\s*([\s\S]+)/i)?.[1]?.trim() ?? (/CAPTION:/i.test(text) ? "" : text);
+        figures = (text.match(/FIGURES:\s*(.+)/i)?.[1] ?? "").split(/[,;]/).map((s) => s.trim()).filter((s) => s && !/^none$/i.test(s));
         if (p.length >= 40) motif = p;
         if (!caption) caption = text.match(/CAPTION:\s*(.+)/i)?.[1]?.trim().replace(/^["„“]|["“”]$/g, "").slice(0, 60) ?? "";
       } catch (e) { console.error("[Bilder] Bildbeschreibung fehlgeschlagen:", (e as Error).message); }
     }
     try {
-      const { url, costUsd: imageUsd } = await this.o.images!.make(motif, "landscape_4_3");
+      const { url, costUsd: imageUsd } = await this.o.images!.make(motif, "landscape_4_3", undefined, { refs: this.refsFor(figures, o.scene) });
       await this.o.guard.addUsd(imageUsd);
       o.scene.onImage?.({ url, caption });
       return { imageUsd, claudeUsd };
@@ -257,6 +258,14 @@ export class Narrator {
     }
   }
 
+  /** Spielfiguren im Bild → Porträt-Referenzen („Makkalot, ein Berserker“). */
+  private refsFor(names: string[], scene: Scene): { characterId: string; label: string }[] {
+    return scene.characters.filter((c) => names.some((n) => n.trim().toLowerCase() === c.name.toLowerCase())).map((c) => {
+      const cls = scene.data.classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
+      return { characterId: c.id, label: `${c.name}, ${cls ? `a ${cls.name}` : "an adventurer"}` };
+    });
+  }
+
   /** Werkzeug bild: malen, speichern, den Spielern zeigen. Fehler beenden den Zug nicht – Claude erfährt sie als Text. */
   private async paint(b: Anthropic.Beta.BetaToolUseBlock, scene: Scene): Promise<{ costUsd: number } | string> {
     const images = this.o.images;
@@ -265,7 +274,8 @@ export class Narrator {
     const motif = typeof input.motiv === "string" ? input.motiv : "";
     if (motif.trim().length < 10) return "Bitte beschreibe das Motiv (motiv) in 1–3 englischen Sätzen.";
     try {
-      const { url, costUsd } = await images.make(motif, "landscape_4_3");
+      const names = Array.isArray((input as { figuren?: unknown }).figuren) ? ((input as { figuren: unknown[] }).figuren).map(String) : [];
+      const { url, costUsd } = await images.make(motif, "landscape_4_3", undefined, { refs: this.refsFor(names, scene) });
       await this.o.guard.addUsd(costUsd);
       scene.onImage?.({ url, caption: typeof input.titel === "string" ? input.titel.trim().slice(0, 80) : "" });
       return { costUsd };
@@ -313,6 +323,7 @@ export class Narrator {
         properties: {
           motiv: { type: "string", description: "Bildbeschreibung auf ENGLISCH, 1–3 Sätze: ein klarer Bildmittelpunkt mit höchstens zwei bis drei Figuren (Aussehen, Kleidung, Haltung), dazu Ort, Licht, Wetter, Tageszeit und Stimmung. Keine Menschenmengen, keine Namen, keine Schrift. Den Malstil legt der Server fest." },
           titel: { type: "string", description: "Bildunterschrift auf Deutsch, 2–6 Wörter" },
+          figuren: { type: "array", items: { type: "string", enum: characters.map((c) => c.name) }, description: "Welche Spielfiguren im Bild zu sehen sind (ihr Porträt dient als Vorlage, damit sie gleich aussehen). Leer, wenn nur der Ort oder andere Personen zu sehen sind." },
         },
         required: ["motiv", "titel"],
       },

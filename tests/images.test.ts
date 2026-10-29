@@ -129,3 +129,27 @@ describe("Bild am Anfang von Kampagne und Kapitel, gemalter Kartenhintergrund", 
     expect((await narrator.imageIfDue({ mark: "", first: false, painted: true, narration, scene })).imageUsd).toBe(0);
   });
 });
+
+describe("Porträts als Referenz für Szenenbilder", () => {
+  it("Figur mit Porträt: Edit-Modell mit Referenzbild, Kosten inklusive Referenz", async () => {
+    const store = new MemoryImageStore();
+    await store.put("portrait-hagen", { type: "image/webp", bytes: Buffer.from("PORTRAIT") });
+    let sent: { url: string; body: Record<string, unknown> } | null = null;
+    const maker = new ImageMaker({ key: "k", store, fetch: (async (url: string, init: RequestInit) => { sent = { url, body: JSON.parse(String(init.body)) }; return (falReply(1024, 768) as unknown as () => Promise<Response>)(); }) as unknown as typeof fetch });
+    const r = await maker.make("A warrior at a well", "landscape_4_3", undefined, { refs: [{ characterId: "hagen", label: "Hagen, a Ritter" }, { characterId: "ohne-portraet", label: "X" }] });
+    expect(sent!.url).toBe("https://fal.run/fal-ai/flux-2/edit");
+    expect(sent!.body.image_urls).toEqual([`data:image/webp;base64,${Buffer.from("PORTRAIT").toString("base64")}`]);
+    expect(String(sent!.body.prompt)).toContain("The person in image 1 is Hagen, a Ritter.");
+    expect(r.costUsd).toBeCloseTo(0.024, 5);
+  });
+
+  it("schlägt die Referenz fehl, wird ohne gemalt", async () => {
+    const store = new MemoryImageStore();
+    await store.put("portrait-hagen", { type: "image/webp", bytes: Buffer.from("P") });
+    const urls: string[] = [];
+    const maker = new ImageMaker({ key: "k", store, fetch: (async (url: string) => { urls.push(url); return url.endsWith("/edit") ? new Response("nein", { status: 422 }) : (falReply(1024, 768) as unknown as () => Promise<Response>)(); }) as unknown as typeof fetch });
+    const r = await maker.make("A warrior", "landscape_4_3", undefined, { refs: [{ characterId: "hagen", label: "Hagen" }] });
+    expect(urls).toEqual(["https://fal.run/fal-ai/flux-2/edit", "https://fal.run/fal-ai/flux-2"]);
+    expect(r.costUsd).toBe(0.012);
+  });
+});
