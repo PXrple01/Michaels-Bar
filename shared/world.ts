@@ -7,6 +7,7 @@ import { usesSummary, type UsedAbilities } from "./abilityUses";
 import { timeLine, type GameTime } from "./time";
 import type { Inventory } from "./inventory";
 import { gearSummary, type Gear, type Shop } from "./shop";
+import type { Gamble } from "./gamble";
 import type { Person } from "./people";
 import type { TravelMap } from "./map";
 
@@ -45,9 +46,11 @@ export interface WorldState {
   inventory?: Record<string, Inventory>;
   /** Tag, Tageszeit und Wetter */
   time?: GameTime;
-  /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
   /** Züge seit dem letzten Szenenbild (für das Mindestmaß an Bildern). */
   sinceImage?: number;
+  /** Offener Würfeltisch in der Taverne */
+  gamble?: Gamble | null;
+  /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
   sent?: { arc: string; turns: number; inv?: string; people?: string; map?: string; standing?: string };
   /** Ruf bei Fraktionen (−10 bis +10). */
   reputation?: Record<string, Standing>;

@@ -27,6 +27,7 @@ import { bindSides, fillSide, lageSide, lootText, playLayout, setMapData, setSky
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { bindShop, shopCard } from "../lib/shopUi";
+import { bindGamble, gambleCard, showGamble } from "../lib/gambleUi";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
 import { abilityList } from "../lib/abilities";
 import { showTutorial } from "../lib/tutorial";
@@ -322,12 +323,12 @@ export function partyPage(): Page {
           content = html`${failed}
             ${suggestions.length && !v.yourAction ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
             ${v.yourAction
-              ? html`<div class="card locked-action">${icon("lock")}<div><div class="eyebrow">Deine Handlung ist abgegeben</div><p>„${v.yourAction}“</p><small class="muted">${waiting.length ? html`Der Spielleiter erzählt, sobald ${waiting.join(", ")} ${waiting.length > 1 ? "abgegeben haben" : "abgegeben hat"}.` : "Gleich geht es weiter."}</small></div></div>`
+              ? html`<div class="card locked-action">${icon("lock")}<div><div class="eyebrow">Deine Handlung ist abgegeben</div><p>„${v.yourAction}“</p><small class="muted">${waiting.length ? html`Der Spielleiter erzählt, sobald ${waiting.join(", ")} ${waiting.length > 1 ? "abgegeben haben" : "abgegeben hat"}.` : "Gleich geht es weiter."}</small></div>${waiting.length ? html`<button class="btn btn-ghost btn-sm" id="withdraw" title="Vertippt? Handlung zurückholen und neu schreiben">${icon("refresh")} Zurückziehen</button>` : ""}</div>`
               : html`<form class="composer card" id="composer">
                   <textarea class="textarea" id="action" maxlength="${MAX_ACTION_LENGTH}" rows="2" placeholder="Was tut ${myChar?.name ?? "deine Figur"}?">${draft}</textarea>
                   <button class="btn" type="submit" aria-label="Handlung abgeben">${icon("check")}</button>
                 </form>
-                <p class="hint center">Alle geben ihre Handlung ab – dann erzählt der Spielleiter die Runde. Abgegeben ist abgegeben: Danach lässt sie sich nicht mehr ändern.</p>`}
+                <p class="hint center">Alle geben ihre Handlung ab – dann erzählt der Spielleiter die Runde. Bis dahin kannst du deine Handlung noch zurückziehen.</p>`}
             ${amHost && v.players.some((p) => p.acted) && waiting.length ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="now">${icon("play")} Jetzt erzählen (nicht auf ${waiting.join(", ")} warten)</button></div>` : ""}`;
         }
         // Das Eingabefeld bleibt dasselbe Element: Sonst verlöre, wer gerade tippt, Fokus und Cursor,
@@ -343,6 +344,10 @@ export function partyPage(): Page {
         // Offener Laden: jede Person kauft für ihre eigene Figur
         if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.shop && !v.world.arc?.finished && myCharId) {
           content = html`${shopCard(v.world, myCharId)}${content}`;
+        }
+        // Würfeltisch: jede Person spielt mit ihrem eigenen Geld
+        if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.gamble && !v.world.combat && !v.world.arc?.finished && myCharId) {
+          content = html`${gambleCard(v.world, myCharId)}${content}`;
         }
         // Wahl beim Stufenaufstieg (eigene Figur)
         if (myChar && v.status === "playing" && !v.busy && !busyLocal && !v.world?.arc?.finished && levelChoiceDue(v.world, myChar.id, data.rules)) {
@@ -538,11 +543,22 @@ export function partyPage(): Page {
           try { apply(await partyApi.shop(me, action, ref)); renderBelow(); if (action === "verkaufen") toast("Verkauft.", "success", 3000); }
           catch (e) { toast((e as Error).message, "error", 6000); renderBelow(); }
         });
+        bindGamble(belowEl, async (bet) => {
+          const opponent = view?.world?.gamble?.opponent ?? "Dein Gegner";
+          const game = partyApi.shop(me, "spielen", String(bet)).then((v) => { apply(v); return v.world?.gamble?.last ?? null; }).catch((e) => { toast((e as Error).message, "error", 6000); return null; });
+          await showGamble(game, opponent);
+          renderBelow();
+        });
         bindLevelCard(belowEl, async (choice) => {
           try { apply(await partyApi.level(me, choice)); renderBelow(); toast(choice.skill ? "Neue Fertigkeit gelernt!" : "Attribute gesteigert!", "success", 4000); }
           catch (e) { toast((e as Error).message, "error", 6000); }
         });
         belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
+        belowEl.querySelector("#withdraw")?.addEventListener("click", async () => {
+          const text = view?.yourAction ?? "";
+          try { draft = text; apply(await partyApi.withdraw(me)); renderBelow(); belowEl.querySelector<HTMLTextAreaElement>("#action")?.focus(); }
+          catch (e) { toast((e as Error).message, "error", 6000); }
+        });
         belowEl.querySelector("#now")?.addEventListener("click", () => void stream("action", { text: "", now: true }));
         belowEl.querySelector("#retry")?.addEventListener("click", () => void stream("action", { text: "", retry: true }));
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");

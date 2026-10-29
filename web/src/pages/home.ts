@@ -7,6 +7,7 @@ import { $, html, setHTML } from "../lib/dom";
 import { term } from "../lib/glossary";
 import { diceShape, icon } from "../lib/icons";
 import type { Page } from "../lib/router";
+import { quickStart } from "../lib/quickstart";
 
 const DICE_INFO = [
   { sides: 20, name: "W20", use: "Der wichtigste Würfel: entscheidet Proben und Angriffe." },
@@ -32,6 +33,7 @@ export function homePage(): Page {
             <div class="hero-cta" data-reveal style="--i:8">
               <a class="btn btn-lg magnetic glow-border" href="#/abenteuer">${icon("scroll")} Abenteuer</a>
               <a class="btn btn-ghost btn-lg" href="#/figur/neu">${icon("sparkles")} Figur erschaffen</a>
+              <button class="btn btn-ghost btn-lg" data-quick title="Zufällige Figur, sofort losspielen">${icon("dice")} Schnellstart</button>
             </div>
             ${Object.keys(unlockedAchievements()).length ? html`<a class="ach-link" href="#/erfolge" data-reveal style="--i:9">${icon("crown")} Erfolge <b>${Object.keys(unlockedAchievements()).length} / ${ACHIEVEMENTS.length}</b> ${icon("arrowRight")}</a>` : ""}
           </div>
@@ -117,6 +119,7 @@ export function homePage(): Page {
       `);
 
       root.querySelectorAll<HTMLElement>("[data-split]").forEach((el, i) => splitLetters(el, 150 + i * 380, 55));
+      root.querySelector("[data-quick]")?.addEventListener("click", () => void quickStart());
       enhance(root);
       disposeDie = mountHeroDie($(".hero-die-host", root));
 

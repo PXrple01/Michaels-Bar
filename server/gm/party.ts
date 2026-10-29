@@ -10,6 +10,8 @@ import { initTime } from "../../shared/time";
 import { upsertPerson } from "../../shared/people";
 import { startPlace, visitPlace } from "../../shared/map";
 import { trade } from "../../shared/shop";
+import { gambleRoll } from "../dice/engine";
+import { playGamble } from "../../shared/gamble";
 import { turnSummary } from "./summary";
 import { countChapterTurn, enforceDefeat } from "./world";
 import { resolveCharacter, ValidationError } from "../characters";
@@ -349,7 +351,8 @@ export class PartyService {
     const done = await this.update(party.code, (p) => {
       if (!p.world) throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
       if (p.busy && !isStale(p.busy)) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
-      const problem = trade(p.world, me.character, this.dataFor(p).rules, body.action, body.ref);
+      const rules = this.dataFor(p).rules;
+      const problem = body.action === "spielen" ? playGamble(p.world, me.character, rules, body.ref, gambleRoll) : trade(p.world, me.character, rules, body.action, body.ref);
       if (problem) throw new PartyError(problem);
     });
     return this.view(done, me.id, await this.o.guard.info());
@@ -376,6 +379,18 @@ export class PartyService {
     return this.view(done, me.id, await this.o.guard.info());
   }
 
+  /** Eigene Handlung zurückziehen (vertippt?) – nur solange der Spielleiter die Runde noch nicht erzählt. */
+  async withdraw(body: { code?: unknown; token?: unknown }): Promise<PartyView> {
+    const { party } = await this.load(body?.code);
+    const me = this.player(party, body?.token);
+    const done = await this.update(party.code, (p) => {
+      if (p.busy && !isStale(p.busy)) throw new PartyError("Der Spielleiter erzählt schon – zu spät zum Zurückziehen.");
+      if (!(me.id in p.actions)) throw new PartyError("Du hast in dieser Runde noch nichts abgegeben.");
+      delete p.actions[me.id];
+    });
+    return this.view(done, me.id, await this.o.guard.info());
+  }
+
   /** Speichert die Handlung. Gibt true zurück, wenn jetzt erzählt werden soll. */
   private async submitAction(body: Record<string, unknown>): Promise<boolean> {
     const text = typeof body.text === "string" ? body.text.trim() : "";
@@ -391,8 +406,8 @@ export class PartyService {
       if (retry && !p.failed) throw new PartyError("Es gibt nichts zu wiederholen.");
       if (openChecks(p).length) throw new PartyError(`Erst muss gewürfelt werden (${openChecks(p).map((c) => c.characterName).join(", ")}).`);
       if (p.world?.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
-      // Abgegeben ist abgegeben: Eine Handlung lässt sich danach nicht mehr ändern oder zurückziehen.
-      if (text && me.id in p.actions) throw new PartyError("Deine Handlung ist schon abgegeben – sie lässt sich nicht mehr ändern.");
+      // Ändern geht nur über Zurückziehen (withdraw), solange der Spielleiter noch nicht erzählt.
+      if (text && me.id in p.actions) throw new PartyError("Deine Handlung ist schon abgegeben – zieh sie zurück, um sie zu ändern.");
       if (text) p.actions[me.id] = text;
     });
     const all = updated.players.every((p) => p.id in updated.actions);

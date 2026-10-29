@@ -9,6 +9,7 @@ import type { Character } from "../../shared/schema";
 import { resetUses, useAbility } from "../../shared/abilityUses";
 import { advanceTime, ensureTime, timeLine, type TimeStep } from "../../shared/time";
 import { BONUS_NAME, gearOf, type Ware } from "../../shared/shop";
+import { GAMBLE_MAX } from "../../shared/gamble";
 import { ATTITUDE_NAME, ATTITUDES, upsertPerson } from "../../shared/people";
 import { PLACE_KINDS, PLACE_NAME, visitPlace } from "../../shared/map";
 import { addItem, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, removeItem, toPfennig } from "../../shared/inventory";
@@ -17,7 +18,7 @@ import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { addFate, addRumor, changeStanding, companionAction, standingName } from "../../shared/standing";
 
-export const AUTO_TOOLS = ["ruf", "schicksal", "begleiter", "geruecht", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["ruf", "schicksal", "begleiter", "geruecht", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "gluecksspiel", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -93,6 +94,11 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
         notiz: { type: "string", description: "Kurz, z. B. Wirkung" }, vorrat: { type: "integer" },
         bonus: { type: "string", enum: ["angriff", "schaden", "ruestung"], description: "Nur bei art verbesserung" },
       }, required: ["name", "art"] } },
+    }, ["aktion"]),
+    tool("gluecksspiel", "Stellt in einer Taverne, auf dem Jahrmarkt oder im Lager einen Würfeltisch auf: Die Spieler würfeln selbst über die Oberfläche gegen eine Person (beide 2W6, der höhere Wurf gewinnt den Einsatz). Der Server würfelt und verbucht das Geld; wie die Spiele ausgingen, steht im nächsten <spielstand>. Biete es an, wenn die Figuren in geselliger Runde sind. schliessen, sobald sie weitergehen.", {
+      aktion: { type: "string", enum: ["oeffnen", "schliessen"] },
+      gegner: { type: "string", description: "Gegen wen gespielt wird, z. B. „der einäugige Söldner Ruprecht“" },
+      hoechsteinsatz: { type: "integer", description: "Höchster Einsatz in Pfennig (1–240), passend zum Ort: Bauernschenke 6, Stadtwirtshaus 24, reiche Runde 120" },
     }, ["aktion"]),
     tool("ort", "Die Figuren kommen an einem Ort an (neu oder schon bekannt) – er erscheint auf der Karte der Spieler, mit einem Weg vom letzten Ort. Für jeden Ort, an den sie reisen: Dorf, Burg, Wald, Gasthaus …", {
       name: { type: "string", description: "Name des Ortes, z. B. „Kloster Sankt Gallus“, „Rabenwald“" },
@@ -317,6 +323,14 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       if (!wares.length) return err("waren fehlt (Name, Art und Preis je Ware).");
       w.shop = { name: text(input.name, 60) || "Händler", kind: input.art === "schmied" ? "schmied" : "haendler", wares, log: [] };
       return { content: `Laden „${w.shop.name}“ geöffnet: ${wares.map((x) => `${x.name} (${moneyText(x.price, true)}${x.bonus ? `, ${BONUS_NAME[x.bonus.target]} +1` : ""})`).join(", ")}. Die Spieler kaufen über die Oberfläche.` };
+    }
+    case "gluecksspiel": {
+      if (input.aktion === "schliessen") { w.gamble = null; return { content: "Der Würfeltisch ist abgeräumt." }; }
+      if (w.combat) return err("Mitten im Kampf wird nicht gespielt.");
+      const opponent = text(input.gegner, 60) || "ein Fremder";
+      const maxBet = Math.max(1, Math.min(GAMBLE_MAX, Math.round(Number(input.hoechsteinsatz) || 12)));
+      w.gamble = { opponent, maxBet, log: [] };
+      return { content: `Würfeltisch offen: gegen ${opponent}, höchstens ${moneyText(maxBet)}. Die Spieler würfeln über die Oberfläche.` };
     }
     case "gegenstand": {
       ensureInventory(w, ctx.characters, ctx.data.rules);

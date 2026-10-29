@@ -89,3 +89,6 @@ export function performRoll(spec: RollSpec, rng: RandomInt = cryptoRandomInt): R
     critical,
   };
 }
+
+/** Wurf am Würfeltisch der Taverne (2W6, ohne Modifikator). */
+export const gambleRoll = (who: string) => performRoll({ requestId: randomUUID(), kind: "free", label: `${who}: Würfelspiel`, notation: "2W6" });

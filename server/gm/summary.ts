@@ -6,6 +6,7 @@ import type { Character, Rules } from "../../shared/schema";
 import { ACTS, arcSummary, currentChapter, isArc, worldSummary, type WorldState } from "../../shared/world";
 import { inventorySummary } from "../../shared/inventory";
 import { shopSummary } from "../../shared/shop";
+import { gambleSummary } from "../../shared/gamble";
 import { peopleSummary } from "../../shared/people";
 import { mapSummary } from "../../shared/map";
 import { standingSummary } from "../../shared/standing";
@@ -36,6 +37,8 @@ export function turnSummary(w: WorldState, characters: Pick<Character, "id" | "n
   if (standing) lines.push(standingFull ? standing : "Ruf und Schicksal: unverändert wie im letzten ausführlichen <spielstand>.");
   const shop = shopSummary(w);
   if (shop) lines.push(shop);
+  const gamble = gambleSummary(w);
+  if (gamble) lines.push(gamble);
   if (arc) lines.push(arcFull ? full : `Kampagne: Akt ${ch!.act + 1} „${ACTS[ch!.act].name}“, Kapitel „${ch!.titel}“${ch!.detour ? " (Abzweigung)" : ""} – Plan und Tempo unverändert wie im letzten ausführlichen <spielstand>.`);
   return lines.join("\n");
 }

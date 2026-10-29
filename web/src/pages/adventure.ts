@@ -20,6 +20,8 @@ import { bindSides, fillSide, lageSide, lootText, playLayout, setMapData, setSky
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { bindShop, shopCard } from "../lib/shopUi";
+import { bindGamble, gambleCard, showGamble } from "../lib/gambleUi";
+import { quickStart } from "../lib/quickstart";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
 import { effectiveAbilities } from "../../../shared/upgrades";
 import { abilityList } from "../lib/abilities";
@@ -120,6 +122,12 @@ export function adventuresPage(): Page {
           <h2 class="sec-title" id="neues-abenteuer" data-reveal style="margin-top:40px">${icon("sparkles")} Neues Solo-Abenteuer</h2>
           ${chars.length ? html`
             <div class="char-grid">
+              <button class="card char-card tilt start-card quick-card" data-quick data-reveal="scale">
+                <div class="char-sigil">${icon("dice")}</div>
+                <h3>Schnellstart</h3>
+                <p class="muted">Zufällige Figur, sofort spielbereit</p>
+                <span class="link-arrow">Würfeln und losziehen ${icon("arrowRight")}</span>
+              </button>
               ${chars.map((c, i) => {
                 const cls = data.classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
                 return html`<button class="card char-card tilt start-card" data-start="${c.id}" data-reveal="scale" style="--i:${i}">
@@ -133,10 +141,12 @@ export function adventuresPage(): Page {
             <div class="card empty" data-reveal>
               <p>Für ein Abenteuer brauchst du zuerst eine Figur.</p>
               <a class="btn magnetic" href="#/figur/neu">${icon("sparkles")} Figur erschaffen</a>
+              <button class="btn btn-ghost" data-quick>${icon("dice")} Schnellstart mit Zufallsfigur</button>
             </div>`}
         </div>`);
       root.addEventListener("click", async (e) => {
         const t = e.target as HTMLElement;
+        if (t.closest("[data-quick]")) { void quickStart(); return; }
         if (t.closest("[data-solo]")) document.getElementById("neues-abenteuer")?.scrollIntoView({ behavior: "smooth", block: "start" });
         const start = t.closest<HTMLElement>("[data-start]");
         if (start) {
@@ -314,11 +324,13 @@ export function playPage(): Page {
           <p class="hint center">Enter sendet, Umschalt+Enter macht eine neue Zeile. Du kannst alles versuchen – nicht nur die Ideen.</p>`;
         const world = save!.state.world;
         if (!lastError && !busy && !save!.pending && world?.shop && !world.arc?.finished) content = html`${shopCard(world, character.id)}${content}`;
+        if (!lastError && !busy && !save!.pending && world?.gamble && !world.combat && !world.arc?.finished) content = html`${gambleCard(world, character.id)}${content}`;
         const showUpgrade = !lastError && !busy && !world?.arc?.finished && (forging || upgradeState(world, character.id) !== "none");
         if (showUpgrade) content = html`${upgradeCard(world!, character.id, abilityType, forging)}${content}`;
         if (!lastError && !busy && !world?.arc?.finished && levelChoiceDue(world, character.id, data.rules)) content = html`${levelChoiceCard(world, character, myClassDef(), data.rules)}${content}`;
         belowEl.innerHTML = html`${content}
-          ${!save!.started && save!.opening && !busy ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="reroll">${icon("refresh")} Neuen Einstieg würfeln</button></div>` : ""}`.value;
+          ${!save!.started && save!.opening && !busy ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="reroll">${icon("refresh")} Neuen Einstieg würfeln</button></div>` : ""}
+          ${undo && !busy && !lastError ? html`<div class="center"><button class="btn btn-ghost btn-sm" id="undo" title="Vertippt? Die letzte Runde zurücknehmen und neu schreiben">${icon("refresh")} Letzten Zug zurücknehmen</button></div>` : ""}`.value;
         const b = $("#budget", root);
         if (budget || save!.costUsd) { const chip = costChip({ claudeUsd: save!.costUsd ?? 0, imageUsd: save!.imageUsd ?? 0, lastUsd: lastCost, lastImageUsd: lastImageCost }, budget); b.hidden = false; b.textContent = chip.text; b.title = chip.title; }
         bindBelow();
@@ -352,6 +364,8 @@ export function playPage(): Page {
       }
 
       let retry: (() => void) | null = null;
+      /** Letzte Runde zum Zurücknehmen (vertippt?). Nur ohne Würfelwurf – sonst ließe sich ein schlechter Wurf wegklicken. */
+      let undo: { state: CampaignSave["state"]; pending: CampaignSave["pending"]; storyLen: number; action: string } | null = null;
 
       const myClassDef = () => dataFor(data, character).classes.find((x) => x.id === character.classId);
       const abilityType = (id: string) => myClassDef()?.abilities.find((a) => a.id === id)?.type ?? "unterstuetzung";
@@ -363,6 +377,7 @@ export function playPage(): Page {
       /** Ohne Auswahl: Verbesserungen erstellen lassen (Claude). Mit Auswahl: eine davon übernehmen (ohne Claude). */
       async function doUpgrade(option?: number) {
         if (busy || forging) return;
+        undo = null;
         forging = option === undefined;
         renderBelow();
         await streamGm(option === undefined ? "upgrade" : "choose", { character, state: save!.state, option }, (ev) => {
@@ -387,6 +402,7 @@ export function playPage(): Page {
       /** Wahl beim Stufenaufstieg übernehmen (ohne Claude). */
       async function doLevel(choice: { skill?: string; attrs?: Record<string, number> }) {
         if (busy) return;
+        undo = null;
         await streamGm("level", { character, state: save!.state, ...choice }, (ev) => {
           if (!alive) return;
           if (ev.type === "upgrade") { save!.state = ev.state; persist(); toast(choice.skill ? "Neue Fertigkeit gelernt!" : "Attribute gesteigert!", "success", 4000); }
@@ -398,6 +414,7 @@ export function playPage(): Page {
       /** Kaufen/verkaufen im offenen Laden (ohne Claude). */
       async function doShop(action: "kaufen" | "verkaufen", ref: string) {
         if (busy) return;
+        undo = null;
         await streamGm("shop", { character, state: save!.state, action, ref }, (ev) => {
           if (!alive) return;
           if (ev.type === "upgrade") {
@@ -407,6 +424,21 @@ export function playPage(): Page {
             toast(action === "kaufen" ? (loot ?? "Gekauft – deine Ausrüstung ist jetzt besser.") : "Verkauft.", "success", 4000);
           } else if (ev.type === "error") toast(ev.message, "error", 6000);
         });
+        renderWorld();
+        renderBelow();
+      }
+      /** Würfelspiel am offenen Würfeltisch (ohne Claude). */
+      async function doGamble(bet: number) {
+        if (busy) return;
+        undo = null;
+        const opponent = save!.state.world?.gamble?.opponent ?? "Dein Gegner";
+        let failed = false;
+        const game = streamGm("shop", { character, state: save!.state, action: "spielen", ref: bet }, (ev) => {
+          if (!alive) return;
+          if (ev.type === "upgrade") { save!.state = ev.state; persist(); }
+          else if (ev.type === "error") { failed = true; toast(ev.message, "error", 6000); }
+        }).then(() => (failed ? null : save!.state.world?.gamble?.last ?? null));
+        await showGamble(game, opponent);
         renderWorld();
         renderBelow();
       }
@@ -426,8 +458,10 @@ export function playPage(): Page {
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
         bindLevelCard(belowEl, (choice) => void doLevel(choice));
         bindShop(belowEl, (action, ref) => void doShop(action, ref));
+        bindGamble(belowEl, (bet) => void doGamble(bet));
         belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
         belowEl.querySelector("#reroll")?.addEventListener("click", () => void begin(true));
+        belowEl.querySelector("#undo")?.addEventListener("click", () => void undoTurn());
         belowEl.querySelector("#retry")?.addEventListener("click", () => { lastError = null; retry ? retry() : renderBelow(); });
         belowEl.querySelector("#access-form")?.addEventListener("submit", (e) => {
           e.preventDefault();
@@ -503,8 +537,9 @@ export function playPage(): Page {
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
         const action = (text ?? ta?.value ?? "").trim();
         if (!action || busy) return;
-        busy = true; lastError = null;
+        busy = true; lastError = null; undo = null;
         const entry = { type: "player" as const, text: action };
+        const storyLen = save!.story.length, pendingBefore = save!.pending;
         save!.story.push(entry); appendEntry(entry);
         turnMark = save!.story.length;
         renderBelow(); scrollDown();
@@ -512,12 +547,30 @@ export function playPage(): Page {
         retry = () => { save!.story.pop(); renderStory(); void sendAction(action); };
         await streamGm("turn", { character, state: before, action }, handle);
         busy = false;
-        if (!lastError) { save!.started = true; retry = null; persist(); }
+        if (!lastError) {
+          save!.started = true; retry = null; persist();
+          const rolled = save!.story.slice(storyLen).some((e) => e.type === "roll");
+          if (!rolled && !save!.state.world?.arc?.finished) undo = { state: before, pending: pendingBefore, storyLen, action };
+        }
         renderBelow();
+      }
+
+      /** Letzte Runde zurücknehmen: alter Spielstand, Handlung wieder im Eingabefeld. */
+      async function undoTurn() {
+        const u = undo;
+        if (!u || busy) return;
+        if (!(await confirmDialog("Letzten Zug zurücknehmen?", "Die letzte Runde wird zurückgenommen, deine Handlung steht wieder im Eingabefeld. Bereits angefallene Kosten bleiben bestehen.", "Zurücknehmen"))) return;
+        undo = null;
+        save!.state = u.state; save!.pending = u.pending; save!.story.length = u.storyLen;
+        persist();
+        renderStory(); renderWorld(); renderAbilities(); renderBelow();
+        const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
+        if (ta) { ta.value = u.action; ta.focus(); }
       }
 
       async function doRoll() {
         if (busy || !save!.pending) return;
+        undo = null;
         busy = true; lastError = null;
         const p = save!.pending;
         turnMark = save!.story.length;
