@@ -182,14 +182,14 @@ export class Narrator {
   get model(): ModelId { return this.o.model ?? "claude-opus-5-5"; }
 
   /**
-   * Nach jedem Zug: ein Szenenbild, falls Claude keines bestellt hat (Beschreibung von Claude Haiku aus der Erzählung),
-   * und einmal je Kampagne ein gemalter Kartenhintergrund. Beides läuft gleichzeitig.
+   * Am Anfang der Kampagne und jedes Kapitels ein Szenenbild, falls Claude keines bestellt hat (Beschreibung von Claude Haiku
+   * aus der Erzählung) – sonst entscheidet Claude. Dazu einmal je Kampagne ein gemalter Kartenhintergrund. Beides läuft gleichzeitig.
    */
   async imageIfDue(o: { mark: string; first: boolean; painted: boolean; narration: string; scene: Scene }): Promise<{ imageUsd: number; claudeUsd: number }> {
     const { world } = o.scene;
     if (!this.o.images?.ready) return { imageUsd: 0, claudeUsd: 0 };
     const [scene, map] = await Promise.all([
-      !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
+      !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (o.first || (chapterMark(world) !== "" && chapterMark(world) !== o.mark)) ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
       this.mapBackground(world),
     ]);
     return { imageUsd: scene.imageUsd + map, claudeUsd: scene.claudeUsd };
@@ -299,7 +299,7 @@ export class Narrator {
       },
     }, ...autoToolDefs(characters), {
       name: "bild",
-      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Rufe es in JEDER Antwort genau einmal auf – mit dem eindrucksvollsten Moment dieser Antwort.",
+      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Nutze es sehr oft: in den meisten Antworten, sobald es etwas Sehenswertes gibt – ein neuer Ort, eine Person oder ein Gegner, eine Wendung, eine starke Stimmung. Lass es nur weg, wenn sich kaum etwas Sichtbares ändert (etwa eine kurze Rückfrage oder eine Antwort, die nur eine Probe verlangt). Höchstens eins pro Antwort.",
       input_schema: {
         type: "object",
         properties: {

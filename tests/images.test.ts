@@ -64,7 +64,7 @@ describe("Porträt-Beschreibung durch Claude", async () => {
   });
 });
 
-describe("Bild bei jedem Zug und gemalter Kartenhintergrund", async () => {
+describe("Bild am Anfang von Kampagne und Kapitel, gemalter Kartenhintergrund", async () => {
   const path = await import("node:path");
   const { Narrator, chapterMark } = await import("../server/gm/narrator");
   const { UsageGuard, MemoryCounterStore } = await import("../server/gm/usage");
@@ -82,7 +82,7 @@ describe("Bild bei jedem Zug und gemalter Kartenhintergrund", async () => {
   const narrator = new Narrator({ llm: llm as never, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 60), images: new ImageMaker({ key: "k", store: new MemoryImageStore(), fetch: fal }) });
   const narration = "Nebel liegt über der Wegkreuzung, und am Galgen knarrt ein Seil im Wind. Ein Mann wartet dort.";
 
-  it("malt in jedem Zug ein Bild, außer Claude hat schon eines bestellt", async () => {
+  it("malt am Anfang und beim Kapitelwechsel – sonst entscheidet Claude", async () => {
     const world = initWorld([hagen]);
     const shown: string[] = [];
     const scene = { characters: [hagen], data, world, onRoll: () => {}, onImage: (i: { caption: string }) => shown.push(i.caption) };
@@ -91,14 +91,14 @@ describe("Bild bei jedem Zug und gemalter Kartenhintergrund", async () => {
     expect(start.claudeUsd).toBeGreaterThan(0);
     world.arc = { ...world.arc!, plan: { ziel: "z", bedrohung: "b" }, chapters: [{ titel: "Der Galgen", ziel: "", act: 0, detour: false, rueckweg: null, done: false, rueckblick: null }, { titel: "Die Mühle", ziel: "", act: 0, detour: false, rueckweg: null, done: false, rueckblick: null }], current: 0 };
     const mark = chapterMark(world);
-    // Gleiches Kapitel: trotzdem ein Bild, Unterschrift von Claude
-    expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.012);
+    // Gleiches Kapitel: kein zusätzliches Bild (das entscheidet Claude)
+    expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0);
     // Claude hat schon ein Bild bestellt: keines zusätzlich
     world.arc.current = 1;
     expect((await narrator.imageIfDue({ mark, first: false, painted: true, narration, scene })).imageUsd).toBe(0);
     // Neues Kapitel: Kapiteltitel als Unterschrift
     expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.012);
-    expect(shown).toEqual(["Der Anfang", "Nebel am Galgen", "Die Mühle"]);
+    expect(shown).toEqual(["Der Anfang", "Die Mühle"]);
   });
 
   it("Kartenhintergrund einmal je Kampagne, sobald es Orte gibt", async () => {
