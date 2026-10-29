@@ -1,15 +1,15 @@
-// Ton über fal.ai: Vorlesen der Erzählung (MiniMax Speech 2.8 Turbo, Deutsch) und Stimmungsmusik je Szene
-// (CassetteAI). Beides wird gespeichert und wiederverwendet: derselbe Text kostet nur einmal, jede Musik-Stimmung
+// Ton über fal.ai: Vorlesen der Erzählung (MiniMax Speech 2.8 HD, Deutsch) und Stimmungsmusik je Szene
+// (ElevenLabs Music). Beides wird gespeichert und wiederverwendet: derselbe Text kostet nur einmal, jede Musik-Stimmung
 // wird nur ein einziges Mal erzeugt – danach keine laufenden Kosten.
 import { createHash } from "node:crypto";
 import type { ImageStore, StoredImage } from "./images";
 
-export const TTS_MODEL = "fal-ai/minimax/speech-2.8-turbo";
-export const MUSIC_MODEL = "CassetteAI/music-generator";
-/** Preise laut fal.ai (Richtwerte): Vorlesen 0,06 $ je 1000 Zeichen, Musik 0,02 $ je Minute. */
-const TTS_USD_PER_1000 = 0.06, MUSIC_USD_PER_MIN = 0.02;
+export const TTS_MODEL = "fal-ai/minimax/speech-2.8-hd";
+export const MUSIC_MODEL = "fal-ai/elevenlabs/music";
+/** Preise (Richtwerte): Vorlesen 0,10 $ je 1000 Zeichen, Musik ca. 0,80 $ je Minute (nur einmal je Stimmung). */
+const TTS_USD_PER_1000 = 0.1, MUSIC_USD_PER_MIN = 0.8;
 export const MAX_TTS_CHARS = 3000;
-const MUSIC_SECONDS = 45;
+const MUSIC_SECONDS = 40;
 /** Erzählerstimme (tiefe Männerstimme, ruhig) – mit deutscher Aussprache. */
 const NARRATOR_VOICE = "Deep_Voice_Man";
 
@@ -74,12 +74,12 @@ export class AudioMaker {
 
   /** Musik einer Stimmung – beim ersten Mal erzeugt, danach immer dieselbe Datei. */
   async music(mood: Mood): Promise<{ url: string; costUsd: number }> {
-    const id = `music-${mood}-v1`;
+    const id = `music-${mood}-v2`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
-    const out = await this.run(MUSIC_MODEL, { prompt: MOODS[mood], duration: MUSIC_SECONDS }, 55_000);
-    const url = (out.audio_file as { url?: string } | undefined)?.url;
+    const out = await this.run(MUSIC_MODEL, { prompt: MOODS[mood], music_length_ms: MUSIC_SECONDS * 1000, force_instrumental: true, output_format: "mp3_44100_64" }, 55_000);
+    const url = (out.audio as { url?: string } | undefined)?.url;
     if (!url) throw new Error("fal.ai hat keine Musik geliefert.");
-    const raw = await this.download(url, "audio/wav");
+    const raw = await this.download(url, "audio/mpeg");
     // WAV kleiner machen (Mono, 22 kHz): spart Speicher und Datenübertragung, für Hintergrundmusik reicht das
     const small = raw.type.includes("wav") || isWav(raw.bytes) ? { type: "audio/wav", bytes: shrinkWav(raw.bytes) } : raw;
     await this.o.store.put(id, small);
