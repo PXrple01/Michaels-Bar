@@ -15,9 +15,9 @@ import { addItem, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, remo
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
-import { addFate, changeStanding, standingName } from "../../shared/standing";
+import { addFate, addRumor, changeStanding, companionAction, standingName } from "../../shared/standing";
 
-export const AUTO_TOOLS = ["ruf", "schicksal", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["ruf", "schicksal", "begleiter", "geruecht", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -44,7 +44,7 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
   });
   return [
     tool("kampf_beginnen", "Beginnt einen Kampf. Lege die Gegner fest (höchstens 6). Schwache Gegner 4–10 TP, Rüstung 10–12; starke bis 40 TP, Rüstung bis 16.", {
-      gegner: { type: "array", items: { type: "object", properties: { name: { type: "string" }, trefferpunkte: { type: "integer" }, ruestung: { type: "integer" } }, required: ["name", "trefferpunkte", "ruestung"] } },
+      gegner: { type: "array", items: { type: "object", properties: { name: { type: "string" }, trefferpunkte: { type: "integer" }, ruestung: { type: "integer" }, aussehen: { type: "string", description: "Nur bei besonderen, benannten Gegnern (Anführer, Bestie, Erzfeind): Aussehen auf Englisch in einem Satz – die Spieler bekommen ein Porträt" } }, required: ["name", "trefferpunkte", "ruestung"] } },
     }, ["gegner"]),
     tool("kampf_beenden", "Beendet den Kampf (Flucht, Aufgabe, Verhandlung). Sind alle Gegner besiegt, endet er von selbst.", { grund: { type: "string" } }, ["grund"]),
     tool("gegner_greift_an", "Ein Gegner greift eine Figur an. Der Server würfelt Angriff (W20 + Bonus gegen die Rüstung der Figur) und bei Treffer den Schaden, und zieht die Trefferpunkte ab.", {
@@ -104,7 +104,20 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       rolle: { type: "string", description: "Kurz, z. B. „Marktfrau“, „Abt von Sankt Gallus“" },
       haltung: { type: "string", enum: [...ATTITUDES], description: "Haltung zur Gruppe" },
       notiz: { type: "string", description: "Ein Satz: was die Spieler über sie wissen oder was zuletzt geschah – keine Geheimnisse, die die Figuren nicht kennen" },
+      aussehen: { type: "string", description: "Nur bei wichtigen Personen, beim ersten Eintrag: Aussehen auf Englisch in einem Satz (Alter, Gesicht, Haare, Kleidung) – die Spieler bekommen ein Porträt" },
     }, ["name"]),
+    tool("begleiter", "Ein Begleiter reist mit der Gruppe (höchstens 3): aufnehmen, wenn sich jemand anschließt; aktualisieren bei Treue-Änderungen; verlassen, wenn er geht oder stirbt. Begleiter haben eine eigene Meinung, helfen mit ihrer Fähigkeit und widersprechen, wenn es gegen ihre Werte geht.", {
+      aktion: { type: "string", enum: ["beitreten", "aktualisieren", "verlassen"] },
+      name: { type: "string" },
+      rolle: { type: "string", description: "Kurz, z. B. „junger Erbe“, „Söldnerin“" },
+      faehigkeit: { type: "string", description: "Was der Begleiter gut kann, ein kurzer Satz" },
+      treue: { type: "integer", description: "Änderung der Treue −2 bis +2 (bei Entscheidungen, die ihm gefallen oder missfallen)" },
+      notiz: { type: "string", description: "Was zuletzt geschah, ein Satz" },
+      aussehen: { type: "string", description: "Beim Beitreten: Aussehen auf Englisch in einem Satz – für sein Porträt" },
+    }, ["aktion", "name"]),
+    tool("geruecht", "Die Figuren hören ein Gerücht (in Tavernen, auf Märkten, von Reisenden). Wird den Spielern angezeigt. Ob es stimmt, entscheidest du – daraus kann ein Nebenauftrag werden.", {
+      text: { type: "string", description: "Das Gerücht in einem Satz, so wie es erzählt wird" },
+    }, ["text"]),
     tool("auftrag", "Führt das Auftragsbuch: neuen Auftrag anlegen, Notiz ergänzen, als erledigt oder gescheitert markieren.", {
       aktion: { type: "string", enum: ["neu", "notiz", "erledigt", "gescheitert"] },
       titel: { type: "string", description: "Kurzer Titel, bei Folgeaktionen genau wie beim Anlegen" },
@@ -190,11 +203,11 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
 
   switch (block.name) {
     case "kampf_beginnen": {
-      const parsed = z.array(z.object({ name: z.string().min(1).max(40), trefferpunkte: z.number(), ruestung: z.number() })).min(1).safeParse(input.gegner);
+      const parsed = z.array(z.object({ name: z.string().min(1).max(40), trefferpunkte: z.number(), ruestung: z.number(), aussehen: z.string().optional() })).min(1).safeParse(input.gegner);
       if (!parsed.success) return err("gegner muss eine Liste mit name, trefferpunkte, ruestung sein.");
       const enemies = parsed.data.slice(0, LIMITS.enemies).map((g, i) => {
         const hp = Math.max(1, Math.min(LIMITS.enemyHp, Math.round(g.trefferpunkte)));
-        return { id: `${i}-${randomBytes(3).toString("hex")}`, name: g.name, hp, maxHp: hp, armor: Math.max(LIMITS.armorMin, Math.min(LIMITS.armorMax, Math.round(g.ruestung))) };
+        return { id: `${i}-${randomBytes(3).toString("hex")}`, name: g.name, hp, maxHp: hp, armor: Math.max(LIMITS.armorMin, Math.min(LIMITS.armorMax, Math.round(g.ruestung))), ...(g.aussehen?.trim() ? { look: g.aussehen.trim().slice(0, 300) } : {}) };
       });
       // gleiche Namen unterscheidbar machen
       const total: Record<string, number> = {};
@@ -284,7 +297,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
     case "person": {
       const name = text(input.name, 60);
       if (!name) return err("name fehlt.");
-      const { person, created } = upsertPerson(w, { name, role: text(input.rolle, 80), attitude: String(input.haltung ?? ""), note: text(input.notiz, 200) });
+      const { person, created } = upsertPerson(w, { name, role: text(input.rolle, 80), attitude: String(input.haltung ?? ""), note: text(input.notiz, 200), look: text(input.aussehen, 300) });
       return { content: `${created ? "Neu im Verzeichnis" : "Aktualisiert"}: ${person.name}${person.role ? ` (${person.role})` : ""}, ${ATTITUDE_NAME[person.attitude]}.` };
     }
     case "laden": {
@@ -375,6 +388,18 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       if (!delta) return err("aenderung muss zwischen −3 und +3 liegen (nicht 0).");
       const r = changeStanding(w, fraktion, delta, text(input.grund, 140));
       return { content: `Ruf bei ${r.name}: ${r.score > 0 ? "+" : ""}${r.score} (${standingName(r.score)}).` };
+    }
+    case "begleiter": {
+      const name = text(input.name, 60);
+      if (!name) return err("name fehlt.");
+      const r = companionAction(w, { action: String(input.aktion ?? ""), name, role: text(input.rolle, 60), skill: text(input.faehigkeit, 120), loyalty: Number(input.treue) || 0, note: text(input.notiz, 160), look: text(input.aussehen, 300) });
+      return r.ok ? { content: r.text } : err(r.text);
+    }
+    case "geruecht": {
+      const t = text(input.text, 200);
+      if (!t) return err("text fehlt.");
+      addRumor(w, t);
+      return { content: "Gerücht notiert." };
     }
     case "schicksal": {
       const entscheidung = text(input.entscheidung, 200);

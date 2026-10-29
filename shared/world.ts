@@ -10,9 +10,10 @@ import { gearSummary, type Gear, type Shop } from "./shop";
 import type { Person } from "./people";
 import type { TravelMap } from "./map";
 
-import type { Fate, Legacy, Standing } from "./standing";
+import type { Companion, Fate, Legacy, Rumor, Standing } from "./standing";
 
-export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
+/** `look`: Aussehen (englisch) für ein Gegner-Porträt, `portrait`: das gemalte Bild – nur bei besonderen Gegnern. */
+export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number; look?: string; portrait?: string }
 export interface Quest { id: string; title: string; description: string; status: "offen" | "erledigt" | "gescheitert"; notes: string[] }
 
 export interface WorldState {
@@ -52,6 +53,10 @@ export interface WorldState {
   fates?: Fate[];
   /** Ehrentitel und Erbstücke nach einer siegreichen Kampagne. */
   legacy?: Legacy[];
+  /** Begleiter, die mit der Gruppe reisen (höchstens 3). */
+  companions?: Companion[];
+  /** Gerüchte, die die Figuren aufgeschnappt haben. */
+  rumors?: Rumor[];
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */

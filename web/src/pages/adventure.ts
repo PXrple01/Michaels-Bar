@@ -1,5 +1,5 @@
 import { setMusic } from "../lib/music";
-import { readButton } from "../lib/voice";
+import { readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
 import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
@@ -216,6 +216,7 @@ export function playPage(): Page {
         setSkyPhase(w?.time?.phase);
         setWeather(w?.time?.weather);
         setMusic(w ?? null);
+        setVoiceCast(w, [character.name]);
         noteLegacy(w, save!.id, save!.title);
         renderAbilities();
       };

@@ -1,5 +1,5 @@
 import { setMusic } from "../lib/music";
-import { readButton } from "../lib/voice";
+import { readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
 import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
@@ -364,6 +364,7 @@ export function partyPage(): Page {
         setSkyPhase(v.world?.time?.phase);
         setWeather(v.world?.time?.weather);
         setMusic(v.status === "playing" ? v.world : null);
+        setVoiceCast(v.world, v.players.map((p) => p.name));
         noteParty(v);
         noteLegacy(v.world, `gruppe-${v.code}`, v.opening ? v.opening.ort.charAt(0).toUpperCase() + v.opening.ort.slice(1) : `Gruppe ${v.code}`);
       }

@@ -1,6 +1,7 @@
+import "./sceneImage";
 import { setMusic } from "./music";
 import { setWeather } from "./weather";
-import { standingName } from "../../../shared/standing";
+import { loyaltyName, standingName } from "../../../shared/standing";
 import { avatar } from "./portraits";
 // Spielansicht für Solo und Gruppe: links das Team mit Fortschritt und Auftragsbuch, rechts Gegner und Kernauftrag,
 // in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
@@ -80,12 +81,24 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
           </div>
         </div>`;
       })}</div>
+      ${w?.companions?.length ? html`<div class="side-sec companions">
+        <div class="eyebrow">${icon("users")} Begleiter</div>
+        ${w.companions.map((c) => html`<div class="companion ${c.loyalty <= -2 ? "wavering" : c.loyalty >= 4 ? "devoted" : ""}">
+          ${face(c.portrait, c.name, "users")}
+          <div class="tm-body">
+            <div class="tm-line"><b>${c.name}</b></div>
+            <small class="tm-sub">${c.role}${c.skill ? ` · ${c.skill}` : ""}</small>
+            <small class="comp-loyal" title="Treue ${c.loyalty} von 5">${icon("heart")} ${loyaltyName(c.loyalty)}</small>
+          </div>
+        </div>`)}
+      </div>` : ""}
       ${w?.inventory ? inventoryBlock(w, members) : ""}
       ${w && me && rules ? levelBadge(w.levels?.[me.id]?.level ?? 1, w.xp[me.id] ?? 0, rules) : ""}
       ${w?.arc && isArc(w.arc) ? arcBlock(w.arc) : ""}
-      ${w && (side.length || closed.length || w.memory.length) ? html`<details class="world-log side-sec" ${side.length ? "open" : ""}>
+      ${w && (side.length || closed.length || w.memory.length || w.rumors?.length) ? html`<details class="world-log side-sec" ${side.length ? "open" : ""}>
         <summary>${icon("scroll")} Auftragsbuch${side.length ? ` · ${side.length} offen` : ""}</summary>
         ${side.length ? html`<ul class="quests">${side.map((q) => html`<li><b>${q.title}</b><span>${q.description}</span>${q.notes.length ? html`<small>${q.notes.at(-1)}</small>` : ""}</li>`)}</ul>` : ""}
+        ${w.rumors?.length ? html`<div class="rumors"><div class="eyebrow">${icon("feather")} Gerüchte</div><ul>${w.rumors.slice().reverse().map((r) => html`<li>„${r.text}“</li>`)}</ul></div>` : ""}
         ${closed.length ? html`<ul class="quests closed">${closed.map((q) => html`<li class="${q.status}"><b>${q.status === "erledigt" ? "✓" : "✗"} ${q.title}</b></li>`)}</ul>` : ""}
         ${w.memory.length ? html`<div class="memory"><div class="eyebrow">Der Spielleiter merkt sich</div><ul>${w.memory.slice().reverse().map((m) => html`<li>${m}</li>`)}</ul></div>` : ""}
       </details>` : ""}
@@ -105,6 +118,11 @@ function arcBlock(arc: Arc): Raw {
     <summary>${icon("scroll")} Kapitel <small class="muted">· ${label}</small></summary>
     ${arcProgress(arc)}
   </details>`;
+}
+
+/** Kleines rundes Porträt, antippen zeigt es groß. */
+function face(url: string | undefined, name: string, fallback: string): Raw {
+  return url ? html`<button type="button" class="face" data-zoom="${url}" data-caption="${name}" aria-label="Porträt von ${name}"><img src="${url}" alt="" loading="lazy"></button>` : html`<span class="face empty">${icon(fallback)}</span>`;
 }
 
 const KIND_ICON: Record<ItemKind, string> = { waffe: "sword", ruestung: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star" };
@@ -164,7 +182,8 @@ export function lageSide(w: WorldState | null | undefined): Raw {
       </div>` : ""}
       ${combat ? html`<div class="side-combat">
         <div class="wc-head">${icon("sword")} Kampf · Runde ${combat.round}</div>
-        <div class="enemy-list">${combat.enemies.map((e) => html`<div class="we ${e.hp <= 0 ? "down" : ""}">
+        <div class="enemy-list">${combat.enemies.map((e) => html`<div class="we ${e.hp <= 0 ? "down" : ""} ${e.portrait ? "has-face" : ""}">
+          ${e.portrait ? face(e.portrait, e.name, "sword") : ""}
           <span class="we-name">${e.name}</span>${bar(e.hp, e.maxHp, "enemy")}
           <span class="we-num">${e.hp <= 0 ? "besiegt" : `${e.hp}/${e.maxHp} TP`} · ${icon("shield")} Rüstung ${e.armor}</span>
         </div>`)}</div>
@@ -182,8 +201,8 @@ export function lageSide(w: WorldState | null | undefined): Raw {
         </div>` : ""}`}
       ${w?.people?.length ? html`<details class="world-log side-sec people" ${w.people.length <= 6 ? "open" : ""}>
         <summary>${icon("users")} Personen · ${w.people.length}</summary>
-        <ul class="people-list">${[...w.people].sort((a, b) => b.seen - a.seen).map((p) => html`<li class="person att-${p.attitude}">
-          <span class="att-dot" title="${ATTITUDE_NAME[p.attitude]}"></span>
+        <ul class="people-list">${[...w.people].sort((a, b) => b.seen - a.seen).map((p) => html`<li class="person att-${p.attitude} ${p.portrait ? "has-face" : ""}">
+          ${p.portrait ? face(p.portrait, p.name, "user") : html`<span class="att-dot" title="${ATTITUDE_NAME[p.attitude]}"></span>`}
           <span class="person-text"><b>${p.name}</b><small>${p.role}${p.role ? " · " : ""}${ATTITUDE_NAME[p.attitude]}</small>${p.notes.length ? html`<em>${p.notes.at(-1)}</em>` : ""}</span>
         </li>`)}</ul>
       </details>` : ""}

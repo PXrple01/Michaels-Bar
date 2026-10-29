@@ -84,9 +84,9 @@ export function gate(accessCode: string | undefined, secret: string | undefined,
 }
 
 /** Vorlesen oder Musik: JSON-Antwort mit dem Ton-Link. */
-async function audioJson(claude: Claude, kind: "tts" | "music", arg: unknown, who: string): Promise<{ status: number; body: unknown }> {
+async function audioJson(claude: Claude, kind: "tts" | "music", arg: unknown, who: string, segments?: unknown): Promise<{ status: number; body: unknown }> {
   try {
-    return { status: 200, body: kind === "tts" ? await claude.speak(arg, who) : await claude.music(arg, who) };
+    return { status: 200, body: kind === "tts" ? await claude.speak(arg, who, segments) : await claude.music(arg, who) };
   } catch (e) {
     if (e instanceof LimitError) return { status: 429, body: { error: e.message } };
     return { status: 502, body: { error: (e as Error).message } };
@@ -115,7 +115,7 @@ export function mountGm(app: Express, claude: () => Claude, accessCode: string |
   app.post(["/api/tts", "/api/music/:mood"], async (req: Request, res) => {
     const g = gateOf(req);
     if (!g.ok) return void res.status(403).json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" });
-    const r = req.path === "/api/tts" ? await audioJson(claude(), "tts", req.body?.text, g.who) : await audioJson(claude(), "music", req.params.mood, g.who);
+    const r = req.path === "/api/tts" ? await audioJson(claude(), "tts", req.body?.text, g.who, req.body?.segments) : await audioJson(claude(), "music", req.params.mood, g.who);
     res.status(r.status).json(r.body);
   });
   app.post("/api/portrait", async (req: Request, res) => {
@@ -186,9 +186,9 @@ export async function handleGmRequest(req: Request | globalThis.Request, claude:
   const who = g.who;
   if ((path === "/api/tts" || path.startsWith("/api/music/")) && request.method === "POST") {
     if (!g.ok) return Response.json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" }, { status: 403 });
-    let body: { text?: unknown } | null = null;
+    let body: { text?: unknown; segments?: unknown } | null = null;
     try { body = await request.json(); } catch { /* leer */ }
-    const r = path === "/api/tts" ? await audioJson(claude, "tts", body?.text, who) : await audioJson(claude, "music", path.split("/").pop(), who);
+    const r = path === "/api/tts" ? await audioJson(claude, "tts", body?.text, who, body?.segments) : await audioJson(claude, "music", path.split("/").pop(), who);
     return Response.json(r.body, { status: r.status });
   }
   if (path === "/api/portrait" && request.method === "POST") {

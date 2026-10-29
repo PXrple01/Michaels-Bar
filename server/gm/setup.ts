@@ -9,7 +9,7 @@ import { MemoryPartyStore, PartyService, type PartyStore } from "./party";
 import { UsageGuard, type CounterStore } from "./usage";
 import { ImageMaker, MemoryImageStore, type ImageStore } from "../images";
 import { portraitPrompt } from "./portrait";
-import { AudioMaker, isMood } from "../audio";
+import { AudioMaker, isMood, type Segment } from "../audio";
 import { resolveCharacter } from "../characters";
 
 export interface GmEnv {
@@ -39,7 +39,7 @@ export interface Claude {
   /** Figurenporträt: Claude schreibt die Bildbeschreibung, fal.ai malt (prüft die Figur, bucht die Kosten). */
   portrait(raw: unknown, who: string): Promise<{ url: string; costUsd: number; claudeUsd: number }>;
   /** Vorlesen und Stimmungsmusik (prüfen Budget und buchen die Kosten). */
-  speak(text: unknown, who: string): Promise<{ url: string; costUsd: number }>;
+  speak(text: unknown, who: string, segments?: unknown): Promise<{ url: string; costUsd: number }>;
   music(mood: unknown, who: string): Promise<{ url: string; costUsd: number }>;
 }
 
@@ -56,10 +56,11 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
     gm,
     images,
     audio,
-    async speak(text, who) {
-      if (typeof text !== "string" || !text.trim()) throw new Error("Kein Text zum Vorlesen.");
+    async speak(text, who, segments) {
+      const segs = Array.isArray(segments) ? segments.filter((s): s is Segment => !!s && typeof (s as Segment).text === "string") : null;
+      if (!segs?.length && (typeof text !== "string" || !text.trim())) throw new Error("Kein Text zum Vorlesen.");
       await guard.check(who);
-      const r = await audio.speak(text);
+      const r = segs?.length ? await audio.speakSegments(segs) : await audio.speak(String(text));
       if (r.costUsd) await guard.addUsd(r.costUsd);
       return r;
     },

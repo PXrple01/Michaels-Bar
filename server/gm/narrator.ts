@@ -79,7 +79,7 @@ export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
 /** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo; 11 = Tageszeit und Wetter; 12 = Inventar und Geld; 13 = Händler und Schmied; 14 = Personenverzeichnis; 15 = Karte. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 18;
+export const TOOLSET = 19;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
@@ -96,7 +96,7 @@ const IMAGE_PROMPT_MODEL: ModelId = "claude-haiku-5-5";
 export const chapterMark = (w: WorldState) => (w.arc?.plan ? `${w.arc.current}:${w.arc.chapters[w.arc.current]?.titel ?? ""}` : "");
 const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
-const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "ort", "person", "laden", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
+const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "begleiter", "geruecht", "ort", "person", "laden", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
@@ -196,11 +196,12 @@ export class Narrator {
     // Ortswechsel (Claude hat mit ort einen anderen Ort gemeldet): Bild vom neuen Ort
     const moved = o.placeBefore !== undefined && !!world.map?.current && world.map.current !== o.placeBefore;
     const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved);
-    const [scene, map] = await Promise.all([
+    const [scene, map, faces] = await Promise.all([
       due ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
       this.mapBackground(world),
+      this.npcPortraits(world),
     ]);
-    return { imageUsd: scene.imageUsd + map, claudeUsd: scene.claudeUsd };
+    return { imageUsd: scene.imageUsd + map + faces, claudeUsd: scene.claudeUsd };
   }
 
   private async autoScene(o: { mark: string; first: boolean; narration: string; scene: Scene }): Promise<{ imageUsd: number; claudeUsd: number }> {
@@ -237,6 +238,29 @@ export class Narrator {
       console.error("[Bilder]", (e as Error).message);
       return { imageUsd: 0, claudeUsd };
     }
+  }
+
+  /** Porträts für wichtige Personen, Begleiter und besondere Gegner, deren Aussehen Claude angegeben hat (höchstens 3 je Zug). */
+  private async npcPortraits(world: WorldState): Promise<number> {
+    type Holder = { name: string; look?: string; portrait?: string };
+    const faces: { who: Holder; role: string }[] = [
+      ...(world.companions ?? []).map((c) => ({ who: c as Holder, role: c.role })),
+      ...(world.people ?? []).map((p) => ({ who: p as Holder, role: p.role })),
+      ...(world.combat?.enemies ?? []).map((e) => ({ who: e as Holder, role: "" })),
+    ].filter((f) => f.who.look && !f.who.portrait).slice(0, 3);
+    const enemyIds = new Set((world.combat?.enemies ?? []).map((e) => e.name));
+    const costs = await Promise.all(faces.map(async ({ who, role }) => {
+      try {
+        const kind = enemyIds.has(who.name) && !role ? "a dangerous medieval adversary" : `a medieval ${role || "person"}`;
+        const { url, costUsd: usd } = await this.o.images!.make(`Head-and-shoulders portrait of ${kind}, looking at the viewer, plain dark background. ${who.look}`, "portrait_4_3");
+        who.portrait = url;
+        // Gleiche Person auch an den anderen Stellen (ein Begleiter steht oft auch im Personenverzeichnis)
+        for (const g of [...(world.people ?? []), ...(world.companions ?? [])]) if (g.name.toLowerCase() === who.name.toLowerCase() && !g.portrait) g.portrait = url;
+        await this.o.guard.addUsd(usd);
+        return usd;
+      } catch (e) { console.error("[Bilder] Porträt", who.name, (e as Error).message); who.look = undefined; return 0; }
+    }));
+    return costs.reduce((a, b) => a + b, 0);
   }
 
   /** Kartenhintergrund: einmal je Kampagne, sobald es Orte gibt – eine alte, gemalte Landkarte der Gegend (ohne Schrift). */

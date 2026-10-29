@@ -5,13 +5,14 @@ import type { WorldState } from "./world";
 export const ATTITUDES = ["freund", "neutral", "misstrauisch", "feind"] as const;
 export type Attitude = (typeof ATTITUDES)[number];
 export const ATTITUDE_NAME: Record<Attitude, string> = { freund: "Freund", neutral: "neutral", misstrauisch: "misstrauisch", feind: "Feind" };
-export interface Person { name: string; role: string; attitude: Attitude; notes: string[]; met: number; seen: number }
+/** `look`: Aussehen (englisch) für ein Porträt, `portrait`: das gemalte Bild – nur bei wichtigen Personen. */
+export interface Person { name: string; role: string; attitude: Attitude; notes: string[]; met: number; seen: number; look?: string; portrait?: string }
 
 export const MAX_PEOPLE = 40;
 const day = (w: WorldState) => w.time?.day ?? 1;
 
 /** Person anlegen oder aktualisieren. Bei vollem Verzeichnis fällt die am längsten nicht gesehene neutrale Person heraus. */
-export function upsertPerson(w: WorldState, p: { name: string; role?: string; attitude?: string; note?: string }): { person: Person; created: boolean } {
+export function upsertPerson(w: WorldState, p: { name: string; role?: string; attitude?: string; note?: string; look?: string }): { person: Person; created: boolean } {
   w.people ??= [];
   const name = p.name.trim().slice(0, 60);
   let person = w.people.find((x) => x.name.toLowerCase() === name.toLowerCase());
@@ -27,6 +28,7 @@ export function upsertPerson(w: WorldState, p: { name: string; role?: string; at
   if (p.role?.trim()) person.role = p.role.trim().slice(0, 80);
   if ((ATTITUDES as readonly string[]).includes(String(p.attitude))) person.attitude = p.attitude as Attitude;
   if (p.note?.trim()) person.notes = [...person.notes, p.note.trim().slice(0, 200)].slice(-5);
+  if (p.look?.trim() && !person.look) person.look = p.look.trim().slice(0, 300);
   person.seen = day(w);
   return { person, created };
 }

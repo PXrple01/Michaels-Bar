@@ -12,6 +12,10 @@ export const MAX_TTS_CHARS = 3000;
 const MUSIC_SECONDS = 40;
 /** Erzählerstimme (tiefe Männerstimme, ruhig) – mit deutscher Aussprache. */
 const NARRATOR_VOICE = "Deep_Voice_Man";
+/** Stimmen für wörtliche Rede (MiniMax-Systemstimmen). */
+export const VOICES = ["Deep_Voice_Man", "Young_Knight", "Determined_Man", "Patient_Man", "Elegant_Man", "Imposing_Manner", "Casual_Guy", "Wise_Woman", "Calm_Woman", "Abbess", "Lively_Girl", "Friendly_Person"] as const;
+export interface Segment { text: string; voice?: string }
+const MAX_SEGMENTS = 16;
 
 /** Stimmungen und wie sie klingen sollen (instrumental, als Schleife spielbar). */
 export const MOODS = {
@@ -55,15 +59,44 @@ export class AudioMaker {
     return { type: type.startsWith("audio/") ? type : fallbackType, bytes: new Uint8Array(await r.arrayBuffer()) };
   }
 
+  /**
+   * Vorlesen mit Figurenstimmen: Abschnitte (Erzählung, wörtliche Rede) mit je eigener Stimme, hintereinandergehängt.
+   * Gleiche Abschnitte werden wiederverwendet – nochmal anhören kostet nichts.
+   */
+  async speakSegments(segments: Segment[]): Promise<{ url: string; costUsd: number }> {
+    const segs = segments.map((s) => ({ text: s.text.replace(/\s+/g, " ").trim(), voice: (VOICES as readonly string[]).includes(String(s.voice)) ? String(s.voice) : NARRATOR_VOICE }))
+      .filter((s) => s.text.length >= 1).slice(0, MAX_SEGMENTS);
+    let budget = MAX_TTS_CHARS;
+    for (const s of segs) { s.text = s.text.slice(0, Math.max(0, budget)); budget -= s.text.length; }
+    const parts = segs.filter((s) => s.text.length);
+    if (!parts.length) throw new Error("Kein Text zum Vorlesen.");
+    if (parts.length === 1) return this.speak(parts[0].text, parts[0].voice);
+    const id = `tts-${createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 32)}`;
+    if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
+    let cost = 0;
+    const files: Uint8Array[] = [];
+    for (const p of parts) { // nacheinander: fal.ai-Grenzen schonen, Reihenfolge bleibt
+      const r = await this.speak(p.text, p.voice);
+      cost += r.costUsd;
+      const f = await this.o.store.get(r.url.split("/").pop()!);
+      if (f) files.push(f.bytes);
+    }
+    const all = new Uint8Array(files.reduce((n, f) => n + f.length, 0));
+    let off = 0;
+    for (const f of files) { all.set(f, off); off += f.length; }
+    await this.o.store.put(id, { type: "audio/mpeg", bytes: all });
+    return { url: `/api/images/${id}`, costUsd: cost };
+  }
+
   /** Text vorlesen. Gleicher Text = gleiche Datei (keine erneuten Kosten). */
-  async speak(text: string): Promise<{ url: string; costUsd: number }> {
+  async speak(text: string, voice: string = NARRATOR_VOICE): Promise<{ url: string; costUsd: number }> {
     const clean = text.replace(/\s+/g, " ").trim().slice(0, MAX_TTS_CHARS);
-    if (clean.length < 2) throw new Error("Kein Text zum Vorlesen.");
-    const id = `tts-${createHash("sha256").update(`${NARRATOR_VOICE}|${clean}`).digest("hex").slice(0, 32)}`;
+    if (clean.length < 1) throw new Error("Kein Text zum Vorlesen.");
+    const id = `tts-${createHash("sha256").update(`${voice}|${clean}`).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     const out = await this.run(TTS_MODEL, {
       prompt: clean,
-      voice_setting: { voice_id: NARRATOR_VOICE, speed: 0.95, vol: 1 },
+      voice_setting: { voice_id: voice, speed: 0.95, vol: 1 },
       language_boost: "German",
       audio_setting: { format: "mp3", sample_rate: 24000, bitrate: 64000, channel: 1 },
       output_format: "url",
