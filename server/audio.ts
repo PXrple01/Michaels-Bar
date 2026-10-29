@@ -50,7 +50,9 @@ export class AudioMaker {
   private async download(url: string, fallbackType: string): Promise<StoredImage> {
     const r = await (this.o.fetch ?? fetch)(url, { signal: AbortSignal.timeout(30_000) });
     if (!r.ok) throw new Error("Ton konnte nicht geladen werden.");
-    return { type: r.headers.get("content-type") ?? fallbackType, bytes: new Uint8Array(await r.arrayBuffer()) };
+    // Manche Speicher liefern „application/octet-stream“ – dann die bekannte Art nehmen, damit Browser abspielen
+    const type = r.headers.get("content-type") ?? "";
+    return { type: type.startsWith("audio/") ? type : fallbackType, bytes: new Uint8Array(await r.arrayBuffer()) };
   }
 
   /** Text vorlesen. Gleicher Text = gleiche Datei (keine erneuten Kosten). */

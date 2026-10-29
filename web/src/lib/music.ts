@@ -15,7 +15,8 @@ let blocked = false;
 function fetchUrl(mood: Mood): Promise<string | null> {
   if (!urls.has(mood)) {
     urls.set(mood, fetch(`/api/music/${mood}`, { method: "POST", headers: { "x-access-code": accessCode(), "x-session": sessionToken() } })
-      .then((r) => (r.ok ? r.json() : null)).then((d) => (d?.url as string) ?? null)
+      .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) console.warn("[Musik]", d.error ?? r.status); return r.ok ? d : null; })
+      .then((d) => (d?.url as string) ?? null)
       .catch(() => null)
       .then((u) => { if (!u) urls.delete(mood); return u; }));
   }
@@ -46,7 +47,13 @@ async function apply() {
   audio.volume = 0;
   playing = { mood, audio };
   try { await audio.play(); blocked = false; fade(audio, VOLUME); }
-  catch { blocked = true; } // Browser erlaubt Ton erst nach einer Berührung – siehe unten
+  catch (e) {
+    if ((e as DOMException).name === "NotAllowedError") blocked = true; // Browser erlaubt Ton erst nach einer Berührung – siehe unten
+    else { // Datei (noch) nicht abrufbar: gleich nochmal versuchen
+      playing = null;
+      setTimeout(() => void apply(), 2500);
+    }
+  }
 }
 
 /** Musik für diese Szene (null = aus, z. B. beim Verlassen des Abenteuers). */

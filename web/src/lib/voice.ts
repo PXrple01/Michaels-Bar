@@ -49,9 +49,12 @@ document.addEventListener("click", async (e) => {
       cache.set(text, url);
     }
     if (current?.audio !== audio) return; // inzwischen gestoppt
-    audio.src = url;
     audio.addEventListener("ended", () => { if (current?.audio === audio) stop(); });
-    await audio.play();
+    // Frisch gespeicherte Dateien sind manchmal erst nach einem Moment abrufbar: bis zu dreimal versuchen
+    for (let i = 0; ; i++) {
+      try { audio.src = `${url}${i ? `${url.includes("?") ? "&" : "?"}r=${i}` : ""}`; await audio.play(); break; }
+      catch (e) { if (i >= 2 || current?.audio !== audio) throw e; await new Promise((r) => setTimeout(r, 1500)); }
+    }
     button.classList.remove("loading");
     button.classList.add("playing");
     button.querySelector("span")!.textContent = "Stopp";

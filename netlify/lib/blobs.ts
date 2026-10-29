@@ -79,7 +79,8 @@ export class BlobAccountStore implements AccountStore {
 
 /** Gemalte Bilder (Szenen und Porträts) – die Art steht in den Metadaten. */
 export class BlobImageStore implements ImageStore {
-  private get store() { return getStore({ name: "images" }); }
+  // Stark konsistent: eine gerade gespeicherte Datei (Vorlesen, Musik) ist sofort abrufbar
+  private get store() { return getStore({ name: "images", consistency: "strong" }); }
   async put(id: string, img: StoredImage) {
     await this.store.set(id, new Uint8Array(img.bytes).buffer, { metadata: { type: img.type } });
   }
