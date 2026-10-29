@@ -1,4 +1,4 @@
-// Bilder über fal.ai (Z-Image Turbo, ca. 0,5 Cent pro Bild): Szenenbilder, wenn Claude eines vorschlägt, und Figurenporträts.
+// Bilder über fal.ai (FLUX.2 [dev], ca. 1,2 Cent pro Bild): Szenenbilder, wenn Claude eines vorschlägt, und Figurenporträts.
 // Der Schlüssel (FAL_KEY) bleibt auf dem Server. Die fertigen Bilder speichern wir selbst (Netlify Blobs bzw. Ordner),
 // damit sie nicht verschwinden, wenn fal.ai seine Kopie löscht.
 import { randomBytes } from "node:crypto";
@@ -32,9 +32,9 @@ export class FileImageStore implements ImageStore {
 
 /** Gültige Bild-IDs (auch als Dateiname sicher). */
 export const IMAGE_ID = /^[a-z0-9-]{6,80}$/;
-export const IMAGE_MODEL = "fal-ai/z-image/turbo";
-/** Preis laut fal.ai: 0,005 $ pro angefangenem Megapixel. */
-const USD_PER_MP = 0.005;
+export const IMAGE_MODEL = "fal-ai/flux-2";
+/** Preis laut fal.ai: ca. 0,012 $ pro angefangenem Megapixel. */
+const USD_PER_MP = 0.012;
 
 /** Einheitlicher Stil, damit alle Bilder zusammenpassen. */
 const STYLE = "Dark medieval fantasy oil painting, painterly brushwork, dramatic chiaroscuro, warm ember and candle light against deep shadows, muted earthy palette with deep reds, Holy Roman Empire around 1400, detailed, cinematic composition. No text, no letters, no watermark, no frame.";

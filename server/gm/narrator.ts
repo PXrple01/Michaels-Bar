@@ -208,7 +208,7 @@ export class Narrator {
         const msg = await this.o.llm.stream({
           ...requestBase(IMAGE_PROMPT_MODEL, "low"),
           max_tokens: 400,
-          system: [{ type: "text", text: "You write prompts for an image model that paints scenes of a medieval role-playing game (Holy Roman Empire, around 1400). From the German narration, pick the most striking moment and answer in exactly two lines:\nCAPTION: a German caption of 2–5 words\nPROMPT: 2–4 English sentences describing it as one picture – place, light, weather, time of day, important figures with appearance and clothing, mood. No names, no text, no style instructions." }],
+          system: [{ type: "text", text: "You write prompts for an image model that paints scenes of a medieval role-playing game (Holy Roman Empire, around 1400). From the German narration, pick the most striking moment and answer in exactly two lines (keep the picture simple: one clear focal point, at most two or three figures, no crowds):\nCAPTION: a German caption of 2–5 words\nPROMPT: 2–4 English sentences describing it as one picture – place, light, weather, time of day, important figures with appearance and clothing, mood. No names, no text, no style instructions." }],
           messages: [{ role: "user", content: `${world.time ? `Time: ${world.time.phase}, weather: ${world.time.weather}.\n` : ""}Narration:\n${story.slice(-3000)}` }],
         }, () => {}, AbortSignal.timeout(15_000));
         await this.o.guard.record(msg.usage, IMAGE_PROMPT_MODEL);
@@ -303,7 +303,7 @@ export class Narrator {
       input_schema: {
         type: "object",
         properties: {
-          motiv: { type: "string", description: "Bildbeschreibung auf ENGLISCH, 1–3 Sätze: was man sieht (Ort, Licht, Wetter, Tageszeit, wichtige Personen mit Aussehen und Kleidung, Stimmung). Keine Namen, keine Schrift. Den Malstil legt der Server fest." },
+          motiv: { type: "string", description: "Bildbeschreibung auf ENGLISCH, 1–3 Sätze: ein klarer Bildmittelpunkt mit höchstens zwei bis drei Figuren (Aussehen, Kleidung, Haltung), dazu Ort, Licht, Wetter, Tageszeit und Stimmung. Keine Menschenmengen, keine Namen, keine Schrift. Den Malstil legt der Server fest." },
           titel: { type: "string", description: "Bildunterschrift auf Deutsch, 2–6 Wörter" },
         },
         required: ["motiv", "titel"],

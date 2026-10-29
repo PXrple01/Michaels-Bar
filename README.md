@@ -208,7 +208,7 @@ Zweimal pro Kampagne entwickelt sich eine Fähigkeit weiter (`shared/upgrades.ts
 
 ## Bilder (fal.ai)
 
-Mit einem fal.ai-Schlüssel malt die Seite Bilder (`server/images.ts`, Modell **Z-Image Turbo**, ca. 0,5 Cent pro Bild):
+Mit einem fal.ai-Schlüssel malt die Seite Bilder (`server/images.ts`, Modell **FLUX.2 [dev]**, ca. 1,2 Cent pro Bild):
 
 - **Szenenbilder:** Claude ruft das Werkzeug `bild` auf, wenn ein Moment ein Bild verdient (eindrucksvoller Ort, wichtige
   Person, Wendepunkt). Das Bild erscheint nach dem Text in der Erzählung; antippen zeigt es groß.

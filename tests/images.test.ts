@@ -12,11 +12,11 @@ describe("Bilder (fal.ai)", () => {
       return (falReply(1024, 768) as unknown as () => Promise<Response>)();
     }) as unknown as typeof fetch });
     const { url, costUsd } = await maker.make("A castle at dusk", "landscape_4_3");
-    expect(sent!.url).toBe("https://fal.run/fal-ai/z-image/turbo");
+    expect(sent!.url).toBe("https://fal.run/fal-ai/flux-2");
     expect(sent!.auth).toBe("Key k-123");
     expect(sent!.body).toMatchObject({ image_size: "landscape_4_3", sync_mode: true, output_format: "webp" });
     expect(String(sent!.body.prompt)).toContain("A castle at dusk");
-    expect(costUsd).toBe(0.005);
+    expect(costUsd).toBe(0.012);
     const id = url.match(/\/api\/images\/([^?]+)/)![1];
     const res = await serveImage(store, id);
     expect(res.status).toBe(200);
@@ -87,17 +87,17 @@ describe("Bild bei jedem Zug und gemalter Kartenhintergrund", async () => {
     const shown: string[] = [];
     const scene = { characters: [hagen], data, world, onRoll: () => {}, onImage: (i: { caption: string }) => shown.push(i.caption) };
     const start = await narrator.imageIfDue({ mark: "", first: true, painted: false, narration, scene });
-    expect(start.imageUsd).toBe(0.005);
+    expect(start.imageUsd).toBe(0.012);
     expect(start.claudeUsd).toBeGreaterThan(0);
     world.arc = { ...world.arc!, plan: { ziel: "z", bedrohung: "b" }, chapters: [{ titel: "Der Galgen", ziel: "", act: 0, detour: false, rueckweg: null, done: false, rueckblick: null }, { titel: "Die Mühle", ziel: "", act: 0, detour: false, rueckweg: null, done: false, rueckblick: null }], current: 0 };
     const mark = chapterMark(world);
     // Gleiches Kapitel: trotzdem ein Bild, Unterschrift von Claude
-    expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.005);
+    expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.012);
     // Claude hat schon ein Bild bestellt: keines zusätzlich
     world.arc.current = 1;
     expect((await narrator.imageIfDue({ mark, first: false, painted: true, narration, scene })).imageUsd).toBe(0);
     // Neues Kapitel: Kapiteltitel als Unterschrift
-    expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.005);
+    expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.012);
     expect(shown).toEqual(["Der Anfang", "Nebel am Galgen", "Die Mühle"]);
   });
 
@@ -107,7 +107,7 @@ describe("Bild bei jedem Zug und gemalter Kartenhintergrund", async () => {
     const scene = { characters: [hagen], data, world, onRoll: () => {} };
     sizes = [];
     const first = await narrator.imageIfDue({ mark: "", first: false, painted: true, narration, scene });
-    expect(first.imageUsd).toBe(0.005);
+    expect(first.imageUsd).toBe(0.012);
     expect(world.map!.bg).toMatch(/^\/api\/images\//);
     expect(sizes).toEqual([{ width: 992, height: 992 }]);
     expect((await narrator.imageIfDue({ mark: "", first: false, painted: true, narration, scene })).imageUsd).toBe(0);
