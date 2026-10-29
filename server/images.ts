@@ -34,7 +34,9 @@ export class FileImageStore implements ImageStore {
 export const IMAGE_ID = /^[a-z0-9-]{6,80}$/;
 export const IMAGE_MODEL = "fal-ai/flux-2";
 /** Mit Referenzbildern (Porträts der Figuren, bis zu 4): gleiche Gesichter, Haare und Kleidung in der Szene. */
-export const IMAGE_EDIT_MODEL = "fal-ai/flux-2/edit";
+export const IMAGE_EDIT_MODEL = "fal-ai/flux-2-pro/edit";
+/** FLUX.2 [pro] edit (Richtwert): 0,03 $ für das erste Megapixel, 0,015 $ je weiteres – Referenzbilder zählen mit. */
+const PRO_FIRST_MP = 0.03, PRO_EXTRA_MP = 0.015;
 /** Preis laut fal.ai: ca. 0,012 $ pro angefangenem Megapixel. */
 const USD_PER_MP = 0.012;
 
@@ -101,9 +103,10 @@ export class ImageMaker {
     const finalId = id ?? `img-${randomBytes(9).toString("hex")}`;
     await this.o.store.put(finalId, stored);
     // Referenzbilder werden wie zusätzliche Megapixel berechnet (je Porträt knapp 1 MP)
-    const mp = Math.max(1, Math.ceil(((img.width ?? 1024) * (img.height ?? 768)) / 1_000_000)) + refs.length;
+    const outMp = Math.max(1, Math.ceil(((img.width ?? 1024) * (img.height ?? 768)) / 1_000_000));
+    const cost = refs.length ? PRO_FIRST_MP + (outMp - 1 + refs.length) * PRO_EXTRA_MP : outMp * USD_PER_MP;
     // Version im Link: ein neu gemaltes Porträt unter derselben ID wird nicht aus dem Browser-Zwischenspeicher genommen
-    return { url: `/api/images/${finalId}?v=${Date.now().toString(36)}`, costUsd: mp * USD_PER_MP };
+    return { url: `/api/images/${finalId}?v=${Date.now().toString(36)}`, costUsd: cost };
   }
 }
 

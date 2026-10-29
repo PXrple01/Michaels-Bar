@@ -137,10 +137,10 @@ describe("Porträts als Referenz für Szenenbilder", () => {
     let sent: { url: string; body: Record<string, unknown> } | null = null;
     const maker = new ImageMaker({ key: "k", store, fetch: (async (url: string, init: RequestInit) => { sent = { url, body: JSON.parse(String(init.body)) }; return (falReply(1024, 768) as unknown as () => Promise<Response>)(); }) as unknown as typeof fetch });
     const r = await maker.make("A warrior at a well", "landscape_4_3", undefined, { refs: [{ characterId: "hagen", label: "Hagen, a Ritter" }, { characterId: "ohne-portraet", label: "X" }] });
-    expect(sent!.url).toBe("https://fal.run/fal-ai/flux-2/edit");
+    expect(sent!.url).toBe("https://fal.run/fal-ai/flux-2-pro/edit");
     expect(sent!.body.image_urls).toEqual([`data:image/webp;base64,${Buffer.from("PORTRAIT").toString("base64")}`]);
     expect(String(sent!.body.prompt)).toContain("The person in image 1 is Hagen, a Ritter.");
-    expect(r.costUsd).toBeCloseTo(0.024, 5);
+    expect(r.costUsd).toBeCloseTo(0.045, 5);
   });
 
   it("schlägt die Referenz fehl, wird ohne gemalt", async () => {
@@ -149,7 +149,7 @@ describe("Porträts als Referenz für Szenenbilder", () => {
     const urls: string[] = [];
     const maker = new ImageMaker({ key: "k", store, fetch: (async (url: string) => { urls.push(url); return url.endsWith("/edit") ? new Response("nein", { status: 422 }) : (falReply(1024, 768) as unknown as () => Promise<Response>)(); }) as unknown as typeof fetch });
     const r = await maker.make("A warrior", "landscape_4_3", undefined, { refs: [{ characterId: "hagen", label: "Hagen" }] });
-    expect(urls).toEqual(["https://fal.run/fal-ai/flux-2/edit", "https://fal.run/fal-ai/flux-2"]);
+    expect(urls).toEqual(["https://fal.run/fal-ai/flux-2-pro/edit", "https://fal.run/fal-ai/flux-2"]);
     expect(r.costUsd).toBe(0.012);
   });
 });
