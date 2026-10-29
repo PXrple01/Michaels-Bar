@@ -44,6 +44,8 @@ export interface WorldState {
   time?: GameTime;
   /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
   sent?: { arc: string; turns: number; inv?: string; people?: string; map?: string };
+  /** Antworten seit dem letzten Szenenbild (spätestens jede dritte bekommt eins). */
+  imageGap?: number;
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */

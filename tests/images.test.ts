@@ -99,6 +99,12 @@ describe("Bild am Anfang von Kampagne und Kapitel, gemalter Kartenhintergrund", 
     // Neues Kapitel: Kapiteltitel als Unterschrift
     expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.012);
     expect(shown).toEqual(["Der Anfang", "Die Mühle"]);
+    // Spätestens jede dritte Antwort: zwei ohne Bild, die dritte malt der Server
+    const m2 = chapterMark(world);
+    expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene })).imageUsd).toBe(0);
+    expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene })).imageUsd).toBe(0);
+    expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene })).imageUsd).toBe(0.012);
+    expect(world.imageGap).toBe(0);
   });
 
   it("Kartenhintergrund einmal je Kampagne, sobald es Orte gibt", async () => {
