@@ -446,7 +446,7 @@ export function partyPage(): Page {
         // Wartet die Gruppe auf den Wurf eines anderen, öfter nachsehen – sonst kommt dessen Würfelanimation spät an
         const othersRoll = !!view?.pendings.some((c) => c.playerId !== me.playerId);
         if (othersRoll) getStage(); // 3D-Würfelbühne schon vorbereiten
-        timer = window.setTimeout(poll, document.hidden ? 8000 : othersRoll ? 1000 : view?.busy ? 1500 : 3500);
+        timer = window.setTimeout(poll, document.hidden ? 15000 : othersRoll ? 1000 : view?.busy ? 1500 : 3500);
       }
 
       function handle(ev: PartyEvent) {

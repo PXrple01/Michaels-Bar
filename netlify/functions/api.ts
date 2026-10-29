@@ -13,8 +13,12 @@ export default async (req: Request) => {
   if (req.method !== "GET" && req.method !== "HEAD") {
     try { body = await req.json(); } catch { return Response.json({ error: "Ungültiges JSON" }, { status: 400 }); }
   }
-  const result = await handleApi(req.method, new URL(req.url).pathname, body, deps);
-  return Response.json(result.body, { status: result.status });
+  const path = new URL(req.url).pathname;
+  const result = await handleApi(req.method, path, body, deps);
+  // Regeln und Einstellungen ändern sich nur mit einer neuen Veröffentlichung (die leert den Zwischenspeicher):
+  // im Netlify-Zwischenspeicher halten statt bei jedem Seitenaufruf die Funktion zu starten.
+  const cacheable = req.method === "GET" && result.status === 200 && (path === "/api/rules" || path === "/api/config");
+  return Response.json(result.body, { status: result.status, headers: cacheable ? { "cache-control": "public, max-age=300", "netlify-cdn-cache-control": "public, max-age=86400, durable" } : {} });
 };
 
 export const config: Config = {

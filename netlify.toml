@@ -8,3 +8,9 @@
 # Die Pfade der Funktionen stehen direkt in den Dateien (export const config):
 #   netlify/functions/api.ts → /api/rules, /api/characters, /api/rolls, …
 #   netlify/functions/gm.ts  → /api/campaign/* (Spielleiter, gestreamt)
+
+# Gebaute Dateien haben einen Prüfwert im Namen und ändern sich nie: lange im Browser halten (spart Anfragen)
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

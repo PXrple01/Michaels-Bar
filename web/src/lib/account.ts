@@ -79,7 +79,8 @@ function markDirty(key: string) {
   const d = dirty(); d.add(key); setDirty(d);
   setState("saving");
   clearTimeout(timer);
-  timer = window.setTimeout(() => void flush(), 1200);
+  // Mehrere Speichervorgänge kurz hintereinander zusammenfassen (beim Verlassen der Seite wird sofort gespeichert)
+  timer = window.setTimeout(() => void flush(), 4000);
 }
 
 /** Alle offenen Änderungen an den Server schicken. */

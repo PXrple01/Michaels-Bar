@@ -90,7 +90,14 @@ export async function serveImage(store: ImageStore, id: string): Promise<Respons
   if (!IMAGE_ID.test(id)) return new Response("Not found", { status: 404 });
   const img = await store.get(id);
   if (!img) return new Response("Not found", { status: 404, headers: { "cache-control": "no-store" } });
-  return new Response(new Uint8Array(img.bytes), { headers: { "content-type": img.type, "cache-control": "public, max-age=31536000, immutable" } });
+  // Szenenbilder ändern sich nie: ein Jahr im Browser und dauerhaft im Netlify-Zwischenspeicher (spart Funktionsaufrufe).
+  // Porträts können neu gemalt werden (gleiche ID): nur kurz zwischenspeichern, Version im Link unterscheidet sie.
+  const portrait = id.startsWith("portrait-");
+  return new Response(new Uint8Array(img.bytes), {
+    headers: portrait
+      ? { "content-type": img.type, "cache-control": "public, max-age=300", "netlify-cdn-cache-control": "public, max-age=300, stale-while-revalidate=600", "netlify-vary": "query" }
+      : { "content-type": img.type, "cache-control": "public, max-age=31536000, immutable", "netlify-cdn-cache-control": "public, max-age=31536000, immutable, durable" },
+  });
 }
 
 /** Bildbeschreibung für ein Figurenporträt (Aussehen und Persönlichkeit dürfen deutsch sein – das Modell versteht beides). */
