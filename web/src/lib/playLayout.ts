@@ -267,6 +267,10 @@ export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => 
 /** Inhalt einer Seitenleiste ersetzen, ohne den Auf-/Zu-Zustand der inneren Klappen (Auftragsbuch, Gepäck, Personen) zu verlieren. */
 export function fillSide(el: HTMLElement | null, content: Raw) {
   if (!el) return;
+  // Unverändert: nichts anfassen – sonst flackern Porträts und Animationen bei jeder Aktion
+  const box = el as HTMLElement & { _html?: string };
+  if (box._html === content.value) return;
+  box._html = content.value;
   const keyOf = (d: Element) => d.className;
   const open = new Map([...el.querySelectorAll<HTMLDetailsElement>(".side-body details")].map((d) => [keyOf(d), d.open]));
   const scroll = el.querySelector(".side-body")?.scrollTop ?? 0, outer = el.scrollTop;

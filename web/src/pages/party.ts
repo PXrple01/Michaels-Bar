@@ -15,7 +15,7 @@ import { enhance } from "../fx/effects";
 import { api, loadGameData, type GameData } from "../lib/api";
 import { campaignStore } from "../lib/campaigns";
 import { dataFor } from "../lib/customClasses";
-import { $, html, setHTML, type Raw } from "../lib/dom";
+import { $, fragment, html, raw, setHTML, type Raw } from "../lib/dom";
 import { term } from "../lib/glossary";
 import { icon, sigil } from "../lib/icons";
 import { memberships, partyApi, PartyApiError, type Membership } from "../lib/party";
@@ -249,7 +249,19 @@ export function partyPage(): Page {
         const live = busyLocal ? stripMarkers(liveLocal) : view.busy ? view.live : "";
         if (view.busy || busyLocal) parts.push(html`<div class="story-gm live ${firstGm ? "first" : ""}">${live ? withSpeech(paragraphs(live)) : ""}<span class="quill">${icon("feather")}</span></div>`.value);
         const nearBottom = innerHeight + scrollY > document.body.scrollHeight - 400;
-        storyEl.innerHTML = parts.join("");
+        // Nur geänderte Einträge neu zeichnen: Sonst spielen bei jeder Aktion alle Einblend-Animationen erneut
+        // und Bilder laden neu – die Seite wirkt, als würde sie neu geladen.
+        const nodes = [...storyEl.children] as (HTMLElement & { _html?: string })[];
+        parts.forEach((h, i) => {
+          const old = nodes[i];
+          if (old?._html === h) return;
+          const isLive = h.startsWith('<div class="story-gm live');
+          if (old && isLive && old.classList.contains("live")) { old.innerHTML = fragment(raw(h)).innerHTML; old._html = h; return; }
+          const el = fragment(raw(h)) as HTMLElement & { _html?: string };
+          el._html = h;
+          if (old) old.replaceWith(el); else storyEl.append(el);
+        });
+        nodes.slice(parts.length).forEach((n) => n.remove());
         if (nearBottom || firstLoad) window.scrollTo({ top: document.body.scrollHeight });
       }
 
@@ -336,6 +348,10 @@ export function partyPage(): Page {
         if (myChar && v.status === "playing" && !v.busy && !busyLocal && !v.world?.arc?.finished && levelChoiceDue(v.world, myChar.id, data.rules)) {
           content = html`${levelChoiceCard(v.world, myChar, dataFor(data, myChar).classes.find((x) => x.id === myChar.classId), data.rules)}${content}`;
         }
+        // Gleicher Inhalt (z. B. jemand anderes hat gehandelt, hier ändert sich nichts): nicht neu aufbauen
+        const below = belowEl as HTMLElement & { _html?: string };
+        if (below._html === content.value) { renderHud(); renderCost(); return; }
+        below._html = content.value;
         belowEl.innerHTML = content.value;
         const newTa = belowEl.querySelector<HTMLTextAreaElement>("#action");
         if (oldTa && newTa && (typing || (draft && oldTa.value === draft))) {
@@ -343,9 +359,14 @@ export function partyPage(): Page {
           if (typing) { oldTa.focus({ preventScroll: true }); oldTa.setSelectionRange(sel![0], sel![1]); }
         }
         renderHud();
-        if (v.budget || v.costUsd) { const b = $("#budget", root), chip = costChip({ claudeUsd: v.costUsd ?? 0, imageUsd: v.imageUsd ?? 0, lastUsd: v.lastTurnCostUsd, lastImageUsd: v.lastTurnImageUsd ?? null }, v.budget); b.hidden = false; b.textContent = chip.text; b.title = chip.title; }
+        renderCost();
         bindBelow();
         enhance(belowEl);
+      }
+
+      function renderCost() {
+        const v = view!;
+        if (v.budget || v.costUsd) { const b = $("#budget", root), chip = costChip({ claudeUsd: v.costUsd ?? 0, imageUsd: v.imageUsd ?? 0, lastUsd: v.lastTurnCostUsd, lastImageUsd: v.lastTurnImageUsd ?? null }, v.budget); b.hidden = false; b.textContent = chip.text; b.title = chip.title; }
       }
 
       /** Seitenleisten: links das Team (wer noch handeln muss, Lebenspunkte, Fähigkeiten), rechts Kampf und Kernauftrag. */
