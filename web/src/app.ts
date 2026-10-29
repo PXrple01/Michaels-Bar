@@ -6,7 +6,8 @@ import { showRecoveryCode } from "./lib/recoveryUi";
 import { toast } from "./lib/ui";
 import { icon } from "./lib/icons";
 import { route, startRouter } from "./lib/router";
-import { onSettings, settings, updateSettings } from "./lib/settings";
+import { onSettings, settings } from "./lib/settings";
+import { toggleVolumePanel } from "./lib/volume";
 import { initTooltips } from "./lib/ui";
 import { startCursorGlow, startEmbers } from "./fx/effects";
 import { clearDieCache } from "./dice3d/textures";
@@ -41,7 +42,7 @@ function logoMark() {
 }
 
 function renderChrome() {
-  const sound = settings().sound;
+  const s = settings(), sound = (s.sound && s.soundVolume > 0) || (s.music && s.musicVolume > 0);
   $("#topbar").innerHTML = html`
     <a class="logo" href="#/">${logoMark()}<span>The Last <span class="amp">Ember</span></span></a>
     <nav class="nav" aria-label="Hauptnavigation">
@@ -49,9 +50,9 @@ function renderChrome() {
     </nav>
     <a class="icon-btn sync-btn" href="#/einstellungen" id="sync-btn" title="${SYNC_TITLE[syncState()]}" aria-label="Konto: ${SYNC_TITLE[syncState()]}"><span class="sync-dot ${syncState()}"></span></a>
     <a class="icon-btn mobile-only" href="#/einstellungen" aria-label="Einstellungen" data-nav="settings">${icon("settings")}</a>
-    <button class="icon-btn" id="sound-btn" aria-label="${sound ? "Ton ausschalten" : "Ton einschalten"}" title="Würfelgeräusche">${icon(sound ? "sound" : "mute")}</button>`.value;
+    <button class="icon-btn" id="sound-btn" aria-label="Lautstärke" aria-haspopup="dialog" title="Lautstärke: Musik und Sounds">${icon(sound ? "sound" : "mute")}</button>`.value;
   $("#tabbar").innerHTML = html`${NAV.filter((n) => n.id !== "settings" && n.id !== "hall").map((n) => html`<a href="${n.href}" data-nav="${n.id}">${icon(n.icon)}<span>${n.id === "table" ? "Würfel" : n.id === "settings" ? "Optionen" : n.label}</span></a>`)}`.value;
-  $("#sound-btn").addEventListener("click", () => updateSettings({ sound: !settings().sound }));
+  $("#sound-btn").addEventListener("click", (e) => toggleVolumePanel(e.currentTarget as HTMLElement));
 }
 
 const SYNC_TITLE = { saved: "Im Konto gespeichert", saving: "Speichert im Konto …", offline: "Keine Verbindung – wird später gespeichert" } as const;

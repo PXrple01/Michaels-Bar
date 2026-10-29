@@ -6,7 +6,9 @@ import { sessionToken } from "./account";
 import { accessCode } from "./gm";
 import { settings, onSettings } from "./settings";
 
-const VOLUME = 0.32, FADE_MS = 1800;
+const FADE_MS = 1800;
+/** Ziel-Lautstärke nach dem Regler „Musik“ (60 % ≈ 0,36 – Hintergrund, die Erzählung soll vorn bleiben). */
+const volume = () => (settings().musicVolume / 100) * 0.6;
 
 const urls = new Map<Mood, Promise<string | null>>();
 let wanted: Mood | null = null, playing: { mood: Mood; audio: HTMLAudioElement } | null = null;
@@ -46,7 +48,7 @@ async function apply() {
   audio.loop = true;
   audio.volume = 0;
   playing = { mood, audio };
-  try { await audio.play(); blocked = false; fade(audio, VOLUME); }
+  try { await audio.play(); blocked = false; fade(audio, volume()); }
   catch (e) {
     if ((e as DOMException).name === "NotAllowedError") blocked = true; // Browser erlaubt Ton erst nach einer Berührung – siehe unten
     else { // Datei (noch) nicht abrufbar: gleich nochmal versuchen
@@ -64,6 +66,9 @@ export function setMusic(w: WorldState | null | undefined) {
 
 // Erst nach der ersten Berührung darf Ton spielen
 addEventListener("pointerdown", () => {
-  if (blocked && playing) { blocked = false; void playing.audio.play().then(() => fade(playing!.audio, VOLUME)).catch(() => { blocked = true; }); }
+  if (blocked && playing) { blocked = false; void playing.audio.play().then(() => fade(playing!.audio, volume())).catch(() => { blocked = true; }); }
 }, { passive: true });
-onSettings(() => void apply());
+onSettings(() => {
+  void apply();
+  if (playing && !blocked) playing.audio.volume = Math.min(1, volume());
+});

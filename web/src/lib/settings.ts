@@ -12,6 +12,9 @@ export interface Settings {
   sound: boolean;
   /** Stimmungsmusik im Abenteuer. */
   music: boolean;
+  /** Lautstärke der Musik und der Geräusche (Würfel, Fanfaren), je 0–100. */
+  musicVolume: number;
+  soundVolume: number;
   slowmo: boolean;
   backgroundFx: boolean;
   /** Wird automatisch gesetzt, wenn Würfe auf diesem Gerät ruckeln. */
@@ -27,6 +30,8 @@ const defaults = (): Settings => ({
   quality: "auto",
   sound: true,
   music: true,
+  musicVolume: 60,
+  soundVolume: 80,
   slowmo: true,
   backgroundFx: true,
   lowPerfDetected: false,

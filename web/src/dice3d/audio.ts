@@ -1,13 +1,22 @@
 // Würfelgeräusche, live mit der Web Audio API erzeugt (keine Audiodateien nötig).
 
+import { onSettings, settings } from "../lib/settings";
+
 let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
+/** Gesamtlautstärke aller Geräusche (Regler „Sounds“). */
+let out: GainNode | null = null;
+const level = () => settings().soundVolume / 100;
+onSettings(() => { if (out) out.gain.value = level(); });
 
 function ac(): AudioContext | null {
   if (!ctx) {
     const C = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!C) return null;
     ctx = new C();
+    out = ctx.createGain();
+    out.gain.value = level();
+    out.connect(ctx.destination);
     noise = ctx.createBuffer(1, ctx.sampleRate * 0.25, ctx.sampleRate);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
@@ -35,7 +44,7 @@ export function playImpact(kind: "table" | "wall" | "die", strength: number) {
   const g = a.createGain();
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === "die" ? 0.06 : 0.12));
-  src.connect(bp).connect(g).connect(a.destination);
+  src.connect(bp).connect(g).connect(out!);
   src.start(t);
   src.stop(t + 0.2);
   if (kind !== "die") {
@@ -47,7 +56,7 @@ export function playImpact(kind: "table" | "wall" | "die", strength: number) {
     const og = a.createGain();
     og.gain.setValueAtTime(vol * 0.6, t);
     og.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
-    o.connect(og).connect(a.destination);
+    o.connect(og).connect(out!);
     o.start(t);
     o.stop(t + 0.12);
   }
@@ -64,7 +73,7 @@ function tone(freq: number, start: number, dur: number, vol: number, type: Oscil
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(a.destination);
+  o.connect(g).connect(out!);
   o.start(t);
   o.stop(t + dur + 0.05);
   return o;

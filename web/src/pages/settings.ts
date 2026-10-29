@@ -1,4 +1,5 @@
 import { playCrit, playImpact, unlockAudio } from "../dice3d/audio";
+import { bindVolume, volumeRows } from "../lib/volume";
 import { rollWithOverlay } from "../dice3d/roller";
 import { DICE_THEMES } from "../dice3d/textures";
 import { enhance } from "../fx/effects";
@@ -79,11 +80,7 @@ export function settingsPage(): Page {
 
           <section class="card set-section" data-reveal>
             <h2>${icon("sound")} Ton</h2>
-            <div class="set-row">
-              <div><b>Würfelgeräusche</b><p>Klackern auf dem Tisch, Fanfare bei der 20.</p></div>
-              ${toggleSwitch("sound", s.sound, "Würfelgeräusche")}
-              ${toggleSwitch("music", s.music, "Musik im Abenteuer (passend zur Szene)")}
-            </div>
+            ${volumeRows()}
             <button class="btn btn-ghost btn-sm" id="test-sound">${icon("play")} Anhören</button>
           </section>
 
@@ -122,7 +119,7 @@ export function settingsPage(): Page {
       bindSegmented<Settings["animation"]>(root, "animation", (v) => updateSettings({ animation: v }));
       bindSegmented<Settings["quality"]>(root, "quality", (v) => updateSettings({ quality: v }));
       $$<HTMLElement>("[data-toggle]", root).forEach((t) => t.addEventListener("click", () => {
-        const key = t.dataset.toggle as "slowmo" | "backgroundFx" | "sound" | "music";
+        const key = t.dataset.toggle as "slowmo" | "backgroundFx";
         const on = t.getAttribute("aria-checked") !== "true";
         t.setAttribute("aria-checked", String(on));
         updateSettings({ [key]: on } as Partial<Settings>);
@@ -140,6 +137,7 @@ export function settingsPage(): Page {
       root.querySelector("#test-roll")?.addEventListener("click", () => {
         void rollWithOverlay("Probewurf", () => api.roll({ requestId: uuid(), notation: "1W20", label: "Probewurf" }));
       });
+      bindVolume(root.querySelector(".vol-rows")!);
       bindAccount(root);
       void renderBackups(root);
       void mountRecover(root);
