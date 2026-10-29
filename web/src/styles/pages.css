@@ -1480,3 +1480,14 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 .legacy-chip svg { width: 13px; height: 13px; }
 .hp-heirlooms { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; font-size: 0.86rem; color: var(--text-2); }
 .hp-heirlooms svg { width: 13px; height: 13px; color: var(--gold); vertical-align: -2px; }
+
+/* ───────────── Vorlesen ───────────── */
+.read-btn { display: none; align-items: center; gap: 6px; margin-top: -2px; padding: 4px 12px 4px 10px; border-radius: 999px; font: 600 0.78rem var(--font-body); color: var(--text-2); cursor: pointer;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); transition: color 0.2s, border-color 0.2s, background 0.2s; }
+body.fal-on .read-btn { display: inline-flex; }
+.read-btn svg { width: 14px; height: 14px; color: var(--purple-2); }
+.read-btn:hover { color: var(--text); border-color: var(--line-strong); }
+.read-btn.loading svg { animation: hp-pulse 1s ease-in-out infinite; }
+.read-btn.playing { color: var(--gold); border-color: rgba(245, 214, 138, 0.5); background: rgba(245, 214, 138, 0.08); }
+.read-btn.playing svg { color: var(--gold); }
+@media print { .read-btn { display: none !important; } }

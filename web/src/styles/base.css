@@ -236,3 +236,14 @@ body.calm #bg-embers { display: none; }
 :root[data-palette="glut"] .bg-nebula i:nth-child(3) { background: radial-gradient(circle, rgba(255, 90, 30, 0.22), transparent 65%); }
 @keyframes hearth { 0%, 100% { opacity: 0.75; transform: scaleY(1); } 35% { opacity: 1; transform: scaleY(1.08); } 55% { opacity: 0.6; transform: scaleY(0.96); } 80% { opacity: 0.9; transform: scaleY(1.04); } }
 body.calm .bg-nebula::after { animation: none; }
+
+/* Wetter: Regen/Schnee als Leinwand, Nebel als langsam ziehende Schleier (über dem Himmel, unter dem Inhalt) */
+.bg-weather { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+.bg-fog { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.bg-fog i { position: absolute; left: -50%; width: 200%; height: 60%; opacity: 0.5; filter: blur(30px);
+  background: radial-gradient(ellipse 30% 50% at 20% 50%, rgba(200, 200, 215, 0.12), transparent 70%), radial-gradient(ellipse 25% 40% at 60% 40%, rgba(200, 200, 215, 0.1), transparent 70%), radial-gradient(ellipse 30% 45% at 85% 60%, rgba(200, 200, 215, 0.11), transparent 70%);
+  animation: fog-drift 60s linear infinite; }
+.bg-fog i:nth-child(1) { top: 10%; }
+.bg-fog i:nth-child(2) { top: 45%; animation-duration: 90s; animation-direction: reverse; opacity: 0.35; }
+@keyframes fog-drift { from { transform: translateX(0); } to { transform: translateX(25%); } }
+@media print { .bg-weather, .bg-fog { display: none !important; } }

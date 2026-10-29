@@ -1,3 +1,6 @@
+import { setMusic } from "../lib/music";
+import { readButton } from "../lib/voice";
+import { setWeather } from "../lib/weather";
 import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
 import { costChip } from "../../../shared/campaign";
@@ -216,7 +219,7 @@ export function partyPage(): Page {
       const playerName = (id: string) => view?.players.find((p) => p.id === id)?.name ?? "?";
 
       function entry(e: PartyStoryEntry, firstGm: boolean): Raw {
-        if (e.type === "gm") return html`<div class="story-gm ${firstGm ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}</div>`;
+        if (e.type === "gm") return html`<div class="story-gm ${firstGm ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}${readButton()}</div>`;
         if (e.type === "roll") return rollSummary(e.record, e.auto);
         if (e.type === "info") return html`<div class="story-info">${e.text}</div>`;
         if (e.type === "image") return sceneFigure(e);
@@ -359,6 +362,8 @@ export function partyPage(): Page {
         fillSide(root.querySelector("#side-right"), lageSide(v.world));
         setMapData(root, v.world?.map);
         setSkyPhase(v.world?.time?.phase);
+        setWeather(v.world?.time?.weather);
+        setMusic(v.status === "playing" ? v.world : null);
         noteParty(v);
         noteLegacy(v.world, `gruppe-${v.code}`, v.opening ? v.opening.ort.charAt(0).toUpperCase() + v.opening.ort.slice(1) : `Gruppe ${v.code}`);
       }

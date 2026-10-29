@@ -9,6 +9,7 @@ import { MemoryPartyStore, PartyService, type PartyStore } from "./party";
 import { UsageGuard, type CounterStore } from "./usage";
 import { ImageMaker, MemoryImageStore, type ImageStore } from "../images";
 import { portraitPrompt } from "./portrait";
+import { AudioMaker, isMood } from "../audio";
 import { resolveCharacter } from "../characters";
 
 export interface GmEnv {
@@ -34,9 +35,12 @@ const pickModel = (v: string | undefined, fallback: ModelId, name = "GM_MODEL"):
 };
 
 export interface Claude {
-  gm: GameMaster; reviewer: ClassReviewer; party: PartyService; openai: OpenAiGateway; images: ImageMaker;
+  gm: GameMaster; reviewer: ClassReviewer; party: PartyService; openai: OpenAiGateway; images: ImageMaker; audio: AudioMaker;
   /** Figurenporträt: Claude schreibt die Bildbeschreibung, fal.ai malt (prüft die Figur, bucht die Kosten). */
   portrait(raw: unknown, who: string): Promise<{ url: string; costUsd: number; claudeUsd: number }>;
+  /** Vorlesen und Stimmungsmusik (prüfen Budget und buchen die Kosten). */
+  speak(text: unknown, who: string): Promise<{ url: string; costUsd: number }>;
+  music(mood: unknown, who: string): Promise<{ url: string; costUsd: number }>;
 }
 
 export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, counters: CounterStore, secret: string, parties: PartyStore = new MemoryPartyStore(), imageStore: ImageStore = new MemoryImageStore()): Claude {
@@ -46,9 +50,25 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   const model = pickModel(env.GM_MODEL, "claude-opus-5-5");
   const images = new ImageMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore });
   const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model, images });
+  const audio = new AudioMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore });
   return {
     gm,
     images,
+    audio,
+    async speak(text, who) {
+      if (typeof text !== "string" || !text.trim()) throw new Error("Kein Text zum Vorlesen.");
+      await guard.check(who);
+      const r = await audio.speak(text);
+      if (r.costUsd) await guard.addUsd(r.costUsd);
+      return r;
+    },
+    async music(mood, who) {
+      if (!isMood(mood)) throw new Error("Unbekannte Stimmung.");
+      await guard.check(who);
+      const r = await audio.music(mood);
+      if (r.costUsd) await guard.addUsd(r.costUsd);
+      return r;
+    },
     async portrait(raw, who) {
       if (!images.ready) throw new Error("Bilder sind nicht eingerichtet (FAL_KEY fehlt).");
       const { c, data: d } = resolveCharacter(raw, data(), secret);

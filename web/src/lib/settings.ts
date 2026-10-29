@@ -10,6 +10,8 @@ export interface Settings {
   animation: "full" | "short" | "off";
   quality: "auto" | "high" | "simple";
   sound: boolean;
+  /** Stimmungsmusik im Abenteuer. */
+  music: boolean;
   slowmo: boolean;
   backgroundFx: boolean;
   /** Wird automatisch gesetzt, wenn Würfe auf diesem Gerät ruckeln. */
@@ -24,6 +26,7 @@ const defaults = (): Settings => ({
   animation: matchMedia("(prefers-reduced-motion: reduce)").matches ? "short" : "full",
   quality: "auto",
   sound: true,
+  music: true,
   slowmo: true,
   backgroundFx: true,
   lowPerfDetected: false,

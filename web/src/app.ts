@@ -24,6 +24,7 @@ import { achievementsPage } from "./pages/achievements";
 import { hallPage } from "./pages/hall";
 import { chroniclePage } from "./pages/chronicle";
 import { scheduleAchievementCheck } from "./lib/achievements";
+import { imagesEnabled } from "./lib/portraits";
 
 const NAV = [
   { id: "home", href: "#/", label: "Start", icon: "home" },
@@ -101,6 +102,8 @@ document.body.classList.toggle("calm", !settings().backgroundFx);
 // Erfolge: beim Start und bei jedem Seitenwechsel prüfen (Speichern löst es zusätzlich aus)
 scheduleAchievementCheck();
 addEventListener("hashchange", scheduleAchievementCheck);
+// Vorlese-Knöpfe nur zeigen, wenn fal.ai eingerichtet ist
+void imagesEnabled().then((on) => document.body.classList.toggle("fal-on", on));
 
 // Kopfleiste beim Runterscrollen ausblenden, beim Hochscrollen zeigen
 let lastY = 0;

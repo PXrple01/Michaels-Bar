@@ -19,4 +19,4 @@ export default async (req: Request, context: Context) => {
   return handleGmRequest(req, claude, process.env.ACCESS_CODE, context.ip ?? "unbekannt", secret);
 };
 
-export const config: Config = { path: ["/api/campaign/*", "/api/classes/review", "/api/party/*", "/api/portrait", "/api/images/*", "/v1/*"] };
+export const config: Config = { path: ["/api/campaign/*", "/api/classes/review", "/api/party/*", "/api/portrait", "/api/images/*", "/api/tts", "/api/music/*", "/v1/*"] };

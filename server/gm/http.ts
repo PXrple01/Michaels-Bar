@@ -83,6 +83,16 @@ export function gate(accessCode: string | undefined, secret: string | undefined,
   return { ok: accessAllowed(accessCode, code) || !!s, who: s ? `user:${s.id}` : ip };
 }
 
+/** Vorlesen oder Musik: JSON-Antwort mit dem Ton-Link. */
+async function audioJson(claude: Claude, kind: "tts" | "music", arg: unknown, who: string): Promise<{ status: number; body: unknown }> {
+  try {
+    return { status: 200, body: kind === "tts" ? await claude.speak(arg, who) : await claude.music(arg, who) };
+  } catch (e) {
+    if (e instanceof LimitError) return { status: 429, body: { error: e.message } };
+    return { status: 502, body: { error: (e as Error).message } };
+  }
+}
+
 /** Figurenporträt malen: JSON-Antwort mit dem Bild-Link. */
 async function portraitJson(claude: Claude, body: unknown, who: string): Promise<{ status: number; body: unknown }> {
   try {
@@ -101,6 +111,12 @@ export function mountGm(app: Express, claude: () => Claude, accessCode: string |
     res.status(r.status);
     r.headers.forEach((v, k) => res.setHeader(k, v));
     res.end(Buffer.from(await r.arrayBuffer()));
+  });
+  app.post(["/api/tts", "/api/music/:mood"], async (req: Request, res) => {
+    const g = gateOf(req);
+    if (!g.ok) return void res.status(403).json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" });
+    const r = req.path === "/api/tts" ? await audioJson(claude(), "tts", req.body?.text, g.who) : await audioJson(claude(), "music", req.params.mood, g.who);
+    res.status(r.status).json(r.body);
   });
   app.post("/api/portrait", async (req: Request, res) => {
     const g = gateOf(req);
@@ -168,6 +184,13 @@ export async function handleGmRequest(req: Request | globalThis.Request, claude:
   if (path.startsWith("/api/images/") && request.method === "GET") return serveImage(claude.images.store, path.split("/").pop() ?? "");
   const g = gate(accessCode, secret, request.headers.get("x-access-code"), request.headers.get("x-session"), ip);
   const who = g.who;
+  if ((path === "/api/tts" || path.startsWith("/api/music/")) && request.method === "POST") {
+    if (!g.ok) return Response.json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" }, { status: 403 });
+    let body: { text?: unknown } | null = null;
+    try { body = await request.json(); } catch { /* leer */ }
+    const r = path === "/api/tts" ? await audioJson(claude, "tts", body?.text, who) : await audioJson(claude, "music", path.split("/").pop(), who);
+    return Response.json(r.body, { status: r.status });
+  }
   if (path === "/api/portrait" && request.method === "POST") {
     if (!g.ok) return Response.json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" }, { status: 403 });
     let body: unknown = null;

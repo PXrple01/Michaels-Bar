@@ -1,0 +1,63 @@
+// Vorlesen per Knopf: unter jedem Erzähl-Abschnitt ein ▶. Der Server liest mit der Erzählerstimme vor (fal.ai) und
+// merkt sich die Datei – nochmal anhören kostet nichts.
+import { sessionToken } from "./account";
+import { html, type Raw } from "./dom";
+import { accessCode } from "./gm";
+import { icon } from "./icons";
+import { toast } from "./ui";
+
+let current: { audio: HTMLAudioElement; button: HTMLElement } | null = null;
+const cache = new Map<string, string>();
+
+export const readButton = (): Raw => html`<button type="button" class="read-btn" data-read title="Vorlesen lassen">${icon("sound")}<span>Vorlesen</span></button>`;
+
+function stop() {
+  if (!current) return;
+  current.audio.pause();
+  current.button.classList.remove("playing", "loading");
+  current.button.querySelector("span")!.textContent = "Vorlesen";
+  current = null;
+}
+
+/** Text eines Abschnitts ohne Knöpfe und Vorschlagszeile. */
+function textOf(block: HTMLElement): string {
+  const copy = block.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll("button, .quill").forEach((b) => b.remove());
+  return copy.innerText.split("»")[0].trim();
+}
+
+/** Einmal für die ganze Seite: Klicks auf ▶ Vorlesen. */
+document.addEventListener("click", async (e) => {
+  const button = (e.target as HTMLElement).closest<HTMLElement>("[data-read]");
+  if (!button) return;
+  if (current?.button === button) return stop();
+  stop();
+  const block = button.closest<HTMLElement>(".story-gm, .ch-text");
+  const text = block ? textOf(block) : "";
+  if (!text) return;
+  button.classList.add("loading");
+  button.querySelector("span")!.textContent = "Lädt …";
+  const audio = new Audio();
+  current = { audio, button };
+  try {
+    let url = cache.get(text);
+    if (!url) {
+      const res = await fetch("/api/tts", { method: "POST", headers: { "content-type": "application/json", "x-access-code": accessCode(), "x-session": sessionToken() }, body: JSON.stringify({ text }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error(data.error ?? `Fehler ${res.status}`);
+      url = data.url as string;
+      cache.set(text, url);
+    }
+    if (current?.audio !== audio) return; // inzwischen gestoppt
+    audio.src = url;
+    audio.addEventListener("ended", () => { if (current?.audio === audio) stop(); });
+    await audio.play();
+    button.classList.remove("loading");
+    button.classList.add("playing");
+    button.querySelector("span")!.textContent = "Stopp";
+  } catch (err) {
+    stop();
+    // Fehler des Browsers beim Abspielen sind englisch – verständlich zusammenfassen
+    toast(`Vorlesen: ${err instanceof DOMException ? "Der Ton konnte nicht abgespielt werden." : (err as Error).message}`, "error");
+  }
+});

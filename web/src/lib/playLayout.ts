@@ -1,3 +1,5 @@
+import { setMusic } from "./music";
+import { setWeather } from "./weather";
 import { standingName } from "../../../shared/standing";
 import { avatar } from "./portraits";
 // Spielansicht für Solo und Gruppe: links das Team mit Fortschritt und Auftragsbuch, rechts Gegner und Kernauftrag,
@@ -240,7 +242,7 @@ export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => 
     if (!(e.target as HTMLElement).closest(".play-bars")) sides.forEach((d) => { d.open = false; });
   };
   document.addEventListener("click", onDoc);
-  return () => { mq.removeEventListener("change", apply); document.removeEventListener("click", onDoc); setSkyPhase(undefined); };
+  return () => { mq.removeEventListener("change", apply); document.removeEventListener("click", onDoc); setSkyPhase(undefined); setWeather(undefined); setMusic(undefined); };
 }
 
 /** Inhalt einer Seitenleiste ersetzen, ohne den Auf-/Zu-Zustand der inneren Klappen (Auftragsbuch, Gepäck, Personen) zu verlieren. */

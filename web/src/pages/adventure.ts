@@ -1,3 +1,6 @@
+import { setMusic } from "../lib/music";
+import { readButton } from "../lib/voice";
+import { setWeather } from "../lib/weather";
 import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
 import { openSheet } from "../lib/sheetModal";
@@ -211,6 +214,8 @@ export function playPage(): Page {
         fillSide(root.querySelector("#side-right"), lageSide(w));
         setMapData(root, w?.map);
         setSkyPhase(w?.time?.phase);
+        setWeather(w?.time?.weather);
+        setMusic(w ?? null);
         noteLegacy(w, save!.id, save!.title);
         renderAbilities();
       };
@@ -228,7 +233,7 @@ export function playPage(): Page {
         if (e.type === "player") return html`<div class="story-player"><span>${e.text}</span></div>`;
         if (e.type === "roll") return rollSummary(e.record, e.auto);
         if (e.type === "image") return sceneFigure(e);
-        return html`<div class="story-gm ${first ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}</div>`;
+        return html`<div class="story-gm ${first ? "first" : ""}">${withSpeech(paragraphs(splitSuggestions(e.text).body))}${readButton()}</div>`;
       }
 
       function renderStory() {

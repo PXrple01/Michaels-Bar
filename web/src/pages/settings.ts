@@ -82,6 +82,7 @@ export function settingsPage(): Page {
             <div class="set-row">
               <div><b>Würfelgeräusche</b><p>Klackern auf dem Tisch, Fanfare bei der 20.</p></div>
               ${toggleSwitch("sound", s.sound, "Würfelgeräusche")}
+              ${toggleSwitch("music", s.music, "Musik im Abenteuer (passend zur Szene)")}
             </div>
             <button class="btn btn-ghost btn-sm" id="test-sound">${icon("play")} Anhören</button>
           </section>
@@ -121,7 +122,7 @@ export function settingsPage(): Page {
       bindSegmented<Settings["animation"]>(root, "animation", (v) => updateSettings({ animation: v }));
       bindSegmented<Settings["quality"]>(root, "quality", (v) => updateSettings({ quality: v }));
       $$<HTMLElement>("[data-toggle]", root).forEach((t) => t.addEventListener("click", () => {
-        const key = t.dataset.toggle as "slowmo" | "backgroundFx" | "sound";
+        const key = t.dataset.toggle as "slowmo" | "backgroundFx" | "sound" | "music";
         const on = t.getAttribute("aria-checked") !== "true";
         t.setAttribute("aria-checked", String(on));
         updateSettings({ [key]: on } as Partial<Settings>);
