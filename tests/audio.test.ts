@@ -34,7 +34,7 @@ describe("Ton (fal.ai)", () => {
     const text = "Der Sturm heult dir ins Gesicht. ".repeat(30);
     const first = await a.speak(text);
     expect(first.url).toMatch(/^\/api\/images\/tts-/);
-    expect(first.costUsd).toBeCloseTo((text.trim().length / 1000) * 0.1, 4);
+    expect(first.costUsd).toBeCloseTo((text.trim().length / 1000) * 0.06, 4);
     const again = await a.speak(text);
     expect(again).toEqual({ url: first.url, costUsd: 0 });
     expect(calls.filter((c) => c.includes("fal.run")).length).toBe(1);

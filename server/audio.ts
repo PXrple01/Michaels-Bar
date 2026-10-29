@@ -1,13 +1,13 @@
-// Ton über fal.ai: Vorlesen der Erzählung (MiniMax Speech 2.8 HD, Deutsch) und Stimmungsmusik je Szene
+// Ton über fal.ai: Vorlesen der Erzählung (MiniMax Speech 2.8 Turbo, Deutsch) und Stimmungsmusik je Szene
 // (ElevenLabs Music). Beides wird gespeichert und wiederverwendet: derselbe Text kostet nur einmal, jede Musik-Stimmung
 // wird nur ein einziges Mal erzeugt – danach keine laufenden Kosten.
 import { createHash } from "node:crypto";
 import type { ImageStore, StoredImage } from "./images";
 
-export const TTS_MODEL = "fal-ai/minimax/speech-2.8-hd";
+export const TTS_MODEL = "fal-ai/minimax/speech-2.8-turbo";
 export const MUSIC_MODEL = "fal-ai/elevenlabs/music";
-/** Preise (Richtwerte): Vorlesen 0,10 $ je 1000 Zeichen, Musik ca. 0,80 $ je Minute (nur einmal je Stimmung). */
-const TTS_USD_PER_1000 = 0.1, MUSIC_USD_PER_MIN = 0.8;
+/** Preise (Richtwerte): Vorlesen 0,06 $ je 1000 Zeichen (Turbo – HD kostete 0,10 $), Musik ca. 0,80 $ je Minute (nur einmal je Stimmung). */
+const TTS_USD_PER_1000 = 0.06, MUSIC_USD_PER_MIN = 0.8;
 export const MAX_TTS_CHARS = 3000;
 const MUSIC_SECONDS = 40;
 /** Erzählerstimme (tiefe Männerstimme, ruhig) – mit deutscher Aussprache. */
