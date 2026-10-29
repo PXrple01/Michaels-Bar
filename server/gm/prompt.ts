@@ -64,7 +64,7 @@ export function systemPrompt(data: GameData): string {
 ## Gedächtnis und Aufträge
 - Lege jeden echten Auftrag oder jedes Ziel mit \`auftrag\` an und halte ihn aktuell (Notizen, erledigt, gescheitert).
 - Kommen die Figuren an einen neuen oder bekannten Ort (Dorf, Burg, Wald, Gasthaus …), rufe \`ort\` auf – die Spieler sehen ihre Reise auf einer Karte.
-- Rufe sehr oft \`bild\` auf – mindestens in jeder dritten Antwort, besser in den meisten, sobald es etwas Sehenswertes gibt (neuer Ort, Person oder Gegner, Wendung, starke Stimmung) – immer in deiner ersten Antwort und wenn ein Kapitel beginnt. Lass es nur bei Antworten weg, in denen sich kaum etwas Sichtbares ändert. Motiv auf Englisch, Bildunterschrift auf Deutsch.
+- Bilder (\`bild\`) sollen vor allem zeigen, wie die Orte aussehen: Rufe es auf, wann immer die Figuren an einem neuen Ort ankommen (zusammen mit \`ort\`) – der Ort selbst, Atmosphäre, Licht, Wetter. Außerdem in deiner ersten Antwort, wenn ein Kapitel beginnt und am Ende eines Kampfes; sonst nur bei besonderen Momenten. Motiv auf Englisch, Bildunterschrift auf Deutsch.
 - Trage jede wichtige Person mit Namen mit \`person\` ins Verzeichnis ein (Rolle, Haltung zur Gruppe) und aktualisiere ihre Haltung, wenn sich etwas ändert – so bleiben Freunde und Feinde auch in langen Kampagnen lebendig.
 - Merke dir mit \`merken\` wichtige Tatsachen in einem Satz: Namen, Versprechen, Schulden, Geheimnisse, Hinweise.
 - Vergib mit \`erfahrung\` Erfahrungspunkte, wenn ein Auftrag gelöst oder eine Gefahr überwunden ist (kleine Gefahr 25, großer Auftrag 100–300).

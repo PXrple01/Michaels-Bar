@@ -177,11 +177,11 @@ export class GameMaster {
 
   private async converse(messages: MessageParam[], world: WorldState, c: Character, data: GameData, who: string, emit: (ev: GmEvent) => void) {
     const scene = { characters: [effectiveCharacter(c, world)], data, world, onRoll: (record: RollRecord) => emit({ type: "autoroll", record }), onImage: (img: SceneImage) => emit({ type: "image", ...img }) };
-    const mark = chapterMark(world), first = !messages.some((m) => m.role === "assistant");
+    const mark = chapterMark(world), first = !messages.some((m) => m.role === "assistant"), wasFighting = !!world.combat;
     let narration = "";
     const res = await this.narrator.converse(messages, scene, who, (text) => { narration += text; emit({ type: "text", text }); });
-    // Anfang der Kampagne oder eines Kapitels: immer ein Bild (falls Claude keines bestellt hat)
-    const auto = await this.narrator.imageIfDue({ mark, first, painted: res.painted, narration, scene });
+    // Anfang der Kampagne oder eines Kapitels, Ende eines Kampfes: immer ein Bild (falls Claude keines bestellt hat)
+    const auto = await this.narrator.imageIfDue({ mark, first, painted: res.painted, narration, scene, wasFighting });
     applyLevels(world, [c], data.classes, data.rules);
     // Gefallen und niemand hat geholfen: Niederlage, vom Server erzwungen (auch wenn Claude es nicht selbst beendet hat)
     const defeated = enforceDefeat(world, scene.characters);

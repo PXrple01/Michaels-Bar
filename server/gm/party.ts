@@ -531,7 +531,7 @@ export class PartyService {
       let saving: Promise<unknown> = Promise.resolve();
       const onImage = (img: SceneImage) => { flush(); segments.push({ type: "image", ...img }); emit({ type: "image", ...img }); };
       const scene = { characters, data, world, onRoll, onImage };
-      const mark = chapterMark(world), first = !messages.some((m) => m.role === "assistant");
+      const mark = chapterMark(world), first = !messages.some((m) => m.role === "assistant"), wasFighting = !!world.combat;
       let narration = "";
       const res = await this.o.narrator.converse(messages, scene, o.who, (text) => {
         narration += text;
@@ -545,8 +545,8 @@ export class PartyService {
       });
       await saving;
       flush();
-      // Anfang der Kampagne oder eines Kapitels: immer ein Bild (falls Claude keines bestellt hat)
-      const auto = await this.o.narrator.imageIfDue({ mark, first, painted: res.painted, narration, scene });
+      // Anfang der Kampagne oder eines Kapitels, Ende eines Kampfes: immer ein Bild (falls Claude keines bestellt hat)
+      const auto = await this.o.narrator.imageIfDue({ mark, first, painted: res.painted, narration, scene, wasFighting });
       res.costUsd += auto.claudeUsd;
       res.imageUsd += auto.imageUsd;
       applyLevels(world, this.characters(locked), data.classes, data.rules);

@@ -88,8 +88,6 @@ const MAX_LOOPS = 5;
 export const TURN_BUDGET_MS = 50_000;
 /** Gelände je Ortsart für den gemalten Kartenhintergrund. */
 const MAP_TERRAIN: Record<string, string> = { dorf: "small villages", stadt: "a walled town", burg: "a castle on a hill", kloster: "a monastery", wald: "dense forests", hoehle: "rocky caves", ruine: "ancient ruins", gasthaus: "a roadside inn", fluss: "a winding river with a bridge", berg: "mountains" };
-/** Spätestens jede so-vielte Antwort bekommt ein Szenenbild. */
-const IMAGE_EVERY = 3;
 /** Kleines Modell für Bildbeschreibungen. */
 const IMAGE_PROMPT_MODEL: ModelId = "claude-haiku-5-5";
 /** Kapitelmarke: ändert sie sich in einem Zug, hat ein neues Kapitel (oder die Kampagne) begonnen. */
@@ -184,21 +182,20 @@ export class Narrator {
   get model(): ModelId { return this.o.model ?? "claude-opus-5-5"; }
 
   /**
-   * Am Anfang der Kampagne und jedes Kapitels ein Szenenbild, falls Claude keines bestellt hat (Beschreibung von Claude Haiku
+   * Am Anfang der Kampagne und jedes Kapitels sowie am Ende jedes Kampfes ein Szenenbild, falls Claude keines bestellt hat (Beschreibung von Claude Haiku
    * aus der Erzählung) – sonst entscheidet Claude. Dazu einmal je Kampagne ein gemalter Kartenhintergrund. Beides läuft gleichzeitig.
    */
-  async imageIfDue(o: { mark: string; first: boolean; painted: boolean; narration: string; scene: Scene }): Promise<{ imageUsd: number; claudeUsd: number }> {
+  async imageIfDue(o: { mark: string; first: boolean; painted: boolean; narration: string; scene: Scene; wasFighting?: boolean }): Promise<{ imageUsd: number; claudeUsd: number }> {
     const { world } = o.scene;
     if (!this.o.images?.ready) return { imageUsd: 0, claudeUsd: 0 };
     const newChapter = o.first || (chapterMark(world) !== "" && chapterMark(world) !== o.mark);
-    // Spätestens jede dritte Antwort bekommt ein Bild: zwei ohne Bild sind erlaubt, die dritte malt der Server
-    const overdue = (world.imageGap ?? 0) >= IMAGE_EVERY - 1;
-    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || overdue);
+    // Ende eines Kampfes: immer ein Bild vom Ausgang
+    const fightOver = !!o.wasFighting && !world.combat;
+    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver);
     const [scene, map] = await Promise.all([
       due ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
       this.mapBackground(world),
     ]);
-    world.imageGap = o.painted || scene.imageUsd > 0 ? 0 : (world.imageGap ?? 0) + 1;
     return { imageUsd: scene.imageUsd + map, claudeUsd: scene.claudeUsd };
   }
 
@@ -306,7 +303,7 @@ export class Narrator {
       },
     }, ...autoToolDefs(characters), {
       name: "bild",
-      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Nutze es sehr oft – mindestens in jeder dritten Antwort, besser in den meisten: sobald es etwas Sehenswertes gibt – ein neuer Ort, eine Person oder ein Gegner, eine Wendung, eine starke Stimmung. Lass es nur weg, wenn sich kaum etwas Sichtbares ändert (etwa eine kurze Rückfrage oder eine Antwort, die nur eine Probe verlangt). Höchstens eins pro Antwort.",
+      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Vor allem dafür da, dass sich die Spieler die Orte vorstellen können: Rufe es auf, wenn die Figuren an einem neuen Ort ankommen (Dorf, Burg, Wald, Kloster, Gasthaus, Höhle …) – zeige den Ort selbst, seine Atmosphäre, Licht und Wetter. Außerdem bei der ersten Antwort, wenn ein Kapitel beginnt und am Ende eines Kampfes. Sonst nur bei wirklich besonderen Momenten; du entscheidest. Höchstens eins pro Antwort.",
       input_schema: {
         type: "object",
         properties: {
