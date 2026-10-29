@@ -15,14 +15,14 @@ function wav(frames: number): Uint8Array {
   return b;
 }
 
+const bodies: Record<string, unknown>[] = [];
 function fakeFal(calls: string[]) {
   return (async (url: string, init?: RequestInit) => {
     calls.push(url);
-    if (url.startsWith("https://fal.run/fal-ai/minimax")) return Response.json({ audio: { url: "https://cdn/x.mp3" }, duration_ms: 1000 });
+    if (url.startsWith("https://fal.run/fal-ai/elevenlabs/tts")) { bodies.push(JSON.parse(String(init?.body))); return Response.json({ audio: { url: "https://cdn/x.mp3" } }); }
     if (url.startsWith("https://fal.run/fal-ai/elevenlabs/music")) return Response.json({ audio: { url: "https://cdn/x.wav" } });
     if (url.endsWith(".mp3")) return new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "audio/mpeg" } });
     if (url.endsWith(".wav")) return new Response(new Uint8Array(wav(44100)).buffer, { headers: { "content-type": "audio/wav" } });
-    void init;
     return new Response("?", { status: 404 });
   }) as unknown as typeof fetch;
 }
@@ -34,7 +34,8 @@ describe("Ton (fal.ai)", () => {
     const text = "Der Sturm heult dir ins Gesicht. ".repeat(30);
     const first = await a.speak(text);
     expect(first.url).toMatch(/^\/api\/images\/tts-/);
-    expect(first.costUsd).toBeCloseTo((text.trim().length / 1000) * 0.06, 4);
+    expect(first.costUsd).toBeCloseTo((text.trim().length / 1000) * 0.05, 4);
+    expect(bodies.at(-1)).toMatchObject({ voice: "Daniel", language_code: "de" });
     const again = await a.speak(text);
     expect(again).toEqual({ url: first.url, costUsd: 0 });
     expect(calls.filter((c) => c.includes("fal.run")).length).toBe(1);

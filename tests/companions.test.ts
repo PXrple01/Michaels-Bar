@@ -54,7 +54,7 @@ describe("Figurenstimmen", () => {
   });
   it("Sprecher nach der Rede, unbekannte Sprecher, ohne Rede nur Erzähler", () => {
     expect(segmentVoices("„Halt!“, ruft Konrad.", cast)[0].voice).toBe(voiceFor(cast[1]));
-    expect(segmentVoices("„Wer da?“", cast)[0].voice).toBe("Friendly_Person");
+    expect(segmentVoices("„Wer da?“", cast)[0].voice).toBe("River");
     expect(segmentVoices("Nur Erzählung.", cast)).toEqual([{ text: "Nur Erzählung.", voice: NARRATOR }]);
   });
   it("weibliche Rollen erkennen", () => {

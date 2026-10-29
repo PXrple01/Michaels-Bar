@@ -5,10 +5,11 @@
 export interface CastMember { name: string; female?: boolean }
 export interface VoiceSegment { text: string; voice: string }
 
-export const NARRATOR = "Deep_Voice_Man";
-const MALE = ["Young_Knight", "Determined_Man", "Patient_Man", "Elegant_Man", "Imposing_Manner", "Casual_Guy"];
-const FEMALE = ["Wise_Woman", "Calm_Woman", "Abbess", "Lively_Girl"];
-const UNKNOWN = "Friendly_Person";
+/** ElevenLabs-Stimmen (sprechen mit language_code „de“ Deutsch). Erzähler: tiefe, ruhige Männerstimme. */
+export const NARRATOR = "Daniel";
+export const MALE = ["George", "Roger", "Callum", "Liam", "Will", "Eric", "Chris", "Bill", "Charlie"];
+export const FEMALE = ["Sarah", "Aria", "Laura", "Charlotte", "Alice", "Matilda", "Jessica", "Lily"];
+export const UNKNOWN = "River";
 
 /** Weibliche Rollen erkennen (Hebamme, Magd, Äbtissin, Händlerin …) – für die Wahl einer passenden Stimme. */
 export function looksFemale(role: string): boolean {
