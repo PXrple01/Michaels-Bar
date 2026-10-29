@@ -180,7 +180,7 @@ export class GameMaster {
     const mark = chapterMark(world), first = !messages.some((m) => m.role === "assistant"), wasFighting = !!world.combat, placeBefore = world.map?.current ?? null;
     let narration = "";
     const res = await this.narrator.converse(messages, scene, who, (text) => { narration += text; emit({ type: "text", text }); });
-    // Anfang der Kampagne oder eines Kapitels, Ortswechsel, Ende eines Kampfes: immer ein Bild (falls Claude keines bestellt hat)
+    // Anfang der Kampagne oder eines Kapitels, Ortswechsel, Ende eines Kampfes, spätestens jeder dritte Zug: immer ein Bild (falls Claude keines bestellt hat)
     const auto = await this.narrator.imageIfDue({ mark, first, painted: res.painted, narration, scene, wasFighting, placeBefore });
     applyLevels(world, [c], data.classes, data.rules);
     // Gefallen und niemand hat geholfen: Niederlage, vom Server erzwungen (auch wenn Claude es nicht selbst beendet hat)

@@ -98,6 +98,8 @@ const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
 const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "begleiter", "geruecht", "ort", "person", "laden", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
+/** Höchstens so viele Züge hintereinander ohne Szenenbild. */
+const IMAGE_EVERY = 3;
 /** Hat die Antwort eine richtige Vorschlagszeile (mindestens zwei Ideen)? Dann ist die Szene sauber übergeben. */
 const closes = (text: string) => splitSuggestions(text).suggestions.length >= 2;
 const NUDGE = "<hinweis>Deine Antwort endete mitten in der Szene. Erzähle direkt weiter, ohne Wiederholung: Was du angekündigt hast, passiert jetzt (Gegnerangriffe mit gegner_greift_an, Proben mit probe_anfordern). Übergib dann mit einer offenen Situation und schließe mit der Zeile „» Vorschläge: … | … | …“.</hinweis>";
@@ -198,12 +200,15 @@ export class Narrator {
     const fightOver = !!o.wasFighting && !world.combat;
     // Ortswechsel (Claude hat mit ort einen anderen Ort gemeldet): Bild vom neuen Ort
     const moved = o.placeBefore !== undefined && !!world.map?.current && world.map.current !== o.placeBefore;
-    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved);
+    // Spätestens nach IMAGE_EVERY Zügen ohne Bild kommt eines – auch wenn Claude keinen Anlass sieht
+    const stale = (world.sinceImage ?? 0) >= IMAGE_EVERY - 1;
+    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved || stale);
     const [scene, map, faces] = await Promise.all([
       due ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
       this.mapBackground(world),
       this.npcPortraits(world),
     ]);
+    world.sinceImage = o.painted || scene.imageUsd > 0 ? 0 : (world.sinceImage ?? 0) + 1;
     return { imageUsd: scene.imageUsd + map + faces, claudeUsd: scene.claudeUsd };
   }
 

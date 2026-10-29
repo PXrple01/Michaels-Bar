@@ -46,6 +46,8 @@ export interface WorldState {
   /** Tag, Tageszeit und Wetter */
   time?: GameTime;
   /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
+  /** Züge seit dem letzten Szenenbild (für das Mindestmaß an Bildern). */
+  sinceImage?: number;
   sent?: { arc: string; turns: number; inv?: string; people?: string; map?: string; standing?: string };
   /** Ruf bei Fraktionen (−10 bis +10). */
   reputation?: Record<string, Standing>;

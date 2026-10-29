@@ -95,13 +95,16 @@ describe("Bild am Anfang von Kampagne und Kapitel, gemalter Kartenhintergrund", 
     expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0);
     // Claude hat schon ein Bild bestellt: keines zusätzlich
     world.arc.current = 1;
+    expect(world.sinceImage).toBe(1);
     expect((await narrator.imageIfDue({ mark, first: false, painted: true, narration, scene })).imageUsd).toBe(0);
     // Neues Kapitel: Kapiteltitel als Unterschrift
     expect((await narrator.imageIfDue({ mark, first: false, painted: false, narration, scene })).imageUsd).toBe(0.012);
     expect(shown).toEqual(["Der Anfang", "Die Mühle"]);
-    // Sonst entscheidet Claude – auch nach mehreren Antworten ohne Bild
+    // Sonst entscheidet Claude – aber spätestens der dritte Zug ohne Bild bekommt eines
     const m2 = chapterMark(world);
-    for (let i = 0; i < 3; i++) expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene })).imageUsd).toBe(0);
+    for (let i = 0; i < 2; i++) expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene })).imageUsd).toBe(0);
+    expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene })).imageUsd).toBe(0.012);
+    expect(world.sinceImage).toBe(0);
     // Kampf vorbei (vorher Kampf, jetzt keiner): Bild
     world.combat = null;
     expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene, wasFighting: true })).imageUsd).toBe(0.012);

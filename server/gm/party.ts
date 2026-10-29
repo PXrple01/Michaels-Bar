@@ -545,7 +545,7 @@ export class PartyService {
       });
       await saving;
       flush();
-      // Anfang der Kampagne oder eines Kapitels, Ortswechsel, Ende eines Kampfes: immer ein Bild (falls Claude keines bestellt hat)
+      // Anfang der Kampagne oder eines Kapitels, Ortswechsel, Ende eines Kampfes, spätestens jeder dritte Zug: immer ein Bild (falls Claude keines bestellt hat)
       const auto = await this.o.narrator.imageIfDue({ mark, first, painted: res.painted, narration, scene, wasFighting, placeBefore });
       res.costUsd += auto.claudeUsd;
       res.imageUsd += auto.imageUsd;
