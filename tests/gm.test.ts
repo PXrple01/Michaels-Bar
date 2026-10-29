@@ -71,6 +71,16 @@ describe("Spielleiter", () => {
     expect(done(evs).pending).toBeNull();
   });
 
+  it("endet die Antwort mit einer Ankündigung statt Vorschlägen, hakt der Server einmal nach", async () => {
+    const llm = new FakeLlm([text("Ozula stürmt heran.\n\n» Ozula greift an"), text("Ihr Hieb trifft.\n» Vorschläge: Ausweichen | Kontern")]);
+    const { run } = setup(llm);
+    const evs = await run("start", { character, previousOpenings: [] });
+    expect(llm.calls).toHaveLength(2);
+    expect(JSON.stringify(llm.calls[1].messages.at(-1))).toContain("mitten in der Szene");
+    const said = evs.filter((e) => e.type === "text").map((e) => (e as { text: string }).text).join("");
+    expect(splitSuggestions(said)).toEqual({ body: "Ozula stürmt heran.\n\nIhr Hieb trifft.", suggestions: ["Ausweichen", "Kontern"] });
+  });
+
   it("Probe: Claude fordert an, der Server würfelt, Neuwürfeln ist unmöglich", async () => {
     const llm = new FakeLlm([
       probe({ art: "skill", id: "athletik", sg: 13, modus: "normal", grund: "Über die Mauer klettern" }),
@@ -150,5 +160,8 @@ describe("Hilfsfunktionen", () => {
     expect(splitSuggestions("Text.\n» **Ideen:** A | B")).toEqual({ body: "Text.", suggestions: ["A", "B"] });
     // Ein Zitat in »Anführungszeichen« am Ende ist kein Vorschlag
     expect(splitSuggestions("Er sagt:\n»Geh | oder bleib.«").suggestions).toEqual([]);
+    expect(splitSuggestions("Text.\n\n» Ozula greift an")).toEqual({ body: "Text.", suggestions: ["Ozula greift an"] });
+    expect(splitSuggestions("Erst.\n\n» Ozula greift an\n\nDann.\n» Vorschläge: A | B").body).toBe("Erst.\n\nDann.");
+    expect(splitSuggestions("Er ruft:\n»Halt!«").body).toBe("Er ruft:\n»Halt!«");
   });
 });

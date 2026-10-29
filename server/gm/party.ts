@@ -1,7 +1,7 @@
 // Mehrspieler-Gruppen: Spielstand auf dem Server, Runden mit gesammelten Handlungen, Proben für bestimmte Figuren.
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Opening, PendingCheck, SceneImage } from "../../shared/campaign";
-import { MAX_ACTION_LENGTH } from "../../shared/campaign";
+import { MAX_ACTION_LENGTH, stripMarkers } from "../../shared/campaign";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../shared/party";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
@@ -539,7 +539,7 @@ export class PartyService {
         emit({ type: "text", text });
         if (Date.now() - lastSave > LIVE_SAVE_MS) {
           lastSave = Date.now();
-          const snapshot = live.split("»")[0];
+          const snapshot = stripMarkers(live);
           saving = saving.then(() => this.update(locked.code, (p) => { p.live = snapshot; }).catch(() => {}));
         }
       });

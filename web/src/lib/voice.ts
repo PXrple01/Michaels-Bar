@@ -1,5 +1,6 @@
 // Vorlesen per Knopf: unter jedem Erzähl-Abschnitt ein ▶. Der Server liest mit der Erzählerstimme vor (fal.ai) und
 // merkt sich die Datei – nochmal anhören kostet nichts.
+import { stripMarkers } from "../../../shared/campaign";
 import { looksFemale, segmentVoices, type CastMember } from "../../../shared/voices";
 import type { WorldState } from "../../../shared/world";
 import { sessionToken } from "./account";
@@ -34,7 +35,7 @@ function stop() {
 function textOf(block: HTMLElement): string {
   const copy = block.cloneNode(true) as HTMLElement;
   copy.querySelectorAll("button, .quill").forEach((b) => b.remove());
-  return copy.innerText.split("»")[0].trim();
+  return stripMarkers(copy.innerText).trim();
 }
 
 /** Einmal für die ganze Seite: Klicks auf ▶ Vorlesen. */

@@ -5,7 +5,7 @@ import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
 import { costChip } from "../../../shared/campaign";
 import { openSheet } from "../lib/sheetModal";
-import { MAX_ACTION_LENGTH, splitSuggestions } from "../../../shared/campaign";
+import { MAX_ACTION_LENGTH, splitSuggestions, stripMarkers } from "../../../shared/campaign";
 import { characterRoll } from "../../../shared/character";
 import { formatModifier, type RollRecord } from "../../../shared/dice";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../../shared/party";
@@ -246,7 +246,7 @@ export function partyPage(): Page {
         if (!view) return;
         let firstGm = true;
         const parts = view.story.map((e) => { const r = entry(e, e.type === "gm" && firstGm); if (e.type === "gm") firstGm = false; return r.value; });
-        const live = busyLocal ? liveLocal.split("»")[0] : view.busy ? view.live : "";
+        const live = busyLocal ? stripMarkers(liveLocal) : view.busy ? view.live : "";
         if (view.busy || busyLocal) parts.push(html`<div class="story-gm live ${firstGm ? "first" : ""}">${live ? withSpeech(paragraphs(live)) : ""}<span class="quill">${icon("feather")}</span></div>`.value);
         const nearBottom = innerHeight + scrollY > document.body.scrollHeight - 400;
         storyEl.innerHTML = parts.join("");

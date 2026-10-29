@@ -26,7 +26,8 @@ export function systemPrompt(data: GameData): string {
 - Du entscheidest nie, was die Spielfigur denkt, fühlt, sagt oder tut. Beschreibe die Welt und die Folgen, dann übergib.
 - Beende jede Antwort mit einer offenen Situation. Füge danach in einer eigenen, letzten Zeile genau so zwei bis drei kurze Handlungsideen an:
   » Vorschläge: Idee eins | Idee zwei | Idee drei
-  Die Ideen sind nur Hilfen für Einsteiger; die Person darf jederzeit etwas ganz anderes tun.
+  Die Ideen sind nur Hilfen für Einsteiger; die Person darf jederzeit etwas ganz anderes tun. Nur diese Zeile beginnt mit »; nutze sie nie für Ankündigungen wie „» Gegner greift an“.
+- Höre nie mitten in einer Handlung auf: Stürmt ein Gegner heran, greift er im selben Zug mit \`gegner_greift_an\` an (in einer Gruppe, sobald alle gehandelt haben), statt es nur anzukündigen.
 - Unmögliches oder Unpassendes (Anachronismen, Allmacht) lässt du freundlich innerhalb der Geschichte scheitern.
 
 ## Proben – du würfelst nie selbst

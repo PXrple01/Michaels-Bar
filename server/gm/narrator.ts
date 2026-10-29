@@ -98,6 +98,9 @@ const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
 const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "begleiter", "geruecht", "ort", "person", "laden", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
+/** Hat die Antwort eine richtige Vorschlagszeile (mindestens zwei Ideen)? Dann ist die Szene sauber übergeben. */
+const closes = (text: string) => splitSuggestions(text).suggestions.length >= 2;
+const NUDGE = "<hinweis>Deine Antwort endete mitten in der Szene. Erzähle direkt weiter, ohne Wiederholung: Was du angekündigt hast, passiert jetzt (Gegnerangriffe mit gegner_greift_an, Proben mit probe_anfordern). Übergib dann mit einer offenen Situation und schließe mit der Zeile „» Vorschläge: … | … | …“.</hinweis>";
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
   "Orte; offene und erledigte Aufträge; Versprechen, Schulden, Geheimnisse und Hinweise; besiegte und noch lebende Gegner; erhaltene und verlorene Gegenstände und Geld; " +
@@ -483,7 +486,7 @@ export class Narrator {
     ensureInventory(world, characters, data.rules);
     const history = [...messages];
     const base = requestBase(this.model, this.o.effort ?? "low");
-    let cost = 0, imageUsd = 0, paintedTurn = false;
+    let cost = 0, imageUsd = 0, paintedTurn = false, nudged = false;
     const usage = { input: 0, output: 0 };
     const budget = this.o.turnBudgetMs ?? TURN_BUDGET_MS;
     const deadline = Date.now() + budget;
@@ -556,7 +559,7 @@ export class Narrator {
           if (!pendings.length) for (const b of uses) if (b.name === "gegner_greift_an") await run(b);
           const results = uses.map((b) => byId.get(b.id)).filter((r): r is ToolResult => !!r);
           if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
-          const told = msg.content.some((b) => b.type === "text" && splitSuggestions(b.text).suggestions.length > 0);
+          const told = msg.content.some((b) => b.type === "text" && closes(b.text));
           const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
           if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
           // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.
@@ -568,6 +571,20 @@ export class Narrator {
           continue;
         }
         if (uses.length) history.pop(); // abgeschnittener Werkzeugaufruf (max_tokens): nicht übernehmen
+        // Endet die Antwort mitten in der Szene (statt Vorschlägen nur eine Ankündigung wie „» Ozula greift an“, oder abgeschnitten),
+        // einmal nachhaken: Claude erzählt zu Ende und führt Angekündigtes mit Werkzeugen aus.
+        const said = msg.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("\n");
+        const broken = msg.stop_reason === "max_tokens" || (/^[ \t*_]*»[ \t]+[^\n«]*$/m.test(said) && !closes(said));
+        if (!nudged && broken && !world.arc?.finished && deadline - Date.now() >= MIN_CALL_MS) {
+          nudged = true;
+          console.warn(`[Claude] Antwort ohne Abschluss (${msg.stop_reason}) – hake einmal nach.`);
+          if (said.trim()) onText("\n\n");
+          const hint = { type: "text" as const, text: NUDGE };
+          const last = history[history.length - 1];
+          if (last?.role === "user") last.content = [...(typeof last.content === "string" ? [{ type: "text" as const, text: last.content }] : last.content), hint];
+          else history.push({ role: "user", content: [hint] });
+          continue;
+        }
         return { history, pending: null, pendings: [], held: [], costUsd: cost, imageUsd, painted: paintedTurn, usage };
       }
       throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");

@@ -5,7 +5,7 @@ import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
 import { openSheet } from "../lib/sheetModal";
 import { effectiveCharacter } from "../../../shared/levels";
-import { costChip, costText, splitSuggestions, MAX_ACTION_LENGTH, type CampaignSave, type GmEvent, type Opening, type PendingCheck } from "../../../shared/campaign";
+import { costChip, costText, splitSuggestions, stripMarkers, MAX_ACTION_LENGTH, type CampaignSave, type GmEvent, type Opening, type PendingCheck } from "../../../shared/campaign";
 import { characterRoll } from "../../../shared/character";
 import { formatModifier, type RollRecord } from "../../../shared/dice";
 import type { Character } from "../../../shared/schema";
@@ -260,7 +260,7 @@ export function playPage(): Page {
       function pushLive(text: string) {
         if (!liveEl) startLive();
         liveText += text;
-        const visible = liveText.split("»")[0];
+        const visible = stripMarkers(liveText);
         liveEl!.innerHTML = withSpeech(paragraphs(visible)).value + `<span class="quill">${icon("feather").value}</span>`;
         scrollDown(true);
       }

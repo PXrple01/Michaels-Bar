@@ -143,10 +143,14 @@ export interface UpgradeRequest {
 export function splitSuggestions(text: string): { body: string; suggestions: string[] } {
   // Normal: „» Vorschläge: A | B“. Manchmal lässt Claude das Wort weg („» A | B“) oder schreibt „Ideen:“/„Optionen:“ –
   // ohne Wort zählt die Zeile nur mit „|“ und ohne schließendes „«“ (sonst wäre es ein Zitat in »Anführungszeichen«).
-  const m = text.match(/\n?[ \t*_]*»[ \t]*(?:\*{0,2}(?:Vorschläge|Ideen|Optionen|Möglichkeiten)\*{0,2}:\*{0,2}[ \t]*(.+?)|([^\n«]*\|[^\n«]*))[ \t*_]*$/);
-  if (!m) return { body: text.trimEnd(), suggestions: [] };
-  const suggestions = (m[1] ?? m[2]).split("|").map((s) => s.trim()).filter(Boolean).slice(0, 4);
-  return { body: text.slice(0, m.index).trimEnd(), suggestions };
+  // Eine einzelne Idee („» Ozula greift an“) zählt auch – mit Leerzeichen nach », das haben echte Zitate nie.
+  const m = text.match(/\n?[ \t*_]*»(?:[ \t]*\*{0,2}(?:Vorschläge|Ideen|Optionen|Möglichkeiten)\*{0,2}:\*{0,2}[ \t]*(.+?)|[ \t]*([^\n«]*\|[^\n«]*)|[ \t]+([^\n«|]+))[ \t*_]*$/);
+  if (!m) return { body: stripMarkers(text), suggestions: [] };
+  const suggestions = (m[1] ?? m[2] ?? m[3]).split("|").map((s) => s.trim()).filter(Boolean).slice(0, 4);
+  return { body: stripMarkers(text.slice(0, m.index)), suggestions };
 }
+
+/** Übrig gebliebene Vorschlagszeilen mitten im Text (z. B. wenn die Erzählung danach weiterging) ausblenden. */
+export const stripMarkers = (text: string) => text.replace(/^[ \t*_]*»[ \t]+[^\n«]*(?:\n|$)/gm, "").replace(/\n{3,}/g, "\n\n").trimEnd();
 
 export const MAX_ACTION_LENGTH = 800;
