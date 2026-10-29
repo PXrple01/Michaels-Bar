@@ -1,3 +1,4 @@
+import { legacyOf } from "../lib/legacy";
 // Heldenhalle: alle Figuren mit ihren Sagen – Kampagnen allein und in der Gruppe, Ausgang, Epilog, erstes Szenenbild –
 // dazu Ruhmeszahlen und die freigeschalteten Erfolge.
 import { ACHIEVEMENTS } from "../../../shared/achievements";
@@ -107,7 +108,9 @@ export function hallPage(): Page {
                 ${i === 0 && h.fame > 0 && heroes.length > 1 ? html`<span class="hp-rank">${icon("crown")} Ruhmreichste Figur</span>` : ""}
                 <h2>${h.c.name}</h2>
                 <small class="muted">${cls?.name ?? h.c.classId}${stand ? ` · ${stand.name}` : ""} · ${levelTitle(h.level, data.rules)} (Stufe ${h.level})</small>
+                ${legacyOf(h.c.id).length ? html`<div class="hp-titles">${legacyOf(h.c.id).map((l) => html`<span class="chip legacy-chip" title="${l.heirloom} – aus „${l.campaignTitle}“">${icon("crown")} ${l.title}</span>`)}</div>` : ""}
                 ${h.c.appearance ? html`<p class="hp-look">${h.c.appearance}</p>` : ""}
+                ${legacyOf(h.c.id).length ? html`<ul class="hp-heirlooms">${legacyOf(h.c.id).map((l) => html`<li>${icon("star")} <b>${l.heirloom}</b> <small class="muted">– aus „${l.campaignTitle}“</small></li>`)}</ul>` : ""}
                 <div class="hp-fame">
                   <span title="Vollendete Kampagnen">${icon("crown")} ${h.won}</span>
                   <span title="Niederlagen">${icon("moon")} ${h.lost}</span>

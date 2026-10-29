@@ -1,3 +1,4 @@
+import { standingName } from "../../../shared/standing";
 import { avatar } from "./portraits";
 // Spielansicht für Solo und Gruppe: links das Team mit Fortschritt und Auftragsbuch, rechts Gegner und Kernauftrag,
 // in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
@@ -85,6 +86,10 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
         ${side.length ? html`<ul class="quests">${side.map((q) => html`<li><b>${q.title}</b><span>${q.description}</span>${q.notes.length ? html`<small>${q.notes.at(-1)}</small>` : ""}</li>`)}</ul>` : ""}
         ${closed.length ? html`<ul class="quests closed">${closed.map((q) => html`<li class="${q.status}"><b>${q.status === "erledigt" ? "✓" : "✗"} ${q.title}</b></li>`)}</ul>` : ""}
         ${w.memory.length ? html`<div class="memory"><div class="eyebrow">Der Spielleiter merkt sich</div><ul>${w.memory.slice().reverse().map((m) => html`<li>${m}</li>`)}</ul></div>` : ""}
+      </details>` : ""}
+      ${w?.fates?.length ? html`<details class="world-log side-sec fate-block">
+        <summary>${icon("scroll")} Schicksal · ${w.fates.length}</summary>
+        <ol class="fate-list">${w.fates.slice().reverse().map((f) => html`<li><b>Tag ${f.day}</b> ${f.text}</li>`)}</ol>
       </details>` : ""}
     </div>`;
 }
@@ -178,6 +183,14 @@ export function lageSide(w: WorldState | null | undefined): Raw {
         <ul class="people-list">${[...w.people].sort((a, b) => b.seen - a.seen).map((p) => html`<li class="person att-${p.attitude}">
           <span class="att-dot" title="${ATTITUDE_NAME[p.attitude]}"></span>
           <span class="person-text"><b>${p.name}</b><small>${p.role}${p.role ? " · " : ""}${ATTITUDE_NAME[p.attitude]}</small>${p.notes.length ? html`<em>${p.notes.at(-1)}</em>` : ""}</span>
+        </li>`)}</ul>
+      </details>` : ""}
+      ${Object.keys(w?.reputation ?? {}).length ? html`<details class="world-log side-sec rep-block" open>
+        <summary>${icon("shield")} Ruf · ${Object.keys(w!.reputation!).length}</summary>
+        <ul class="rep-list">${Object.entries(w!.reputation!).sort((a, b) => Math.abs(b[1].score) - Math.abs(a[1].score)).map(([name, s]) => html`<li class="rep ${s.score > 0 ? "pos" : s.score < 0 ? "neg" : ""}" title="${s.notes.join(" · ")}">
+          <span class="rep-top"><b>${name}</b><small>${standingName(s.score)} (${s.score > 0 ? "+" : ""}${s.score})</small></span>
+          <span class="rep-bar"><i style="left:${s.score >= 0 ? 50 : 50 + s.score * 5}%;width:${Math.abs(s.score) * 5}%"></i></span>
+          ${s.notes.length ? html`<em>${s.notes.at(-1)}</em>` : ""}
         </li>`)}</ul>
       </details>` : ""}
     </div>`;

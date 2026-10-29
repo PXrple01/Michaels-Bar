@@ -216,8 +216,9 @@ describe("Kampagne in Akten und Kapiteln", () => {
     for (let i = 0; i < 4; i++) await tool(w, "kapitel_abschliessen", { rueckblick: "weiter" });
     expect(worldSummary(w, [character])).toContain("letzte Kapitel des Finales");
     expect((await tool(w, "kapitel_abschliessen", { rueckblick: "x" })).is_error).toBe(true); // letztes Kapitel → abenteuer_beenden
-    await tool(w, "abenteuer_beenden", { epilog: "Kuno ist besiegt." });
+    await tool(w, "abenteuer_beenden", { epilog: "Kuno ist besiegt.", vermaechtnis: [{ figur: "Hagen", titel: "Bezwinger Kunos", erbstueck: "Kunos zerbrochene Krone" }] });
     expect(w.arc).toMatchObject({ finished: true, epilog: "Kuno ist besiegt." });
+    expect(w.legacy).toEqual([{ characterId: character.id, title: "Bezwinger Kunos", heirloom: "Kunos zerbrochene Krone" }]);
   });
 
   it("Abzweigungen: eingeschoben vor dem unterbrochenen Kapitel, begrenzt je Akt – kein endloser Anfang", async () => {

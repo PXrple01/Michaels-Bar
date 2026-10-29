@@ -10,6 +10,8 @@ import { gearSummary, type Gear, type Shop } from "./shop";
 import type { Person } from "./people";
 import type { TravelMap } from "./map";
 
+import type { Fate, Legacy, Standing } from "./standing";
+
 export interface Enemy { id: string; name: string; hp: number; maxHp: number; armor: number }
 export interface Quest { id: string; title: string; description: string; status: "offen" | "erledigt" | "gescheitert"; notes: string[] }
 
@@ -43,7 +45,13 @@ export interface WorldState {
   /** Tag, Tageszeit und Wetter */
   time?: GameTime;
   /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
-  sent?: { arc: string; turns: number; inv?: string; people?: string; map?: string };
+  sent?: { arc: string; turns: number; inv?: string; people?: string; map?: string; standing?: string };
+  /** Ruf bei Fraktionen (−10 bis +10). */
+  reputation?: Record<string, Standing>;
+  /** Große Entscheidungen der Figuren. */
+  fates?: Fate[];
+  /** Ehrentitel und Erbstücke nach einer siegreichen Kampagne. */
+  legacy?: Legacy[];
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */

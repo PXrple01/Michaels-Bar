@@ -1,3 +1,4 @@
+import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
 import { costChip } from "../../../shared/campaign";
 import { openSheet } from "../lib/sheetModal";
@@ -359,6 +360,7 @@ export function partyPage(): Page {
         setMapData(root, v.world?.map);
         setSkyPhase(v.world?.time?.phase);
         noteParty(v);
+        noteLegacy(v.world, `gruppe-${v.code}`, v.opening ? v.opening.ort.charAt(0).toUpperCase() + v.opening.ort.slice(1) : `Gruppe ${v.code}`);
       }
 
       /** Unten: die eigenen Fähigkeiten mit Erklärung. */

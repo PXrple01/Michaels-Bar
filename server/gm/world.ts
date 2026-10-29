@@ -15,8 +15,9 @@ import { addItem, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, remo
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
+import { addFate, changeStanding, standingName } from "../../shared/standing";
 
-export const AUTO_TOOLS = ["kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["ruf", "schicksal", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -109,6 +110,15 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       titel: { type: "string", description: "Kurzer Titel, bei Folgeaktionen genau wie beim Anlegen" },
       text: { type: "string", description: "Beschreibung bzw. Notiz" },
     }, ["aktion", "titel", "text"]),
+    tool("ruf", "Ändert den Ruf der Gruppe bei einer Fraktion (wird den Spielern angezeigt). Wenn eine Tat bei einer Gruppe Eindruck macht: Kirche, Adel, Bürger, Bauern, Händlergilde, Diebesgilde, Stadtwache, ein bestimmtes Haus … Der Ruf öffnet oder versperrt später Türen.", {
+      fraktion: { type: "string", description: "Name der Fraktion, kurz und gleichbleibend, z. B. „Kirche“, „Haus Falkenstein“" },
+      aenderung: { type: "integer", description: "−3 bis +3: kleine Gefälligkeit ±1, deutliche Tat ±2, Großtat oder Verrat ±3" },
+      grund: { type: "string", description: "Ein kurzer Satz: was die Figuren getan haben" },
+    }, ["fraktion", "aenderung", "grund"]),
+    tool("schicksal", "Hält eine große, moralische Entscheidung der Figuren fest (Leben verschonen oder nehmen, Verrat, ein Versprechen, Partei ergreifen …). Die Spieler sehen sie in ihrer Schicksalsliste; du greifst sie später in der Geschichte wieder auf.", {
+      entscheidung: { type: "string", description: "Was die Figuren entschieden haben, ein Satz aus Sicht der Spieler" },
+      folge: { type: "string", description: "Nur für dich: welche Folge das später haben könnte" },
+    }, ["entscheidung"]),
     tool("merken", "Merkt sich eine wichtige Tatsache für später (Namen, Versprechen, Geheimnisse, Orte). Ein Satz.", { text: { type: "string" } }, ["text"]),
     tool("erfahrung", "Vergibt Erfahrungspunkte an alle Figuren für einen gelösten Auftrag, eine überstandene Gefahr oder eine kluge Idee (10–100; kleine Gefahr 20, großer Auftrag 60–100). Abgeschlossene Kapitel und Akte belohnt der Server selbst.", { menge: { type: "integer" }, grund: { type: "string" } }, ["menge", "grund"]),
     tool("kampagne_planen", `Plant die Kampagne (nur für dich, die Spieler sehen den Plan nicht): großes Ziel, Bedrohung und eine lineare Folge von Kapiteln in drei Akten – Anfang ${ACTS[0].chapters[0]}–${ACTS[0].chapters[1]}, Mitte ${ACTS[1].chapters[0]}–${ACTS[1].chapters[1]}, Finale ${ACTS[2].chapters[0]}–${ACTS[2].chapters[1]} Kapitel. Jedes Kapitel hat einen Titel und ein Ziel, das erreicht sein muss. Erneut aufgerufen, ersetzt es die noch nicht gespielten Kapitel (z. B. wenn die Spieler die Richtung geändert haben).`, {
@@ -131,6 +141,10 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
     tool("abenteuer_beenden", "Beendet die Kampagne. sieg: im letzten Kapitel des Finales – erzähle vorher die Entscheidung, den Ausgang und einen Epilog. niederlage: nur wenn alle Figuren kampfunfähig sind und niemand sie retten kann – erzähle vorher ein kurzes, würdiges Ende. Danach geht die Geschichte nicht weiter.", {
       epilog: { type: "string", description: "Zwei, drei Sätze: Wie geht es für die Figuren aus?" },
       ausgang: { type: "string", enum: ["sieg", "niederlage"] },
+      vermaechtnis: {
+        type: "array", description: "Nur bei sieg, für jede Figur: ein Ehrentitel und ein Erbstück aus dieser Geschichte (nur zur Ehre, ohne Spielwerte)",
+        items: { type: "object", properties: { figur: { type: "string", enum: characters.map((c) => c.name) }, titel: { type: "string", description: "Ehrentitel, z. B. „Bezwinger des Moores“" }, erbstueck: { type: "string", description: "Ein Andenken mit kurzer Herkunft, z. B. „Der Rabenring von Haus Falkenstein“" } }, required: ["figur", "titel", "erbstueck"] },
+      },
     }, ["epilog"]),
   ];
 }
@@ -354,6 +368,20 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       if (text) q.notes = [...q.notes, text].slice(-8);
       return { content: `Auftrag „${q.title}“: ${q.status}.` };
     }
+    case "ruf": {
+      const fraktion = text(input.fraktion, 40);
+      if (!fraktion) return err("fraktion fehlt.");
+      const delta = Math.max(-3, Math.min(3, Math.round(Number(input.aenderung) || 0)));
+      if (!delta) return err("aenderung muss zwischen −3 und +3 liegen (nicht 0).");
+      const r = changeStanding(w, fraktion, delta, text(input.grund, 140));
+      return { content: `Ruf bei ${r.name}: ${r.score > 0 ? "+" : ""}${r.score} (${standingName(r.score)}).` };
+    }
+    case "schicksal": {
+      const entscheidung = text(input.entscheidung, 200);
+      if (!entscheidung) return err("entscheidung fehlt.");
+      addFate(w, entscheidung, text(input.folge, 200));
+      return { content: "Im Schicksal festgehalten." };
+    }
     case "merken": {
       const text = String(input.text ?? "").trim().slice(0, 300);
       if (!text) return err("text fehlt.");
@@ -443,6 +471,12 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       arc.outcome = "sieg";
       arc.epilog = text(input.epilog, 600) || null;
       w.combat = null;
+      // Vermächtnis: Titel und Erbstück je Figur – fehlt etwas, gibt es einen schlichten Ehrentitel
+      const given = Array.isArray(input.vermaechtnis) ? input.vermaechtnis as Record<string, unknown>[] : [];
+      w.legacy = ctx.characters.map((c) => {
+        const g = given.find((x) => String(x?.figur ?? "").toLowerCase() === c.name.toLowerCase());
+        return { characterId: c.id, title: text(g?.titel, 60) || `Held von ${w.map?.current ?? "einst"}`, heirloom: text(g?.erbstueck, 120) || "Eine Erinnerung an diese Sage" };
+      });
       return { content: "Die Kampagne ist abgeschlossen. Schreib keine weiteren Vorschläge – die Geschichte endet hier." };
     }
   }

@@ -1,3 +1,4 @@
+import { legacyOf } from "../lib/legacy";
 import { costText } from "../../../shared/campaign";
 import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
 import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusForLevel, trainedSkills, type CharacterRollType } from "../../../shared/character";
@@ -57,6 +58,7 @@ export function sheetPage(): Page {
             <div class="sh-id">
               <div class="eyebrow">${cls.name} · ${stand.name}</div>
               <h1>${c.name}</h1>
+              ${legacyOf(c.id).length ? html`<div class="hp-titles">${legacyOf(c.id).map((l) => html`<span class="chip legacy-chip" title="Erbstück: ${l.heirloom} – aus „${l.campaignTitle}“">${icon("crown")} ${l.title}</span>`)}</div>` : ""}
               <div class="sh-chips">
                 <span class="chip">${term("stufe", `Stufe ${c.level}`)}</span>
                 <span class="chip">${c.xp} EP</span>

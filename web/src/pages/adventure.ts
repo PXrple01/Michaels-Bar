@@ -1,3 +1,4 @@
+import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
 import { openSheet } from "../lib/sheetModal";
 import { effectiveCharacter } from "../../../shared/levels";
@@ -210,6 +211,7 @@ export function playPage(): Page {
         fillSide(root.querySelector("#side-right"), lageSide(w));
         setMapData(root, w?.map);
         setSkyPhase(w?.time?.phase);
+        noteLegacy(w, save!.id, save!.title);
         renderAbilities();
       };
 

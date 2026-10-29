@@ -1450,3 +1450,33 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
   * { animation: none !important; transition: none !important; }
   [data-reveal] { opacity: 1 !important; transform: none !important; filter: none !important; }
 }
+
+/* ───────────── Ruf, Schicksal, Vermächtnis ───────────── */
+.rep-list, .fate-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.rep { display: grid; gap: 4px; }
+.rep-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.rep-top b { font-size: 0.88rem; }
+.rep-top small { font-size: 0.76rem; color: var(--muted); white-space: nowrap; }
+.rep.pos .rep-top small { color: var(--good); }
+.rep.neg .rep-top small { color: var(--bad); }
+.rep-bar { position: relative; height: 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.rep-bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line-strong); }
+.rep-bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--good); }
+.rep.neg .rep-bar i { background: var(--bad); }
+.rep em { font-size: 0.78rem; color: var(--text-2); }
+.fate-list li { font-size: 0.84rem; color: var(--text-2); padding-left: 10px; border-left: 2px solid rgba(245, 214, 138, 0.4); }
+.fate-list b { display: block; font-size: 0.72rem; color: var(--gold); letter-spacing: 0.06em; text-transform: uppercase; }
+.end-legacy { display: grid; gap: 10px; width: 100%; max-width: 520px; text-align: left; }
+.legacy-item { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid rgba(245, 214, 138, 0.4); background: rgba(245, 214, 138, 0.06); }
+.legacy-medal { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #3a2208; background: radial-gradient(circle at 35% 30%, #fff3c4, #f5d68a 40%, #b8862c 100%); }
+.legacy-medal svg { width: 20px; height: 20px; }
+.legacy-item span { display: grid; gap: 2px; }
+.legacy-item small { color: var(--muted); font-size: 0.76rem; }
+.legacy-item b { font-family: var(--font-head); color: var(--gold); }
+.legacy-item em { display: inline-flex; align-items: center; gap: 5px; font-size: 0.84rem; color: var(--text-2); }
+.legacy-item em svg { width: 13px; height: 13px; }
+.hp-titles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.legacy-chip { color: var(--gold); border-color: rgba(245, 214, 138, 0.45); background: rgba(245, 214, 138, 0.08); }
+.legacy-chip svg { width: 13px; height: 13px; }
+.hp-heirlooms { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; font-size: 0.86rem; color: var(--text-2); }
+.hp-heirlooms svg { width: 13px; height: 13px; color: var(--gold); vertical-align: -2px; }
