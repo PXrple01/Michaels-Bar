@@ -65,7 +65,7 @@ export class UsageGuard {
   /** Prüft vor jedem Aufruf. Wirft, wenn Budget oder Stundenlimit erreicht sind. */
   async check(who: string): Promise<void> {
     const spent = await this.store.get(monthKey());
-    if (spent >= this.limitUsd) throw new LimitError(`Das Monatsbudget von ${this.limitUsd.toFixed(2)} $ ist aufgebraucht. Ab dem nächsten Monat geht es weiter.`, "budget");
+    if (this.limitUsd > 0 && spent >= this.limitUsd) throw new LimitError(`Das Monatsbudget von ${this.limitUsd.toFixed(2)} $ ist aufgebraucht. Ab dem nächsten Monat geht es weiter.`, "budget");
     const turns = await this.store.add(hourKey(who), 1);
     if (turns > this.turnsPerHour) throw new LimitError(`Zu viele Züge in dieser Stunde (höchstens ${this.turnsPerHour}). Gönn dem Spielleiter eine Pause.`, "rate");
   }

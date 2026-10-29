@@ -75,6 +75,7 @@ export interface CampaignSave {
   updatedAt: string;
 }
 
+/** limitUsd 0 = ohne Monatsgrenze. */
 export interface BudgetInfo { spentUsd: number; limitUsd: number }
 
 /** Kosten lesbar: unter einem Dollar in Cent, sonst in Dollar. */
@@ -84,7 +85,7 @@ export function costChip(c: { claudeUsd: number; imageUsd: number; lastUsd: numb
   const last = c.lastUsd !== null ? ` · Letzter Zug ${costText(c.lastUsd)}${c.lastImageUsd ? ` + Bild ${costText(c.lastImageUsd)}` : ""}` : "";
   return {
     text: `Claude ${costText(c.claudeUsd)} · Bilder ${costText(c.imageUsd)}${last}`,
-    title: `Kosten dieser Kampagne: Claude (Spielleiter) ${costText(c.claudeUsd)}, Bilder (fal.ai) ${costText(c.imageUsd)}.${budget ? ` Gesamtbudget aller Abenteuer zusammen: ${budget.spentUsd.toFixed(2)} $ von ${budget.limitUsd.toFixed(0)} $.` : ""}`,
+    title: `Kosten dieser Kampagne: Claude (Spielleiter) ${costText(c.claudeUsd)}, Bilder (fal.ai) ${costText(c.imageUsd)}.${budget ? ` Diesen Monat insgesamt: ${budget.spentUsd.toFixed(2)} $${budget.limitUsd > 0 ? ` von ${budget.limitUsd.toFixed(0)} $` : ""}.` : ""}`,
   };
 }
 

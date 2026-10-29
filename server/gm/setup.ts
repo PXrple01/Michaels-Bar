@@ -46,7 +46,8 @@ export interface Claude {
 export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, counters: CounterStore, secret: string, parties: PartyStore = new MemoryPartyStore(), imageStore: ImageStore = new MemoryImageStore()): Claude {
   const effort = env.GM_EFFORT === "medium" || env.GM_EFFORT === "high" ? env.GM_EFFORT : "low";
   const llm = env.ANTHROPIC_API_KEY ? new AnthropicLlm(env.ANTHROPIC_API_KEY) : null;
-  const guard = new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD ?? 10) || 10, Number(env.TURNS_PER_HOUR ?? 60) || 60);
+  // Monatsbudget nur, wenn MONTHLY_BUDGET_USD gesetzt ist (0 oder leer = ohne Grenze)
+  const guard = new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD) || 0, Number(env.TURNS_PER_HOUR ?? 60) || 60);
   const model = pickModel(env.GM_MODEL, "claude-opus-5-5");
   const images = new ImageMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore });
   const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model, images });

@@ -52,7 +52,7 @@ npx netlify-cli deploy --build --prod
 | `GAME_SECRET` | für Abenteuer | Langes Zufallsgeheimnis (≥ 16 Zeichen), signiert die Spielstände |
 | `ADMIN_USER` | optional | Dein Benutzername – nur dieses Konto darf Figuren aus Gruppen wiederherstellen |
 | `ACCESS_CODE` | dringend empfohlen | Einladungscode: Wer ein Konto erstellen will, braucht ihn einmal – sonst kann jeder ein Konto anlegen und auf deine Kosten spielen. Angemeldete brauchen ihn danach nicht mehr. |
-| `MONTHLY_BUDGET_USD` | nein (10) | Harte Kostengrenze pro Monat |
+| `MONTHLY_BUDGET_USD` | nein (keine Grenze) | Optionale harte Kostengrenze pro Monat |
 | `TURNS_PER_HOUR` | nein (60) | Züge pro Stunde und Besucher |
 | `GM_EFFORT` | nein (`low`) | Denktiefe: `low`, `medium`, `high` (höher = langsamer und teurer) |
 | `GM_MODEL` | nein (`claude-opus-5-5`) | Modell des Spielleiters |
