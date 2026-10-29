@@ -108,6 +108,13 @@ describe("Bild am Anfang von Kampagne und Kapitel, gemalter Kartenhintergrund", 
     // Kampf läuft noch: kein Zwangsbild
     world.combat = { round: 2, enemies: [] };
     expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene, wasFighting: true })).imageUsd).toBe(0);
+    // Ortswechsel: Bild vom neuen Ort; am selben Ort keines
+    world.combat = null;
+    visitPlace(world, { name: "Kapelle im Moor", kind: "kloster" });
+    world.map!.bg = "/api/images/karte"; // Kartenhintergrund gibt es schon
+    expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene, placeBefore: "Kapelle im Moor" })).imageUsd).toBe(0);
+    visitPlace(world, { name: "Birkenfurt", kind: "dorf" });
+    expect((await narrator.imageIfDue({ mark: m2, first: false, painted: false, narration, scene, placeBefore: "Kapelle im Moor" })).imageUsd).toBe(0.012);
   });
 
   it("Kartenhintergrund einmal je Kampagne, sobald es Orte gibt", async () => {

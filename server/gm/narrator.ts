@@ -184,16 +184,18 @@ export class Narrator {
   get model(): ModelId { return this.o.model ?? "claude-opus-5-5"; }
 
   /**
-   * Am Anfang der Kampagne und jedes Kapitels sowie am Ende jedes Kampfes ein Szenenbild, falls Claude keines bestellt hat (Beschreibung von Claude Haiku
+   * Am Anfang der Kampagne und jedes Kapitels, bei jedem Ortswechsel sowie am Ende jedes Kampfes ein Szenenbild, falls Claude keines bestellt hat (Beschreibung von Claude Haiku
    * aus der Erzählung) – sonst entscheidet Claude. Dazu einmal je Kampagne ein gemalter Kartenhintergrund. Beides läuft gleichzeitig.
    */
-  async imageIfDue(o: { mark: string; first: boolean; painted: boolean; narration: string; scene: Scene; wasFighting?: boolean }): Promise<{ imageUsd: number; claudeUsd: number }> {
+  async imageIfDue(o: { mark: string; first: boolean; painted: boolean; narration: string; scene: Scene; wasFighting?: boolean; placeBefore?: string | null }): Promise<{ imageUsd: number; claudeUsd: number }> {
     const { world } = o.scene;
     if (!this.o.images?.ready) return { imageUsd: 0, claudeUsd: 0 };
     const newChapter = o.first || (chapterMark(world) !== "" && chapterMark(world) !== o.mark);
     // Ende eines Kampfes: immer ein Bild vom Ausgang
     const fightOver = !!o.wasFighting && !world.combat;
-    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver);
+    // Ortswechsel (Claude hat mit ort einen anderen Ort gemeldet): Bild vom neuen Ort
+    const moved = o.placeBefore !== undefined && !!world.map?.current && world.map.current !== o.placeBefore;
+    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved);
     const [scene, map] = await Promise.all([
       due ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
       this.mapBackground(world),
@@ -305,7 +307,7 @@ export class Narrator {
       },
     }, ...autoToolDefs(characters), {
       name: "bild",
-      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Vor allem dafür da, dass sich die Spieler die Orte vorstellen können: Rufe es auf, wenn die Figuren an einem neuen Ort ankommen (Dorf, Burg, Wald, Kloster, Gasthaus, Höhle …) – zeige den Ort selbst, seine Atmosphäre, Licht und Wetter. Außerdem bei der ersten Antwort, wenn ein Kapitel beginnt und am Ende eines Kampfes. Sonst nur bei wirklich besonderen Momenten; du entscheidest. Höchstens eins pro Antwort.",
+      description: "Zeigt den Spielern ein gemaltes Bild der Szene (dauert ein paar Sekunden). Vor allem dafür da, dass sich die Spieler die Orte vorstellen können: Rufe es bei JEDEM Szenen- oder Ortswechsel auf – wenn die Figuren an einem anderen Ort ankommen (Dorf, Burg, Wald, Moor, Kloster, Gasthaus, Höhle …), auch beim Wechsel von drinnen nach draußen oder wenn eine Reise endet. Zeige den neuen Ort selbst, seine Atmosphäre, Licht, Wetter und Tageszeit. Außerdem bei der ersten Antwort, wenn ein Kapitel beginnt und am Ende eines Kampfes. Sonst nur bei wirklich besonderen Momenten; du entscheidest. Höchstens eins pro Antwort.",
       input_schema: {
         type: "object",
         properties: {
