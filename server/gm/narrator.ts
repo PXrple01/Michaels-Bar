@@ -88,6 +88,8 @@ const MAX_LOOPS = 5;
 export const TURN_BUDGET_MS = 50_000;
 /** Gelände je Ortsart für den gemalten Kartenhintergrund. */
 const MAP_TERRAIN: Record<string, string> = { dorf: "small villages", stadt: "a walled town", burg: "a castle on a hill", kloster: "a monastery", wald: "dense forests", hoehle: "rocky caves", ruine: "ancient ruins", gasthaus: "a roadside inn", fluss: "a winding river with a bridge", berg: "mountains" };
+/** Beta für die Steuerung, was mit nicht mehr passenden Denkblöcken passiert. */
+const THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01";
 /** Kleines Modell für Bildbeschreibungen. */
 const IMAGE_PROMPT_MODEL: ModelId = "claude-haiku-5-5";
 /** Kapitelmarke: ändert sie sich in einem Zug, hat ein neues Kapitel (oder die Kampagne) begonnen. */
@@ -457,7 +459,10 @@ export class Narrator {
         try {
           msg = await this.o.llm!.stream({
             ...base,
-            betas: [...(base.betas ?? []), ...(compact ? ["compact-2026-01-12"] : [])],
+            betas: [...(base.betas ?? []), THINKING_BINDING_BETA, ...(compact ? ["compact-2026-01-12"] : [])],
+            // Passt ein alter Denkblock nicht mehr zum Verlauf (z. B. nach Zusammenfassung oder Wiederholung),
+            // lässt die API ihn weg, statt die ganze Anfrage abzulehnen.
+            thinking: { type: "adaptive", block_binding: { prefix_mismatch_behavior: "drop_block" } },
             max_tokens: 8000,
             cache_control: CACHE_1H,
             system: [{ type: "text", text: systemPrompt(data), cache_control: CACHE_1H }],
