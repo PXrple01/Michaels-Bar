@@ -63,7 +63,7 @@ export function bindLevelCard(root: HTMLElement, send: (choice: { skill?: string
 export function announceLevel(before: number, after: number, rules: Rules) {
   if (after <= before) return;
   const extra = after >= rules.levels.extraSkillAt && before < rules.levels.extraSkillAt ? " Du darfst eine neue Fertigkeit lernen."
-    : after >= rules.levels.attributeIncreaseAt && before < rules.levels.attributeIncreaseAt ? " Du darfst deine Attribute steigern."
+    : rules.levels.attributeIncreaseAt.some((l) => after >= l && before < l) ? " Du darfst deine Attribute steigern."
     : after === rules.levels.max ? " Dein Können steigt auf +3." : " Deine Trefferpunkte steigen.";
   toast(`⭐ Stufe ${after} erreicht – ${levelTitle(after, rules)}!${extra}`, "success", 6000);
   celebrateLevel(after, levelTitle(after, rules));

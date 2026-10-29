@@ -238,10 +238,10 @@ export class OpenAiGateway {
   }
 }
 
-/** Ohne Auswahl-Knöpfe: Bei Stufe 4 die erste noch nicht geübte Fertigkeit der Klassenauswahl, bei Stufe 7 +1 auf die zwei Hauptattribute. */
+/** Ohne Auswahl-Knöpfe: Bei Stufe 4 die erste noch nicht geübte Fertigkeit der Klassenauswahl, bei Stufe 3, 6 und 9 +1 auf die zwei Hauptattribute. */
 function autoLevelChoices(world: WorldState, c: Character, data: GameData) {
   const cls = data.classes.find((x) => x.id === c.classId);
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 5; i++) {
     const due = levelChoiceDue(world, c.id, data.rules);
     if (due === "skill") {
       const pick = [...(cls?.skillChoices.from ?? []), ...data.rules.skills.map((s) => s.id)].find((id) => !chooseLevelReward(structuredClone(world), c, data.classes, data.rules, { skill: id }));
@@ -249,7 +249,9 @@ function autoLevelChoices(world: WorldState, c: Character, data: GameData) {
     } else if (due === "attrs") {
       const [a, b] = cls?.primaryAttributes ?? [];
       const first = a && b ? { [a]: 1, [b]: 1 } : { [a ?? "konstitution"]: 2 };
-      if (chooseLevelReward(world, c, data.classes, data.rules, { attrs: first })) chooseLevelReward(world, c, data.classes, data.rules, { attrs: { konstitution: 1, geschick: 1 } });
+      // Hauptattribute schon am Höchstwert: auf andere ausweichen, sonst die Wahl überspringen
+      const options = [first, { konstitution: 1, geschick: 1 }, { weisheit: 1, verstand: 1 }, { ausstrahlung: 1, staerke: 1 }];
+      if (!options.some((o) => !chooseLevelReward(world, c, data.classes, data.rules, { attrs: o }))) break;
     }
   }
 }

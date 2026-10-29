@@ -120,7 +120,7 @@ export interface RollRequest {
   state: SignedState;
 }
 
-/** Wahl beim Stufenaufstieg: Fertigkeit (Stufe 4) oder Attributsteigerung (Stufe 7). */
+/** Wahl beim Stufenaufstieg: Fertigkeit (Stufe 4) oder Attributsteigerung (Stufe 3, 6, 9). */
 /** Kaufen oder verkaufen im offenen Laden (ohne Claude). */
 export interface ShopRequest { character: unknown; state: SignedState; action?: unknown; ref?: unknown }
 

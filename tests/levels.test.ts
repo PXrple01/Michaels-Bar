@@ -82,13 +82,14 @@ describe("Stufen 1 bis 10", () => {
     const before = characterRoll(effectiveCharacter(hagen, w), rules, data.classes, "skill", "heimlichkeit").parts.length;
     expect(chooseLevelReward(w, hagen, data.classes, rules, { skill: "heimlichkeit" })).toBeNull();
     expect(characterRoll(effectiveCharacter(hagen, w), rules, data.classes, "skill", "heimlichkeit").parts.length).toBe(before + 1); // + Können
-    expect(levelChoiceDue(w, hagen.id, rules)).toBeNull();
+    // Die Attributsteigerung von Stufe 3 steht danach noch aus
+    expect(levelChoiceDue(w, hagen.id, rules)).toBe("attrs");
   });
 
-  it("Stufe 7: +2 auf eins oder +1 auf zwei, höchstens 18; Konstitution erhöht die Trefferpunkte", async () => {
+  it("Stufe 3, 6 und 9: je +2 auf eins oder +1 auf zwei, höchstens 18; Konstitution erhöht die Trefferpunkte", async () => {
     const w = await planned();
     for (let i = 0; i < 5; i++) await close(w); // Finale
-    w.xp[hagen.id] = 510;
+    w.xp[hagen.id] = 510; // Stufe 7: Steigerungen von Stufe 3 und 6 fällig
     applyLevels(w, [hagen], data.classes, rules);
     chooseLevelReward(w, hagen, data.classes, rules, { skill: "heimlichkeit" });
     expect(levelChoiceDue(w, hagen.id, rules)).toBe("attrs");
@@ -98,8 +99,21 @@ describe("Stufen 1 bis 10", () => {
     expect(chooseLevelReward(structuredClone(w), { ...hagen, attributes: { ...hagen.attributes, staerke: 17 } }, data.classes, rules, { attrs: { staerke: 2 } })).toMatch(/18/);
     const hpBefore = w.maxHp[hagen.id];
     expect(chooseLevelReward(w, hagen, data.classes, rules, { attrs: { konstitution: 2 } })).toBeNull();
-    expect(effectiveCharacter(hagen, w).attributes.konstitution).toBe(hagen.attributes.konstitution + 2);
     expect(w.maxHp[hagen.id]).toBeGreaterThan(hpBefore); // Konstitution +2 → Bonus +1 → mehr Trefferpunkte
+    // Zweite Steigerung (Stufe 6) – zählt zur ersten dazu
+    expect(levelChoiceDue(w, hagen.id, rules)).toBe("attrs");
+    expect(chooseLevelReward(w, hagen, data.classes, rules, { attrs: { konstitution: 1, geschick: 1 } })).toBeNull();
+    expect(effectiveCharacter(hagen, w).attributes.konstitution).toBe(hagen.attributes.konstitution + 3);
+    expect(effectiveCharacter(hagen, w).attributes.geschick).toBe(hagen.attributes.geschick + 1);
     expect(levelChoiceDue(w, hagen.id, rules)).toBeNull();
+    // Stufe 9: dritte Steigerung
+    w.levels![hagen.id].level = 9;
+    expect(levelChoiceDue(w, hagen.id, rules)).toBe("attrs");
+  });
+
+  it("ältere Stände: eine schon gewählte Steigerung zählt als die erste", () => {
+    const st = { level: 7, skill: "heimlichkeit", attrs: { staerke: 2 } };
+    const w = { levels: { [hagen.id]: st } } as never;
+    expect(levelChoiceDue(w, hagen.id, rules)).toBe("attrs"); // Stufe 6 noch offen
   });
 });

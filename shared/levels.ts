@@ -1,5 +1,5 @@
 // Stufenaufstieg innerhalb einer Kampagne: Stufe 1 bis 10 aus der Erfahrung – gedeckelt durch den Kampagnenbogen.
-// Gleiche Gesamtstärke wie fünf Stufen, nur feiner verteilt: Trefferpunkte jede Stufe, Fertigkeit (4), Attribut (7), Können (10).
+// Trefferpunkte jede Stufe, Attribute (+2 auf Stufe 3, 6 und 9 – je am Ende eines Akts), Fertigkeit (4), Können (10).
 import { maxHpAtLevel } from "./character";
 import type { Character, ClassDef, Rules } from "./schema";
 import { currentChapter, isArc, type WorldState } from "./world";
@@ -8,11 +8,17 @@ export interface LevelState {
   level: number;
   /** Zusätzliche geübte Fertigkeit ab der Stufe `extraSkillAt` (null = noch nicht gewählt). */
   skill: string | null;
-  /** Attributsteigerung ab der Stufe `attributeIncreaseAt` (null = noch nicht gewählt). */
+  /** Alle Attributsteigerungen dieser Kampagne zusammengezählt (null = noch keine). */
   attrs: Record<string, number> | null;
+  /** Wie viele der Steigerungen (Stufe 3, 6, 9) schon gewählt sind. Fehlt bei älteren Ständen: dann zählt `attrs` als eine. */
+  attrPicks?: number;
 }
 
-export const emptyLevel = (): LevelState => ({ level: 1, skill: null, attrs: null });
+export const emptyLevel = (): LevelState => ({ level: 1, skill: null, attrs: null, attrPicks: 0 });
+
+/** Gewählte und fällige Attributsteigerungen. */
+const attrPicksDone = (st: LevelState) => st.attrPicks ?? (st.attrs ? 1 : 0);
+export const attrPicksDue = (st: LevelState, rules: Rules) => rules.levels.attributeIncreaseAt.filter((l) => st.level >= l).length;
 
 export const levelTitle = (level: number, rules: Rules) => rules.levels.titles[Math.min(Math.max(level, 1), rules.levels.max) - 1] ?? `Stufe ${level}`;
 
@@ -52,7 +58,7 @@ export function levelChoiceDue(w: WorldState | null | undefined, characterId: st
   const st = w?.levels?.[characterId];
   if (!st) return null;
   if (st.level >= rules.levels.extraSkillAt && !st.skill) return "skill";
-  if (st.level >= rules.levels.attributeIncreaseAt && !st.attrs) return "attrs";
+  if (attrPicksDue(st, rules) > attrPicksDone(st)) return "attrs";
   return null;
 }
 
@@ -111,7 +117,10 @@ export function chooseLevelReward(w: WorldState, c: Character, classes: ClassDef
     if (!rules.attributes.some((a) => a.id === k)) return "Unbekanntes Attribut.";
     if ((eff.attributes[k] ?? 10) + v > rules.classBuilder.attributeMods.finalMax) return `Höchstens ${rules.classBuilder.attributeMods.finalMax} pro Attribut.`;
   }
-  st.attrs = Object.fromEntries(entries);
+  const sum = { ...(st.attrs ?? {}) };
+  for (const [k, v] of entries) sum[k] = (sum[k] ?? 0) + v;
+  st.attrs = sum;
+  st.attrPicks = attrPicksDone(st) + 1;
   syncHp(w, c, classes, rules);
   return null;
 }

@@ -329,7 +329,7 @@ export class PartyService {
     emit({ type: "view", view: this.view(done, me.id, await this.o.guard.info()) });
   }
 
-  /** Wahl beim Stufenaufstieg (Fertigkeit bei Stufe 4, Attribute bei Stufe 7) – für die eigene Figur. */
+  /** Wahl beim Stufenaufstieg (Fertigkeit bei Stufe 4, Attribute bei Stufe 3, 6 und 9) – für die eigene Figur. */
   async levelChoice(body: { code?: unknown; token?: unknown; skill?: unknown; attrs?: unknown }): Promise<PartyView> {
     const { party } = await this.load(body?.code);
     const me = this.player(party, body?.token);
