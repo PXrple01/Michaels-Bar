@@ -86,7 +86,7 @@ describe("Stufen 1 bis 10", () => {
     expect(levelChoiceDue(w, hagen.id, rules)).toBe("attrs");
   });
 
-  it("Stufe 3, 6 und 9: je +2 auf eins oder +1 auf zwei, höchstens 18; Konstitution erhöht die Trefferpunkte", async () => {
+  it("Stufe 3 und 6: je +2 auf eins oder +1 auf zwei, Stufe 9: +1 – höchstens 18; Konstitution erhöht die Trefferpunkte", async () => {
     const w = await planned();
     for (let i = 0; i < 5; i++) await close(w); // Finale
     w.xp[hagen.id] = 510; // Stufe 7: Steigerungen von Stufe 3 und 6 fällig
@@ -106,9 +106,13 @@ describe("Stufen 1 bis 10", () => {
     expect(effectiveCharacter(hagen, w).attributes.konstitution).toBe(hagen.attributes.konstitution + 3);
     expect(effectiveCharacter(hagen, w).attributes.geschick).toBe(hagen.attributes.geschick + 1);
     expect(levelChoiceDue(w, hagen.id, rules)).toBeNull();
-    // Stufe 9: dritte Steigerung
+    // Stufe 9: dritte Steigerung, nur +1
     w.levels![hagen.id].level = 9;
     expect(levelChoiceDue(w, hagen.id, rules)).toBe("attrs");
+    expect(chooseLevelReward(w, hagen, data.classes, rules, { attrs: { weisheit: 2 } })).toMatch(/\+1/);
+    expect(chooseLevelReward(w, hagen, data.classes, rules, { attrs: { weisheit: 1 } })).toBeNull();
+    expect(effectiveCharacter(hagen, w).attributes.weisheit).toBe(hagen.attributes.weisheit + 1);
+    expect(levelChoiceDue(w, hagen.id, rules)).toBeNull();
   });
 
   it("ältere Stände: eine schon gewählte Steigerung zählt als die erste", () => {

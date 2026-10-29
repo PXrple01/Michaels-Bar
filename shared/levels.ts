@@ -1,5 +1,5 @@
 // Stufenaufstieg innerhalb einer Kampagne: Stufe 1 bis 10 aus der Erfahrung – gedeckelt durch den Kampagnenbogen.
-// Trefferpunkte jede Stufe, Attribute (+2 auf Stufe 3, 6 und 9 – je am Ende eines Akts), Fertigkeit (4), Können (10).
+// Trefferpunkte jede Stufe, Attribute (Stufe 3 und 6: +2, Stufe 9: +1 – je am Ende eines Akts), Fertigkeit (4), Können (10).
 import { maxHpAtLevel } from "./character";
 import type { Character, ClassDef, Rules } from "./schema";
 import { currentChapter, isArc, type WorldState } from "./world";
@@ -19,6 +19,8 @@ export const emptyLevel = (): LevelState => ({ level: 1, skill: null, attrs: nul
 /** Gewählte und fällige Attributsteigerungen. */
 const attrPicksDone = (st: LevelState) => st.attrPicks ?? (st.attrs ? 1 : 0);
 export const attrPicksDue = (st: LevelState, rules: Rules) => rules.levels.attributeIncreaseAt.filter((l) => st.level >= l).length;
+/** Punkte der nächsten fälligen Steigerung (2 oder 1). */
+export const attrPointsNext = (st: LevelState, rules: Rules) => rules.levels.attributeIncreasePoints[attrPicksDone(st)] ?? 1;
 
 export const levelTitle = (level: number, rules: Rules) => rules.levels.titles[Math.min(Math.max(level, 1), rules.levels.max) - 1] ?? `Stufe ${level}`;
 
@@ -110,8 +112,10 @@ export function chooseLevelReward(w: WorldState, c: Character, classes: ClassDef
   }
   const raw = (choice.attrs ?? {}) as Record<string, unknown>;
   const entries = Object.entries(raw).map(([k, v]) => [k, Math.round(Number(v) || 0)] as const).filter(([, v]) => v > 0);
-  const valid = (entries.length === 1 && entries[0][1] === 2) || (entries.length === 2 && entries.every(([, v]) => v === 1));
-  if (!valid) return "Wähle +2 auf ein Attribut oder +1 auf zwei verschiedene.";
+  const points = attrPointsNext(st, rules);
+  const valid = points === 1 ? entries.length === 1 && entries[0][1] === 1
+    : (entries.length === 1 && entries[0][1] === 2) || (entries.length === 2 && entries.every(([, v]) => v === 1));
+  if (!valid) return points === 1 ? "Wähle +1 auf ein Attribut." : "Wähle +2 auf ein Attribut oder +1 auf zwei verschiedene.";
   const eff = effectiveCharacter(c, w);
   for (const [k, v] of entries) {
     if (!rules.attributes.some((a) => a.id === k)) return "Unbekanntes Attribut.";

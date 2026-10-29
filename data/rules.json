@@ -128,6 +128,7 @@
     ],
     "extraSkillAt": 4,
     "attributeIncreaseAt": [3, 6, 9],
+    "attributeIncreasePoints": [2, 2, 1],
     "hpLevelUps": 4,
     "actCap": [
       3,
@@ -136,7 +137,7 @@
     ],
     "chapterXp": 50,
     "actXp": 100,
-    "explanation": "Stufen gelten innerhalb einer Kampagne (Stufe 1 bis 10). Jede Stufe bringt etwas mehr Trefferpunkte – insgesamt so viel wie vier volle Aufstiege. Stufe 3, 6 und 9 (je am Ende eines Akts): +2 auf ein Attribut oder +1 auf zwei (höchstens 18). Stufe 4: eine zusätzliche geübte Fertigkeit. Stufe 10: Können +3. Alles gilt nur in dieser Kampagne. Höchstens Stufe 3 im Anfang, 6 in der Mitte, 9 im Finale; Stufe 10 im letzten Kapitel."
+    "explanation": "Stufen gelten innerhalb einer Kampagne (Stufe 1 bis 10). Jede Stufe bringt etwas mehr Trefferpunkte – insgesamt so viel wie vier volle Aufstiege. Stufe 3 und 6: +2 auf ein Attribut oder +1 auf zwei; Stufe 9: +1 auf ein Attribut (höchstens 18). Stufe 4: eine zusätzliche geübte Fertigkeit. Stufe 10: Können +3. Alles gilt nur in dieser Kampagne. Höchstens Stufe 3 im Anfang, 6 in der Mitte, 9 im Finale; Stufe 10 im letzten Kapitel."
   },
   "checks": {
     "die": 20,

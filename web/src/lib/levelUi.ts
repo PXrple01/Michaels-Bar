@@ -1,5 +1,5 @@
-// Stufenaufstieg in der Oberfläche: Wahl bei Stufe 4 (Fertigkeit) und 7 (Attribute), Hinweis beim Aufstieg.
-import { effectiveCharacter, levelChoiceDue, levelTitle } from "../../../shared/levels";
+// Stufenaufstieg in der Oberfläche: Wahl bei Stufe 4 (Fertigkeit) und 3, 6, 9 (Attribute), Hinweis beim Aufstieg.
+import { attrPointsNext, effectiveCharacter, levelChoiceDue, levelTitle } from "../../../shared/levels";
 import type { Character, ClassDef, Rules } from "../../../shared/schema";
 import type { WorldState } from "../../../shared/world";
 import { html, raw, type Raw } from "./dom";
@@ -27,18 +27,19 @@ export function levelChoiceCard(w: WorldState | null | undefined, c: Character, 
       })}</div>
     </div>`;
   }
-  return html`<div class="card level-card glow-border" data-level-attrs>
-    <div class="lc-head"><span class="lc-num">${level}</span><div><div class="eyebrow">Stufe ${level} · ${levelTitle(level, rules)}</div><h3>Steigere deine Attribute</h3><p class="muted">+2 auf ein Attribut oder je +1 auf zwei (höchstens ${rules.classBuilder.attributeMods.finalMax}).</p></div></div>
+  const points = attrPointsNext(w.levels![c.id], rules);
+  return html`<div class="card level-card glow-border" data-level-attrs data-points="${points}">
+    <div class="lc-head"><span class="lc-num">${level}</span><div><div class="eyebrow">Stufe ${level} · ${levelTitle(level, rules)}</div><h3>Steigere deine Attribute</h3><p class="muted">${points === 1 ? "+1 auf ein Attribut" : "+2 auf ein Attribut oder je +1 auf zwei"} (höchstens ${rules.classBuilder.attributeMods.finalMax}).</p></div></div>
     <div class="lc-attrs">${rules.attributes.map((a) => {
       const v = eff.attributes[a.id] ?? 10;
       const max = rules.classBuilder.attributeMods.finalMax;
       return html`<div class="lc-attr">
         <span><b>${a.name}</b><small>${v}</small></span>
-        <button class="btn btn-sm" data-level-attr2="${a.id}" ${v + 2 > max ? "disabled" : ""}>+2</button>
+        ${points === 2 ? html`<button class="btn btn-sm" data-level-attr2="${a.id}" ${v + 2 > max ? "disabled" : ""}>+2</button>` : ""}
         <button class="btn btn-ghost btn-sm" data-level-attr1="${a.id}" aria-pressed="false" ${v + 1 > max ? "disabled" : ""}>+1</button>
       </div>`;
     })}</div>
-    <div class="center"><button class="btn" data-level-confirm disabled>${icon("check")} Je +1 übernehmen</button></div>
+    ${points === 2 ? html`<div class="center"><button class="btn" data-level-confirm disabled>${icon("check")} Je +1 übernehmen</button></div>` : ""}
   </div>`;
 }
 
@@ -48,6 +49,11 @@ export function bindLevelCard(root: HTMLElement, send: (choice: { skill?: string
   root.querySelectorAll<HTMLElement>("[data-level-attr2]").forEach((b) => b.addEventListener("click", () => send({ attrs: { [b.dataset.levelAttr2!]: 2 } })));
   const card = root.querySelector<HTMLElement>("[data-level-attrs]");
   if (!card) return;
+  // Nur +1 (Stufe 9): ein Klick genügt
+  if (card.dataset.points === "1") {
+    card.querySelectorAll<HTMLElement>("[data-level-attr1]").forEach((b) => b.addEventListener("click", () => send({ attrs: { [b.dataset.levelAttr1!]: 1 } })));
+    return;
+  }
   const confirm = card.querySelector<HTMLButtonElement>("[data-level-confirm]")!;
   const picked = () => [...card.querySelectorAll<HTMLElement>('[data-level-attr1][aria-pressed="true"]')].map((b) => b.dataset.levelAttr1!);
   card.querySelectorAll<HTMLElement>("[data-level-attr1]").forEach((b) => b.addEventListener("click", () => {
