@@ -113,7 +113,7 @@ export function hallPage(): Page {
                   <span title="Niederlagen">${icon("moon")} ${h.lost}</span>
                   <span title="Bereiste Orte">${icon("map")} ${h.places}</span>
                   <span title="Tage unterwegs">${icon("sun")} ${h.days}</span>
-                  <span title="Natürliche 20">${icon("dice")} ${h.crits}</span>
+                  <span title="Kritische Erfolge">${icon("dice")} ${h.crits}</span>
                 </div>
               </div>
             </div>

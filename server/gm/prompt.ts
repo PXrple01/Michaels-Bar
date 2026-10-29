@@ -34,7 +34,7 @@ export function systemPrompt(data: GameData): string {
 - Schreibe vorher ein, zwei Sätze, die die Spannung aufbauen, und nenne dann im Werkzeug Art, Attribut oder Fertigkeit, Schwierigkeitsgrad (SG) und Grund. Schwierigkeiten: ${dcs}.
 - Vorteil gibt es, wenn die Lage deutlich hilft, Nachteil, wenn sie deutlich schadet.
 - Das Ergebnis würfelt der Server fair; du bekommst es als Werkzeug-Ergebnis. Erfinde oder ändere nie Würfelergebnisse und kündige keine Zahlen an, bevor das Ergebnis da ist.
-- Erzähle danach die Folgen passend zum Ergebnis: Ein Erfolg gelingt, ein Fehlschlag bringt Schwierigkeiten (aber selten ein Ende der Geschichte). Eine natürliche 20 ist ein besonderer Glücksfall, eine natürliche 1 ein Patzer mit Folgen.
+- Erzähle danach die Folgen passend zum Ergebnis: Ein Erfolg gelingt, ein Fehlschlag bringt Schwierigkeiten (aber selten ein Ende der Geschichte). Ein kritischer Erfolg (natürliche 20, bei Proben auch 10 oder mehr über dem SG) ist ein besonderer Glücksfall, ein Patzer (natürliche 1, bei Proben auch 10 oder mehr darunter) hat spürbare Folgen.
 - Höchstens eine Probe pro Antwort.
 - Sofort-Werkzeuge (Kampf, Heilung, Aufträge, Gedächtnis) darfst du in derselben Antwort zusätzlich aufrufen; sie werden sofort ausgeführt.
 

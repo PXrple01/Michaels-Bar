@@ -75,6 +75,7 @@ async function route(method: string, path: string, body: unknown, deps: ApiDeps)
         mode: spec.d20 ? parseMode(b.mode) : "normal",
         modifierParts: spec.parts,
         dc: spec.d20 ? parseDc(b.dc) : null,
+        margins: b.check?.type === "attribute" || b.check?.type === "skill",
       });
       return { status: record.repeated ? 200 : 201, body: record };
     }

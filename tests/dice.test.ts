@@ -125,3 +125,23 @@ describe("RollLog", () => {
     await expect(log.roll({ requestId: "x", kind: "free", label: "x", notation: "1W20" })).rejects.toThrow();
   });
 });
+
+describe("Kritisch bei Proben: natürliche 20/1 oder 10 über/unter der Schwierigkeit", () => {
+  const roll = (face: number, mod: number, dc: number, margins: boolean) =>
+    performRoll({ requestId: `krit-${face}-${mod}-${dc}-${margins}`, kind: "check", label: "x", notation: "1W20", modifierParts: [{ label: "Bonus", value: mod }], dc, margins }, scripted(face));
+  it("Probe: 10 über dem SG ist kritisch, 10 darunter ein Patzer", () => {
+    expect(roll(16, 6, 12, true)).toMatchObject({ total: 22, success: true, critical: "hit" });
+    expect(roll(15, 6, 12, true)).toMatchObject({ total: 21, success: true, critical: null });
+    expect(roll(2, -1, 12, true)).toMatchObject({ total: 1, success: false, critical: "fumble" });
+    expect(roll(3, -1, 12, true)).toMatchObject({ total: 2, success: false, critical: "fumble" });
+    expect(roll(4, -1, 12, true)).toMatchObject({ total: 3, success: false, critical: null });
+  });
+  it("natürliche 20/1 bleiben immer kritisch", () => {
+    expect(roll(20, -3, 25, true)).toMatchObject({ success: true, critical: "hit" });
+    expect(roll(1, 9, 5, true)).toMatchObject({ success: false, critical: "fumble" });
+  });
+  it("Angriffe (ohne margins): nur die natürliche 20/1", () => {
+    expect(roll(16, 6, 12, false).critical).toBeNull();
+    expect(roll(20, 0, 12, false).critical).toBe("hit");
+  });
+});

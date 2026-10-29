@@ -23,6 +23,8 @@ export interface RollSpec {
   mode?: RollMode;
   modifierParts?: { label: string; value: number }[];
   dc?: number | null;
+  /** Proben (nicht Angriffe): 10 über der Schwierigkeit zählt als kritischer Erfolg, 10 darunter als Patzer. */
+  margins?: boolean;
 }
 
 /**
@@ -61,8 +63,10 @@ export function performRoll(spec: RollSpec, rng: RandomInt = cryptoRandomInt): R
   const total = keptValues.reduce((s, v) => s + v, 0) + modifier;
 
   const natural = isSingleD20 ? keptValues[0] : null;
-  const critical = natural === 20 ? "hit" : natural === 1 ? "fumble" : null;
   const dc = natural !== null ? spec.dc ?? null : null; // Schwierigkeit nur bei einzelnen W20-Proben
+  // Kritisch: natürliche 20/1 – bei Proben zusätzlich, wenn das Ergebnis die Schwierigkeit um 10 über- bzw. unterschreitet
+  const critical = natural === 20 ? "hit" : natural === 1 ? "fumble"
+    : spec.margins && dc !== null ? (total >= dc + 10 ? "hit" : total <= dc - 10 ? "fumble" : null) : null;
   let success: boolean | null = null;
   if (dc !== null && natural !== null) success = natural === 20 ? true : natural === 1 ? false : total >= dc;
 

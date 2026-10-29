@@ -404,7 +404,7 @@ export class Narrator {
     return this.o.rolls.roll({
       requestId, kind: "check",
       label: `${c.name}: ${spec.label}${notation !== spec.notation ? " (kritisch)" : ""}`,
-      notation, mode, modifierParts: spec.parts, dc,
+      notation, mode, modifierParts: spec.parts, dc, margins: art === "attribute" || art === "skill",
     });
   }
 
@@ -548,8 +548,8 @@ export function describeRoll(r: RollRecord): string {
   const parts = r.modifierParts.map((p) => `${p.label} ${formatModifier(p.value)}`).join(", ");
   let text = `${r.label}: ${dice}${parts ? `, ${parts}` : ""} = ${r.total}.`;
   if (r.dc !== null) text += ` SG ${r.dc}: ${r.success ? "ERFOLG" : "FEHLSCHLAG"}.`;
-  if (r.critical === "hit") text += " Natürliche 20 – kritischer Erfolg!";
-  if (r.critical === "fumble") text += " Natürliche 1 – Patzer!";
+  if (r.critical === "hit") text += r.natural === 20 ? " Natürliche 20 – kritischer Erfolg!" : " 10 oder mehr über dem SG – kritischer Erfolg!";
+  if (r.critical === "fumble") text += r.natural === 1 ? " Natürliche 1 – Patzer!" : " 10 oder mehr unter dem SG – Patzer!";
   if (r.natural === null) text += " (Schadenswurf)";
   return text;
 }
