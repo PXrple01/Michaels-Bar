@@ -99,7 +99,11 @@ const MIN_CALL_MS = 15_000;
 const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "begleiter", "geruecht", "ort", "person", "laden", "gluecksspiel", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
 /** Höchstens so viele Züge hintereinander ohne Szenenbild. */
-const IMAGE_EVERY = 3;
+/**
+ * Porträts als Vorlage für Szenenbilder (FLUX.2 [pro] edit, ca. 4,5–6 Cent statt 1,2 Cent). Aus Kostengründen aus:
+ * Figuren werden nur noch beschrieben, nicht nach Porträt gemalt.
+ */
+const PORTRAIT_REFS = false;
 /** Hat die Antwort eine richtige Vorschlagszeile (mindestens zwei Ideen)? Dann ist die Szene sauber übergeben. */
 const closes = (text: string) => splitSuggestions(text).suggestions.length >= 2;
 const NUDGE = "<hinweis>Deine Antwort endete mitten in der Szene. Erzähle direkt weiter, ohne Wiederholung: Was du angekündigt hast, passiert jetzt (Gegnerangriffe mit gegner_greift_an, Proben mit probe_anfordern). Übergib dann mit einer offenen Situation und schließe mit der Zeile „» Vorschläge: … | … | …“.</hinweis>";
@@ -200,9 +204,7 @@ export class Narrator {
     const fightOver = !!o.wasFighting && !world.combat;
     // Ortswechsel (Claude hat mit ort einen anderen Ort gemeldet): Bild vom neuen Ort
     const moved = o.placeBefore !== undefined && !!world.map?.current && world.map.current !== o.placeBefore;
-    // Spätestens nach IMAGE_EVERY Zügen ohne Bild kommt eines – auch wenn Claude keinen Anlass sieht
-    const stale = (world.sinceImage ?? 0) >= IMAGE_EVERY - 1;
-    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved || stale);
+    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved);
     const [scene, map, faces] = await Promise.all([
       due ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
       this.mapBackground(world),
@@ -292,6 +294,7 @@ export class Narrator {
 
   /** Spielfiguren im Bild → Porträt-Referenzen („Makkalot, ein Berserker“). */
   private refsFor(names: string[], scene: Scene): { characterId: string; label: string }[] {
+    if (!PORTRAIT_REFS) return [];
     return scene.characters.filter((c) => names.some((n) => n.trim().toLowerCase() === c.name.toLowerCase())).map((c) => {
       const cls = scene.data.classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
       return { characterId: c.id, label: `${c.name}, ${cls ? `a ${cls.name}` : "an adventurer"}` };
