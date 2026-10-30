@@ -25,6 +25,10 @@ export interface GmEnv {
   OPENAI_COMPAT_KEY?: string;
   /** fal.ai-Schlüssel für Szenenbilder und Porträts. Ohne ihn gibt es keine Bilder. */
   FAL_KEY?: string;
+  /** Google-Cloud-Schlüssel für kostenloses Vorlesen (Text-to-Speech, 1 Mio. Zeichen/Monat). Ohne ihn liest ElevenLabs (fal.ai). */
+  GOOGLE_TTS_KEY?: string;
+  /** "1": Ist das Google-Kontingent aufgebraucht, liest ElevenLabs kostenpflichtig weiter. Sonst Pause bis zum Monatswechsel. */
+  TTS_PAID_FALLBACK?: string;
 }
 
 const pickModel = (v: string | undefined, fallback: ModelId, name = "GM_MODEL"): ModelId => {
@@ -51,7 +55,7 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   const model = pickModel(env.GM_MODEL, "claude-opus-5-5");
   const images = new ImageMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore });
   const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model, images });
-  const audio = new AudioMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore });
+  const audio = new AudioMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, googleKey: env.GOOGLE_TTS_KEY?.trim() || undefined, counters, paidFallback: env.TTS_PAID_FALLBACK === "1" });
   return {
     gm,
     images,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AudioMaker, shrinkWav } from "../server/audio";
 import { MemoryImageStore } from "../server/images";
+import { MemoryCounterStore } from "../server/gm/usage";
 import { moodOf, weatherKind } from "../shared/scene";
 import type { WorldState } from "../shared/world";
 
@@ -80,5 +81,35 @@ describe("Stimmung und Wetter", () => {
     expect(weatherKind("dichter Nebel")).toBe("fog");
     expect(weatherKind("stürmisch")).toBe("storm");
     expect(weatherKind("kalt und klar")).toBeNull();
+  });
+});
+
+describe("Vorlesen über Google (kostenloses Kontingent)", () => {
+  const google = (calls: string[]) => (async (url: string, init?: RequestInit) => {
+    calls.push(url);
+    if (url.startsWith("https://texttospeech.googleapis.com")) { bodies.push(JSON.parse(String(init?.body))); return Response.json({ audioContent: Buffer.from([1, 2, 3]).toString("base64") }); }
+    return fakeFal(calls)(url, init);
+  }) as unknown as typeof fetch;
+
+  it("liest kostenlos mit deutscher WaveNet-Stimme, zählt Zeichen, gleicher Text zählt nicht doppelt", async () => {
+    const calls: string[] = [];
+    const counters = new MemoryCounterStore();
+    const a = new AudioMaker({ key: "fal", googleKey: "g", counters, store: new MemoryImageStore(), fetch: google(calls) });
+    const r = await a.speak("Nebel hängt über dem Kloster.");
+    expect(r.costUsd).toBe(0);
+    expect(bodies.at(-1)).toMatchObject({ voice: { languageCode: "de-DE", name: "de-DE-Wavenet-B" } });
+    await a.speak("Nebel hängt über dem Kloster.");
+    expect(calls.filter((c) => c.includes("googleapis")).length).toBe(1);
+    expect(calls.some((c) => c.includes("fal.run"))).toBe(false);
+  });
+
+  it("ist das Kontingent aufgebraucht: Pause – oder ElevenLabs, wenn ausdrücklich erlaubt", async () => {
+    const calls: string[] = [];
+    const counters = new MemoryCounterStore();
+    const full = new AudioMaker({ key: "fal", googleKey: "g", counters, freeChars: 10, store: new MemoryImageStore(), fetch: google(calls) });
+    await expect(full.speak("Ein viel zu langer Satz.")).rejects.toThrow(/Kontingent/);
+    const paid = new AudioMaker({ key: "fal", googleKey: "g", counters, freeChars: 10, paidFallback: true, store: new MemoryImageStore(), fetch: google(calls) });
+    expect((await paid.speak("Ein viel zu langer Satz.")).costUsd).toBeGreaterThan(0);
+    expect(calls.some((c) => c.includes("elevenlabs/tts"))).toBe(true);
   });
 });

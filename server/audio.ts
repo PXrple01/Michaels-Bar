@@ -4,6 +4,24 @@
 import { createHash } from "node:crypto";
 import type { ImageStore, StoredImage } from "./images";
 import { FEMALE, MALE, NARRATOR, UNKNOWN } from "../shared/voices";
+import type { CounterStore } from "./gm/usage";
+
+/**
+ * Google Cloud Text-to-Speech (WaveNet, Deutsch): 1 Mio. Zeichen pro Monat kostenlos. Ein Zähler hält uns knapp darunter;
+ * ist das Kontingent aufgebraucht, liest ElevenLabs nur weiter, wenn TTS_PAID_FALLBACK=1 gesetzt ist.
+ */
+const GOOGLE_TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize";
+export const GOOGLE_FREE_CHARS = 950_000;
+/** Stimmen-Zuordnung: dieselben Rollen wie bei ElevenLabs, nur mit deutschen WaveNet-Stimmen. */
+const G_MALE = ["de-DE-Wavenet-D", "de-DE-Wavenet-E", "de-DE-Wavenet-H"], G_FEMALE = ["de-DE-Wavenet-A", "de-DE-Wavenet-C", "de-DE-Wavenet-F"];
+export function googleVoice(voice: string): string {
+  if (voice === NARRATOR) return "de-DE-Wavenet-B";
+  const m = MALE.indexOf(voice), f = FEMALE.indexOf(voice);
+  if (m >= 0) return G_MALE[m % G_MALE.length];
+  if (f >= 0) return G_FEMALE[f % G_FEMALE.length];
+  return voice === UNKNOWN ? "de-DE-Wavenet-E" : "de-DE-Wavenet-B";
+}
+const ttsMonthKey = (d = new Date()) => `tts-chars-${d.toISOString().slice(0, 7)}`;
 
 export const TTS_MODEL = "fal-ai/elevenlabs/tts/turbo-v2.5";
 export const MUSIC_MODEL = "fal-ai/elevenlabs/music";
@@ -32,9 +50,9 @@ export type Mood = keyof typeof MOODS;
 export const isMood = (m: unknown): m is Mood => typeof m === "string" && m in MOODS;
 
 export class AudioMaker {
-  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch }) {}
+  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean }) {}
 
-  get ready() { return !!this.o.key; }
+  get ready() { return !!this.o.key || !!this.o.googleKey; }
 
   private async run(model: string, input: unknown, timeoutMs: number): Promise<Record<string, unknown>> {
     if (!this.o.key) throw new Error("Ton ist nicht eingerichtet (FAL_KEY fehlt).");
@@ -92,6 +110,11 @@ export class AudioMaker {
   async speak(text: string, voice: string = NARRATOR_VOICE): Promise<{ url: string; costUsd: number }> {
     const clean = text.replace(/\s+/g, " ").trim().slice(0, MAX_TTS_CHARS);
     if (clean.length < 1) throw new Error("Kein Text zum Vorlesen.");
+    if (this.o.googleKey) {
+      const r = await this.speakGoogle(clean, voice);
+      if (r) return r;
+      if (!this.o.paidFallback || !this.o.key) throw new Error("Das kostenlose Vorlese-Kontingent für diesen Monat ist aufgebraucht. Ab dem nächsten Monat geht es weiter.");
+    }
     const id = `tts-${createHash("sha256").update(`${voice}|${clean}`).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     const out = await this.run(TTS_MODEL, { text: clean, voice, language_code: "de", stability: 0.5, similarity_boost: 0.75, speed: 0.95 }, 45_000);
@@ -99,6 +122,30 @@ export class AudioMaker {
     if (!url) throw new Error("fal.ai hat keinen Ton geliefert.");
     await this.o.store.put(id, await this.download(url, "audio/mpeg"));
     return { url: `/api/images/${id}`, costUsd: (clean.length / 1000) * TTS_USD_PER_1000 };
+  }
+
+  /** Google-Stimme (kostenlos im Kontingent). null = Kontingent aufgebraucht. Gespeicherte Texte zählen nicht erneut. */
+  private async speakGoogle(clean: string, voice: string): Promise<{ url: string; costUsd: number } | null> {
+    const gv = googleVoice(voice);
+    const id = `tts-${createHash("sha256").update(`g|${gv}|${clean}`).digest("hex").slice(0, 32)}`;
+    if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
+    const limit = this.o.freeChars ?? GOOGLE_FREE_CHARS;
+    if (this.o.counters && (await this.o.counters.get(ttsMonthKey())) + clean.length > limit) return null;
+    const res = await (this.o.fetch ?? fetch)(`${GOOGLE_TTS_URL}?key=${encodeURIComponent(this.o.googleKey!)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: gv }, audioConfig: { audioEncoding: "MP3", speakingRate: 0.95 } }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) {
+      console.error(`[Ton] Google TTS ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
+      throw new Error(res.status === 400 || res.status === 403 ? "Der Google-Schlüssel fürs Vorlesen wurde abgelehnt (Text-to-Speech-API aktiviert?)." : `Google hat abgelehnt (${res.status}).`);
+    }
+    const out = (await res.json()) as { audioContent?: string };
+    if (!out.audioContent) throw new Error("Google hat keinen Ton geliefert.");
+    await this.o.counters?.add(ttsMonthKey(), clean.length);
+    await this.o.store.put(id, { type: "audio/mpeg", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
+    return { url: `/api/images/${id}`, costUsd: 0 };
   }
 
   /** Musik einer Stimmung – beim ersten Mal erzeugt, danach immer dieselbe Datei. */
