@@ -153,8 +153,9 @@ export function partyPage(): Page {
   let timer = 0;
   let alive = true;
   let unbindSides = () => {};
+  let offVisible = () => {};
   return {
-    leave() { alive = false; clearTimeout(timer); unbindSides(); },
+    leave() { alive = false; clearTimeout(timer); unbindSides(); offVisible(); },
     async render(root, params) {
       const [rawCode, query] = params.code.split("?");
       const code = rawCode.toUpperCase();
@@ -471,17 +472,33 @@ export function partyPage(): Page {
         firstLoad = false;
       }
 
+      let polling = false;
       async function poll() {
-        if (!alive) return;
-        try { if (!busyLocal) apply(await partyApi.state(me)); }
+        if (!alive || polling) return;
+        polling = true;
+        try {
+          if (!busyLocal) {
+            const r = await partyApi.poll(me, view);
+            if (!busyLocal) {
+              if (!("unchanged" in r) && !("partial" in r)) apply(r);
+              else if ("partial" in r && view) apply({ ...view, version: r.version, live: r.live, busy: r.busy });
+            }
+          }
+        }
         catch (e) {
           if (e instanceof PartyApiError && (e.status === 403 || e.status === 400)) { toast(e.message, "error"); memberships.remove(code); go("/gruppe"); return; }
         }
         // Wartet die Gruppe auf den Wurf eines anderen, öfter nachsehen – sonst kommt dessen Würfelanimation spät an
         const othersRoll = !!view?.pendings.some((c) => c.playerId !== me.playerId);
         if (othersRoll) getStage(); // 3D-Würfelbühne schon vorbereiten
-        timer = window.setTimeout(poll, document.hidden ? 15000 : othersRoll ? 1000 : view?.busy ? 1500 : 3500);
+        polling = false;
+        // Im Hintergrund selten nachsehen – beim Zurückkehren sofort (siehe unten)
+        clearTimeout(timer);
+        timer = window.setTimeout(poll, document.hidden ? 60000 : othersRoll ? 1000 : view?.busy ? 1500 : 3500);
       }
+      const onVisible = () => { if (!document.hidden && alive) { clearTimeout(timer); void poll(); } };
+      document.addEventListener("visibilitychange", onVisible);
+      offVisible = () => document.removeEventListener("visibilitychange", onVisible);
 
       function handle(ev: PartyEvent) {
         if (!alive) return;

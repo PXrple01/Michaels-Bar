@@ -2,7 +2,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Opening, PendingCheck, SceneImage } from "../../shared/campaign";
 import { MAX_ACTION_LENGTH, stripMarkers } from "../../shared/campaign";
-import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../shared/party";
+import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyOverview, type PartyStoryEntry, type PartyView, type PartyDelta } from "../../shared/party";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
@@ -46,6 +46,8 @@ export interface Party {
   createdAt: string;
   updatedAt: string;
   version: number;
+  /** Zähler ohne die Live-Text-Schnappschüsse (siehe PartyView.core). */
+  core?: number;
   status: "lobby" | "playing";
   players: PartyPlayer[];
   opening: Opening | null;
@@ -158,11 +160,12 @@ export class PartyService {
   }
 
   /** Ändert die Gruppe mit erneutem Laden bei Konflikten. */
-  private async update(code: string, fn: (p: Party) => void): Promise<Party> {
+  private async update(code: string, fn: (p: Party) => void, opts: { liveOnly?: boolean } = {}): Promise<Party> {
     for (let i = 0; i < 6; i++) {
       const { party, etag } = await this.load(code);
       fn(party);
       party.version++;
+      if (!opts.liveOnly) party.core = (party.core ?? 0) + 1;
       party.updatedAt = new Date().toISOString();
       if (await this.o.store.put(party, etag)) return party;
     }
@@ -178,7 +181,7 @@ export class PartyService {
   view(party: Party, you: string, budget: PartyView["budget"] = null): PartyView {
     const data = this.dataFor(party);
     return {
-      code: party.code, status: party.status, you, version: party.version,
+      code: party.code, status: party.status, you, version: party.version, core: party.core ?? 0,
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
         return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions,
@@ -233,12 +236,29 @@ export class PartyService {
   }
 
   async state(body: { code?: unknown; token?: unknown }): Promise<PartyView> {
+    const { party, me } = await this.current(body);
+    return this.view(party, me.id, await this.o.guard.info());
+  }
+
+  /**
+   * Regelmäßige Abfrage mit dem zuletzt gesehenen Stand (`known`, `core`): Es kommt nur, was sich geändert hat – gar
+   * nichts oder nur der mitlaufende Erzähltext. Spart bei den häufigen Abfragen fast die ganze Datenmenge.
+   */
+  async poll(body: { code?: unknown; token?: unknown; known?: unknown; core?: unknown }): Promise<PartyView | PartyDelta> {
+    const { party, me } = await this.current(body);
+    if (typeof body.known === "number" && body.known === party.version) return { unchanged: true, version: party.version };
+    if (typeof body.core === "number" && body.core === (party.core ?? 0)) return { partial: true, version: party.version, live: party.live, busy: !!party.busy && !isStale(party.busy) };
+    return this.view(party, me.id, await this.o.guard.info());
+  }
+
+  private async current(body: { code?: unknown; token?: unknown }) {
     let { party } = await this.load(body?.code);
     const me = this.player(party, body?.token);
     // Verwaiste Sperre (abgebrochener Zug): sofort zurücknehmen, damit niemand bei „Der Spielleiter erzählt …“ hängen bleibt
     if (party.busy && isStale(party.busy)) party = await this.update(party.code, (p) => { recover(p); });
-    return this.view(party, me.id, await this.o.guard.info());
+    return { party, me };
   }
+
 
   async leave(body: { code?: unknown; token?: unknown }): Promise<{ ok: true }> {
     const { party } = await this.load(body?.code);
@@ -555,7 +575,7 @@ export class PartyService {
         if (Date.now() - lastSave > LIVE_SAVE_MS) {
           lastSave = Date.now();
           const snapshot = stripMarkers(live);
-          saving = saving.then(() => this.update(locked.code, (p) => { p.live = snapshot; }).catch(() => {}));
+          saving = saving.then(() => this.update(locked.code, (p) => { p.live = snapshot; }, { liveOnly: true }).catch(() => {}));
         }
       });
       await saving;

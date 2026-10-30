@@ -1,7 +1,7 @@
 // Mehrspieler im Browser: Mitgliedschaften merken, Server fragen, Zugangscode bei Bedarf abfragen.
 import { sessionToken } from "./account";
 import type { Character } from "../../../shared/schema";
-import type { PartyEvent, PartyJoinResult, PartyOverview, PartyView } from "../../../shared/party";
+import type { PartyDelta, PartyEvent, PartyJoinResult, PartyOverview, PartyView } from "../../../shared/party";
 import { accessCode, setAccessCode, streamSse } from "./gm";
 import { promptDialog } from "./ui";
 
@@ -40,6 +40,8 @@ export const partyApi = {
   create: (character: unknown) => post<PartyJoinResult>("create", { character }),
   join: (code: string, character: unknown) => post<PartyJoinResult>("join", { code, character }),
   state: (m: Membership) => post<PartyView>("state", { code: m.code, token: m.token }),
+  /** Abfrage mit bekanntem Stand – kommt oft nur „unverändert“ oder der Live-Text zurück. */
+  poll: (m: Membership, known: PartyView | null) => post<PartyView | PartyDelta>("state", { code: m.code, token: m.token, ...(known ? { known: known.version, core: known.core } : {}) }),
   leave: (m: Membership) => post<{ ok: true }>("leave", { code: m.code, token: m.token }),
   overview: (list: Membership[]) => post<{ items: PartyOverview[] }>("overview", { items: list.map((m) => ({ code: m.code, token: m.token })) }),
   remove: (m: Membership) => post<{ deleted: boolean }>("remove", { code: m.code, token: m.token }),

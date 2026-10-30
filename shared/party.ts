@@ -43,6 +43,8 @@ export interface PartyView {
   /** Gerade entstehender Erzähltext (während der Spielleiter erzählt). */
   live: string;
   version: number;
+  /** Ändert sich bei allem außer dem mitlaufenden Erzähltext (live) – so reicht beim Abfragen oft eine kleine Antwort. */
+  core: number;
   budget: BudgetInfo | null;
   lastTurnCostUsd: number | null;
   /** Claude-Kosten dieser Gruppe insgesamt (alle Züge). */
@@ -75,3 +77,6 @@ export type PartyEvent =
   | ({ type: "image" } & SceneImage)
   | { type: "view"; view: PartyView }
   | { type: "error"; message: string; code?: string };
+
+/** Antwort auf eine Abfrage mit bekanntem Stand: nichts Neues, oder nur der mitlaufende Erzähltext. */
+export type PartyDelta = { unchanged: true; version: number } | { partial: true; version: number; live: string; busy: boolean };

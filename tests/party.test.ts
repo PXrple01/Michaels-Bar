@@ -103,6 +103,25 @@ describe("Mehrspieler", () => {
     expect(llm.calls[1].messages.at(-1)!.content).toContain("Agnes: (keine Angabe");
   });
 
+  it("Abfragen mit bekanntem Stand: unverändert, nur Live-Text oder alles", async () => {
+    const { svc, run } = setup([text("Start.")]);
+    const host = await svc.create({ character: hagen });
+    const auth = { code: host.code, token: host.token };
+    const v = await svc.state(auth);
+    expect(await svc.poll({ ...auth, known: v.version, core: v.core })).toEqual({ unchanged: true, version: v.version });
+    // Ohne bekannten Stand: die volle Ansicht
+    expect(await svc.poll(auth)).toMatchObject({ code: host.code, version: v.version });
+    // Etwas Echtes ändert sich (Start): volle Ansicht mit neuem core
+    await run("start", auth);
+    const full = await svc.poll({ ...auth, known: v.version, core: v.core });
+    expect("story" in full && full.core > v.core).toBe(true);
+    // Nur der Live-Text ändert sich: kleine Antwort
+    const s = svc as unknown as { update(code: string, fn: (p: { live: string }) => void, o: { liveOnly: boolean }): Promise<unknown> };
+    await s.update(host.code, (p) => { p.live = "Es donnert …"; }, { liveOnly: true });
+    const cur = full as Awaited<ReturnType<typeof svc.state>>;
+    expect(await svc.poll({ ...auth, known: cur.version, core: cur.core })).toEqual({ partial: true, version: cur.version + 1, live: "Es donnert …", busy: false });
+  });
+
   it("die Ansicht enthält keine Geheimnisse", async () => {
     const { svc } = setup([]);
     const host = await svc.create({ character: hagen });
