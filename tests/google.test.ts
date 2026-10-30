@@ -126,6 +126,7 @@ describe("Schlüsseldatei einlesen", () => {
     expect(parseServiceAccount(json.replace(/\\n/g, "\n"))).toEqual(good);
     expect(parseServiceAccount(`'${json}'`)).toEqual(good);
     expect(parseServiceAccount(Buffer.from(json).toString("base64"))).toEqual(good);
+    expect(parseServiceAccount(json.trim().slice(1, -1).trim())).toEqual(good); // ohne { }
     expect(() => parseServiceAccount("{ kaputt")).toThrow();
   });
 });
