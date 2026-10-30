@@ -11,6 +11,8 @@ export const TRIAL_DAYS = 88;
 const BROKEN_MS = 15 * 60_000;
 /** Zähler der Google-Ausgaben (in Hundertstel-Cent, damit er ganzzahlig bleibt). */
 const SPEND_KEY = "google-spend-cents100";
+/** Letzter von Google gemeldeter echter Betrag (Budget-Meldung) und unser Schätzstand in dem Moment. */
+const BILLED_KEY = "google-billed-cents100", EST_AT_BILL_KEY = "google-est-at-billed-cents100";
 
 export interface GoogleEnv {
   /** Inhalt der JSON-Schlüsseldatei des Dienstkontos (client_email, private_key, project_id). */
@@ -27,6 +29,8 @@ export interface GoogleEnv {
   GOOGLE_IMAGE_MODEL_LUXURY?: string;
   /** Guthaben, das in der Testphase ausgegeben werden soll, in Dollar (Standard: 300). */
   GOOGLE_TRIAL_BUDGET_USD?: string;
+  /** Geheimes Wort im Link für Googles Budget-Meldungen (…/api/google-budget?token=…). Ohne es werden Meldungen abgelehnt. */
+  GOOGLE_BUDGET_TOKEN?: string;
 }
 
 export interface GoogleConfig { email: string; privateKey: string; projectId: string; region: string; imageRegion: string; imageModel: string; luxuryImageModel: string; budgetUsd: number; start: Date; until: Date }
@@ -70,7 +74,28 @@ export class GoogleCloud {
     try { if (usd > 0) await this.counters?.add(SPEND_KEY, Math.round(usd * 10_000)); }
     catch (e) { console.error("[Google] Ausgaben konnten nicht gezählt werden:", (e as Error).message); }
   }
-  async spentUsd(): Promise<number> { return ((await this.counters?.get(SPEND_KEY)) ?? 0) / 10_000; }
+  /**
+   * Verbrauch: der letzte echte Betrag von Google (Budget-Meldung) plus unsere Schätzung für alles danach.
+   * Ohne Meldung nur die Schätzung (Listenpreise).
+   */
+  async spentUsd(): Promise<number> {
+    const est = (await this.counters?.get(SPEND_KEY)) ?? 0;
+    const billed = (await this.counters?.get(BILLED_KEY)) ?? 0;
+    if (!billed) return est / 10_000;
+    const atBill = (await this.counters?.get(EST_AT_BILL_KEY)) ?? 0;
+    return (billed + Math.max(0, est - atBill)) / 10_000;
+  }
+
+  /** Echten Betrag aus Googles Budget-Meldung übernehmen (nur steigend – Meldungen können doppelt oder verspätet kommen). */
+  async recordBilled(costUsd: number): Promise<void> {
+    if (!this.counters || !Number.isFinite(costUsd) || costUsd < 0) return;
+    const next = Math.round(costUsd * 10_000), billed = await this.counters.get(BILLED_KEY);
+    if (next <= billed) return;
+    await this.counters.add(BILLED_KEY, next - billed);
+    const est = await this.counters.get(SPEND_KEY), atBill = await this.counters.get(EST_AT_BILL_KEY);
+    await this.counters.add(EST_AT_BILL_KEY, est - atBill);
+    console.log(`[Google] Budget-Meldung: ${costUsd.toFixed(2)} $ tatsächlich verbraucht (Schätzung war ${(est / 10_000).toFixed(2)} $).`);
+  }
 
   /**
    * Ausgabe-Regler: Liegt der Verbrauch unter dem gleichmäßigen Tempo (Guthaben ÷ Testtage), gilt heute die Luxus-Stufe
@@ -136,3 +161,13 @@ export class GoogleError extends Error {
 
 /** Fehler, nach denen Google eine Weile gemieden wird: Zugang, Guthaben/Abrechnung, Kontingent. (404 – einzelnes Modell fehlt – nur für den einen Aufruf.) */
 export const isProviderFailure = (status: number | undefined) => status === 401 || status === 402 || status === 403 || status === 429;
+
+/** Googles Budget-Meldung (Pub/Sub-Push) lesen: Betrag in der Währung des Kontos. null = unlesbar. */
+export function parseBudgetPush(body: unknown): { cost: number; currency: string } | null {
+  try {
+    const data = (body as { message?: { data?: string } })?.message?.data;
+    if (!data) return null;
+    const msg = JSON.parse(Buffer.from(data, "base64").toString("utf8")) as { costAmount?: number; currencyCode?: string };
+    return typeof msg.costAmount === "number" ? { cost: msg.costAmount, currency: msg.currencyCode ?? "USD" } : null;
+  } catch { return null; }
+}

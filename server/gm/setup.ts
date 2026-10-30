@@ -11,7 +11,7 @@ import { ImageMaker, MemoryImageStore, type ImageStore } from "../images";
 import { portraitPrompt } from "./portrait";
 import { AudioMaker, isMood, type Segment } from "../audio";
 import { resolveCharacter } from "../characters";
-import { GoogleCloud, googleConfig, type GoogleEnv } from "../google";
+import { GoogleCloud, googleConfig, parseBudgetPush, type GoogleEnv } from "../google";
 import { SwitchingLlm } from "./googleLlm";
 
 export interface GmEnv extends GoogleEnv {
@@ -47,6 +47,8 @@ export interface Claude {
   /** Vorlesen und Stimmungsmusik (prüfen Budget und buchen die Kosten). */
   speak(text: unknown, who: string, segments?: unknown): Promise<{ url: string; costUsd: number }>;
   music(mood: unknown, who: string): Promise<{ url: string; costUsd: number }>;
+  /** Googles Budget-Meldung (echter Verbrauch) für den Ausgabe-Regler. */
+  googleBudget(token: unknown, body: unknown): Promise<{ status: number; body: unknown }>;
 }
 
 export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, counters: CounterStore, secret: string, parties: PartyStore = new MemoryPartyStore(), imageStore: ImageStore = new MemoryImageStore()): Claude {
@@ -75,6 +77,14 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
       const r = segs?.length ? await audio.speakSegments(segs) : await audio.speak(String(text));
       if (r.costUsd) await guard.addUsd(r.costUsd);
       return r;
+    },
+    async googleBudget(token, body) {
+      const expected = env.GOOGLE_BUDGET_TOKEN?.trim();
+      if (!expected || token !== expected) return { status: 403, body: { error: "Falscher oder fehlender token." } };
+      const push = parseBudgetPush(body);
+      // Pub/Sub wiederholt bei Fehlern endlos – unlesbare Meldungen deshalb trotzdem mit 200 quittieren
+      if (push && google) await google.recordBilled(push.cost);
+      return { status: 200, body: { ok: true } };
     },
     async music(mood, who) {
       if (!isMood(mood)) throw new Error("Unbekannte Stimmung.");

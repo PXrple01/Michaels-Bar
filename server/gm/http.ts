@@ -112,6 +112,10 @@ export function mountGm(app: Express, claude: () => Claude, accessCode: string |
     r.headers.forEach((v, k) => res.setHeader(k, v));
     res.end(Buffer.from(await r.arrayBuffer()));
   });
+  app.post("/api/google-budget", async (req: Request, res) => {
+    const r = await claude().googleBudget(req.query.token, req.body);
+    res.status(r.status).json(r.body);
+  });
   app.post(["/api/tts", "/api/music/:mood"], async (req: Request, res) => {
     const g = gateOf(req);
     if (!g.ok) return void res.status(403).json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" });
@@ -182,6 +186,12 @@ export async function handleGmRequest(req: Request | globalThis.Request, claude:
   const path = new URL(request.url).pathname;
   if (path.startsWith("/v1/")) return handleOpenAiRequest(request, path, claude, ip);
   if (path.startsWith("/api/images/") && request.method === "GET") return serveImage(claude.images.store, path.split("/").pop() ?? "");
+  if (path === "/api/google-budget" && request.method === "POST") {
+    let body: unknown = null;
+    try { body = await request.json(); } catch { /* unlesbar */ }
+    const r = await claude.googleBudget(new URL(request.url).searchParams.get("token"), body);
+    return Response.json(r.body, { status: r.status });
+  }
   const g = gate(accessCode, secret, request.headers.get("x-access-code"), request.headers.get("x-session"), ip);
   const who = g.who;
   if ((path === "/api/tts" || path.startsWith("/api/music/")) && request.method === "POST") {

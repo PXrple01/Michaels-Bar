@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { GoogleCloud, googleConfig, TRIAL_DAYS } from "../server/google";
+import { GoogleCloud, googleConfig, parseBudgetPush, TRIAL_DAYS } from "../server/google";
 import { SwitchingLlm } from "../server/gm/googleLlm";
 import type { LlmClient } from "../server/gm/narrator";
 import { ImageMaker, MemoryImageStore } from "../server/images";
@@ -97,5 +97,22 @@ describe("Google-Testphase", () => {
     const day = new Date().toISOString().slice(0, 10);
     await counters.add(`google-tier-${day}`, 101); // ein Server sagte Luxus, einer normal
     expect(await new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle([]), counters).luxury()).toBe(false);
+  });
+
+  it("echte Zahlen: Googles Budget-Meldung ersetzt die Schätzung, danach wird nur der Rest geschätzt", async () => {
+    const counters = new MemoryCounterStore();
+    const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle([]), counters);
+    await g.addSpend(10); // Schätzung 10 $
+    const push = { message: { data: Buffer.from(JSON.stringify({ costAmount: 12.5, currencyCode: "USD", budgetAmount: 300 })).toString("base64") } };
+    expect(parseBudgetPush(push)).toEqual({ cost: 12.5, currency: "USD" });
+    expect(parseBudgetPush({ message: { data: "kaputt" } })).toBeNull();
+    await g.recordBilled(12.5);
+    expect(await g.spentUsd()).toBeCloseTo(12.5);
+    await g.addSpend(2); // nach der Meldung geschätzt
+    expect(await g.spentUsd()).toBeCloseTo(14.5);
+    await g.recordBilled(11); // ältere, verspätete Meldung wird ignoriert
+    expect(await g.spentUsd()).toBeCloseTo(14.5);
+    await g.recordBilled(15); // neue Meldung enthält die 2 $ schon
+    expect(await g.spentUsd()).toBeCloseTo(15);
   });
 });
