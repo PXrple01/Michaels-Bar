@@ -38,6 +38,50 @@ const GEMINI_TTS_DIRECTION: Record<"narrator" | "figure", string> = {
   narrator: "Lies wie ein erfahrener deutscher Hörbuchsprecher ein mittelalterliches Abenteuer vor: warm, ruhig und bildhaft, mit Spannung, natürlichen Pausen und lebendiger Betonung – nie monoton.",
   figure: "Sprich als Figur in einem mittelalterlichen Abenteuer: lebendig, natürlich und mit passender Emotion, wie ein guter Synchronsprecher.",
 };
+/**
+ * Google-Stimmen unkomprimiert (WAV, 24 kHz): MP3 liefert Google nur mit 32 kbit/s – das klingt dumpf und verwaschen.
+ */
+const WAV_CONFIG = { audioEncoding: "LINEAR16", sampleRateHertz: 24000 };
+
+/** WAV-Datei zerlegen: Format und reine Tondaten. */
+function readWav(b: Uint8Array): { fmt: Uint8Array; data: Uint8Array } | null {
+  const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const tag = (o: number) => String.fromCharCode(b[o], b[o + 1], b[o + 2], b[o + 3]);
+  if (b.length < 12 || tag(0) !== "RIFF" || tag(8) !== "WAVE") return null;
+  let fmt: Uint8Array | null = null, data: Uint8Array | null = null;
+  for (let o = 12; o + 8 <= b.length;) {
+    const size = v.getUint32(o + 4, true), body = b.subarray(o + 8, Math.min(b.length, o + 8 + size));
+    if (tag(o) === "fmt ") fmt = body;
+    if (tag(o) === "data") data = body;
+    o += 8 + size + (size % 2);
+  }
+  return fmt && data ? { fmt, data } : null;
+}
+
+/** Abschnitte zu einer Datei: WAV sauber zusammenfügen (ein Kopf, gleiche Tonart), MP3 einfach hintereinander. */
+export function joinAudio(files: StoredImage[]): StoredImage {
+  const wavs = files.filter((f) => f.type === "audio/wav").map((f) => readWav(f.bytes)).filter((w): w is NonNullable<typeof w> => !!w);
+  if (!wavs.length) {
+    const all = new Uint8Array(files.reduce((n, f) => n + f.bytes.length, 0));
+    let off = 0;
+    for (const f of files) { all.set(f.bytes, off); off += f.bytes.length; }
+    return { type: "audio/mpeg", bytes: all };
+  }
+  if (wavs.length < files.length) console.warn("[Ton] Gemischte Tonarten beim Vorlesen – nur die WAV-Abschnitte werden verbunden.");
+  const fmt = wavs[0].fmt, same = wavs.filter((w) => Buffer.compare(Buffer.from(w.fmt), Buffer.from(fmt)) === 0);
+  const len = same.reduce((n, w) => n + w.data.length, 0);
+  const out = new Uint8Array(12 + 8 + fmt.length + 8 + len);
+  const v = new DataView(out.buffer);
+  const put = (o: number, t: string) => { for (let i = 0; i < 4; i++) out[o + i] = t.charCodeAt(i); };
+  put(0, "RIFF"); v.setUint32(4, out.length - 8, true); put(8, "WAVE");
+  put(12, "fmt "); v.setUint32(16, fmt.length, true); out.set(fmt, 20);
+  const d = 20 + fmt.length;
+  put(d, "data"); v.setUint32(d + 4, len, true);
+  let off = d + 8;
+  for (const w of same) { out.set(w.data, off); off += w.data.length; }
+  return { type: "audio/wav", bytes: out };
+}
+
 /** Chirp 3 HD (Richtwert, aus dem Testguthaben bezahlt): 30 $ je Million Zeichen. */
 const CHIRP_USD_PER_1000 = 0.03;
 const ttsMonthKey = (d = new Date()) => `tts-chars-${d.toISOString().slice(0, 7)}`;
@@ -108,7 +152,7 @@ export class AudioMaker {
     const parts = segs.filter((s) => s.text.length);
     if (!parts.length) throw new Error("Kein Text zum Vorlesen.");
     if (parts.length === 1) return this.speak(parts[0].text, parts[0].voice);
-    const id = `tts-${createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 32)}`;
+    const id = `tts-${createHash("sha256").update(`v2|${JSON.stringify(parts)}`).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     let cost = 0;
     // Mit Google gleichzeitig (höchstens 4 auf einmal – sonst dauert langer Text zu lange), mit fal.ai nacheinander
@@ -118,16 +162,13 @@ export class AudioMaker {
       const batch = await Promise.all(parts.slice(i, i + at).map((p) => this.speak(p.text, p.voice)));
       batch.forEach((r, j) => { results[i + j] = r; });
     }
-    const files: Uint8Array[] = [];
+    const files: StoredImage[] = [];
     for (const r of results) { // Reihenfolge bleibt
       cost += r.costUsd;
       const f = await this.o.store.get(r.url.split("/").pop()!);
-      if (f) files.push(f.bytes);
+      if (f) files.push(f);
     }
-    const all = new Uint8Array(files.reduce((n, f) => n + f.length, 0));
-    let off = 0;
-    for (const f of files) { all.set(f, off); off += f.length; }
-    await this.o.store.put(id, { type: "audio/mpeg", bytes: all });
+    await this.o.store.put(id, joinAudio(files));
     return { url: `/api/images/${id}`, costUsd: cost };
   }
 
@@ -172,19 +213,19 @@ export class AudioMaker {
   /** Gemini-TTS: dieselbe Stimme wie bei Chirp, dazu eine Regieanweisung für Ton und Tempo. */
   private async speakGemini(g: GoogleCloud, clean: string, voice: string, model: string): Promise<{ url: string; costUsd: number }> {
     const name = chirpVoice(voice).replace("de-DE-Chirp3-HD-", "");
-    const id = `tts-${createHash("sha256").update(`g|${model}|${name}|${clean}`).digest("hex").slice(0, 32)}`;
+    const id = `tts-${createHash("sha256").update(`g2|${model}|${name}|${clean}`).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     const res = await (this.o.fetch ?? fetch)(GOOGLE_TTS_URL, {
       method: "POST",
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
-      body: JSON.stringify({ input: { text: clean, prompt: GEMINI_TTS_DIRECTION[voice === NARRATOR ? "narrator" : "figure"] }, voice: { languageCode: "de-DE", name, modelName: model }, audioConfig: { audioEncoding: "MP3" } }),
+      body: JSON.stringify({ input: { text: clean, prompt: GEMINI_TTS_DIRECTION[voice === NARRATOR ? "narrator" : "figure"] }, voice: { languageCode: "de-DE", name, modelName: model }, audioConfig: WAV_CONFIG }),
       // Knapp halten: Netlify bricht nach rund 26 s ab – dann lieber rechtzeitig Chirp
       signal: AbortSignal.timeout(14_000),
     });
     if (!res.ok) throw new GoogleError(`Gemini-TTS ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { audioContent?: string };
     if (!out.audioContent) throw new GoogleError("Google hat keinen Ton geliefert", 200);
-    await this.o.store.put(id, { type: "audio/mpeg", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
+    await this.o.store.put(id, { type: "audio/wav", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
     const usd = (clean.length / 1000) * GEMINI_TTS_USD_PER_1000;
     await g.addSpend(usd);
     return { url: `/api/images/${id}`, costUsd: usd };
@@ -193,18 +234,18 @@ export class AudioMaker {
   /** Chirp-3-HD-Stimme (Testphase, aus dem Guthaben bezahlt – zählt nicht zum Gratis-Kontingent). */
   private async speakChirp(g: GoogleCloud, clean: string, voice: string): Promise<{ url: string; costUsd: number }> {
     const cv = chirpVoice(voice);
-    const id = `tts-${createHash("sha256").update(`c|${cv}|${clean}`).digest("hex").slice(0, 32)}`;
+    const id = `tts-${createHash("sha256").update(`c2|${cv}|${clean}`).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     const res = await (this.o.fetch ?? fetch)(GOOGLE_TTS_URL, {
       method: "POST",
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
-      body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: cv }, audioConfig: { audioEncoding: "MP3" } }),
+      body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: cv }, audioConfig: WAV_CONFIG }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new GoogleError(`Chirp ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { audioContent?: string };
     if (!out.audioContent) throw new GoogleError("Google hat keinen Ton geliefert", 200);
-    await this.o.store.put(id, { type: "audio/mpeg", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
+    await this.o.store.put(id, { type: "audio/wav", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
     const usd = (clean.length / 1000) * CHIRP_USD_PER_1000;
     await g.addSpend(usd);
     return { url: `/api/images/${id}`, costUsd: usd };

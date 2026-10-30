@@ -113,3 +113,25 @@ describe("Vorlesen über Google (kostenloses Kontingent)", () => {
     expect(calls.some((c) => c.includes("elevenlabs/tts"))).toBe(true);
   });
 });
+
+describe("Vorlesen in WAV-Qualität", () => {
+  const wav = (samples: number[]) => {
+    const data = new Uint8Array(new Int16Array(samples).buffer);
+    const out = new Uint8Array(44 + data.length), v = new DataView(out.buffer);
+    const put = (o: number, t: string) => { for (let i = 0; i < 4; i++) out[o + i] = t.charCodeAt(i); };
+    put(0, "RIFF"); v.setUint32(4, 36 + data.length, true); put(8, "WAVE"); put(12, "fmt "); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 24000, true); v.setUint32(28, 48000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    put(36, "data"); v.setUint32(40, data.length, true); out.set(data, 44);
+    return { type: "audio/wav", bytes: out };
+  };
+  it("fügt WAV-Abschnitte zu einer gültigen Datei mit einem Kopf zusammen", async () => {
+    const { joinAudio } = await import("../server/audio");
+    const j = joinAudio([wav([1, 2]), wav([3, 4, 5])]);
+    expect(j.type).toBe("audio/wav");
+    const v = new DataView(j.bytes.buffer, j.bytes.byteOffset);
+    expect(j.bytes.length).toBe(44 + 10);
+    expect(v.getUint32(40, true)).toBe(10);
+    expect(Array.from(new Int16Array(j.bytes.slice(44).buffer))).toEqual([1, 2, 3, 4, 5]);
+    expect(joinAudio([{ type: "audio/mpeg", bytes: new Uint8Array([1]) }, { type: "audio/mpeg", bytes: new Uint8Array([2]) }]).bytes).toEqual(new Uint8Array([1, 2]));
+  });
+});
