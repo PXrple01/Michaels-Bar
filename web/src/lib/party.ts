@@ -49,7 +49,7 @@ export const partyApi = {
   choose: (m: Membership, option: number) => post<PartyView>("choose", { code: m.code, token: m.token, option }),
   withdraw: (m: Membership) => post<PartyView>("withdraw", { code: m.code, token: m.token }),
   letter: (m: Membership, chapter: number) => post<{ chapter: number; title: string; text: string }>("letter", { code: m.code, token: m.token, chapter }),
-  shop: (m: Membership, action: "kaufen" | "verkaufen" | "spielen" | ItemAction, ref: string) => post<PartyView>("shop", { code: m.code, token: m.token, action, ref }),
+  shop: (m: Membership, action: "kaufen" | "verkaufen" | "spielen" | ItemAction, ref: string, target?: string) => post<PartyView>("shop", { code: m.code, token: m.token, action, ref, ...(target ? { target } : {}) }),
   sheet: (m: Membership, playerId: string) => post<{ character: Character }>("sheet", { code: m.code, token: m.token, playerId }),
   level: (m: Membership, choice: { skill?: string; attrs?: Record<string, number> }) => post<PartyView>("level", { code: m.code, token: m.token, ...choice }),
   stream: (op: "start" | "action" | "roll" | "upgrade", m: Membership, extra: Record<string, unknown>, onEvent: (ev: PartyEvent) => void) =>

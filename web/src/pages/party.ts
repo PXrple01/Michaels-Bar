@@ -216,12 +216,13 @@ export function partyPage(): Page {
       unbindSides = bindSides(root, (charId) => {
         const p = view?.players.find((x) => x.characterId === charId);
         if (p) openSheet(async () => (await partyApi.sheet(me, p.id)).character, data, () => view?.world);
-      }, async (action, name) => {
-        const before = view?.world?.hp[me.characterId];
+      }, async (action, name, target) => {
+        const who = target?.id ?? me.characterId;
+        const before = view?.world?.hp[who];
         try {
-          apply(await partyApi.shop(me, action, name));
+          apply(await partyApi.shop(me, action, name, target?.id));
           renderBelow();
-          toast(itemDoneText(action, name, before, view?.world?.hp[me.characterId]), "success", 3500);
+          toast(itemDoneText(action, name, before, view?.world?.hp[who], target?.name), "success", 3500);
         } catch (e) { toast((e as Error).message, "error", 6000); }
       });
       const storyEl = $("#story", root), belowEl = $("#below", root);

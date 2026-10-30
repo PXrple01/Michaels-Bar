@@ -43,22 +43,34 @@ export function moneyText(pf: number, short = false): string {
 const KIND_OF: Record<string, ItemKind> = { weapon: "waffe", armor: "ruestung", shield: "schild", consumable: "trank", gear: "werkzeug" };
 export const kindOf = (v: unknown): ItemKind => ((ITEM_KINDS as readonly string[]).includes(String(v)) ? (v as ItemKind) : "gegenstand");
 
-/** Startausrüstung und -geld der Figur übernehmen (einmal je Kampagne). */
-export function ensureInventory(w: WorldState, characters: Pick<Character, "id" | "equipment" | "money">[], rules: Rules): void {
+/** Kann die Klasse andere heilen (nicht nur sich selbst)? Solche Figuren starten mit einem Heiltrank. */
+export const isHealer = (cls: { abilities: { type: string; text: string }[] } | null | undefined) =>
+  !!cls?.abilities.some((a) => a.type === "heilung" && !/\bdich\b/i.test(a.text));
+
+export const START_POTION: InvItem = { name: "Heiltrank", qty: 1, kind: "trank", note: "Kann auch einer anderen Figur gegeben werden", stats: { heilung: "2W4+2" } };
+
+/**
+ * Startausrüstung und -geld der Figur übernehmen (einmal je Kampagne). Heiltränke sind selten: Heiler-Klassen starten
+ * mit genau einem, Heil-Verbrauchsgüter aus der Startausrüstung werden zu einem einzigen Trank.
+ */
+export function ensureInventory(w: WorldState, characters: (Pick<Character, "id" | "equipment" | "money"> & { classId?: string })[], rules: Rules, classes?: { id: string; abilities: { type: string; text: string }[] }[]): void {
   w.inventory ??= {};
   for (const c of characters) {
     if (w.inventory[c.id]) continue;
     const items: InvItem[] = [];
+    let potion: InvItem | null = null;
     for (const id of c.equipment ?? []) {
       const it = rules.items.find((i) => i.id === id);
       if (!it) continue;
       if (it.type === "consumable") {
-        // „Heilsalbe (3)“ mit „Heilt 1W4+1 …“ → 3× Heilsalbe, heilt 1W4+1 (per Knopf nutzbar)
-        const m = /^(.*?)\s*\((\d+)\)$/.exec(it.name);
-        const stats = cleanStats({ heilung: /heilt\s+(\S+)/i.exec(it.effect)?.[1] });
-        addItem({ items, money: 0 }, { name: m ? m[1] : it.name, qty: m ? Math.max(1, Number(m[2])) : 1, kind: "trank", note: it.effect, ...(stats ? { stats } : {}) });
+        const heal = cleanStats({ heilung: /heilt\s+(\S+)/i.exec(it.effect)?.[1] })?.heilung;
+        if (heal) { potion ??= { ...START_POTION, stats: { heilung: heal } }; continue; }
+        addItem({ items, money: 0 }, { name: it.name.replace(/\s*\(\d+\)$/, ""), qty: 1, kind: "trank", note: it.effect });
       } else addItem({ items, money: 0 }, { name: it.name, qty: 1, kind: KIND_OF[it.type] ?? "gegenstand" });
     }
+    const custom = (c as { customClass?: { cls?: { id: string; abilities: { type: string; text: string }[] } } }).customClass?.cls;
+    if (!potion && isHealer(classes?.find((x) => x.id === c.classId) ?? custom)) potion = { ...START_POTION };
+    if (potion) addItem({ items, money: 0 }, potion);
     for (const slot of SLOTS) fillSlot({ items, money: 0 }, slot);
     w.inventory[c.id] = { items, money: toPfennig(c.money ?? {}) };
   }
@@ -193,7 +205,7 @@ export const ITEM_ACTIONS: readonly string[] = ["trinken", "anlegen", "ablegen"]
  * Über die Oberfläche, ohne Claude: Trank trinken (der Server würfelt die Heilung; im Kampf einmal je Runde) oder
  * Ausrüstung an-/ablegen. Claude erfährt es im nächsten Zug. Fehlertext oder null.
  */
-export function useItem(w: WorldState, c: Pick<Character, "id" | "name" | "equipment" | "money">, rules: Rules, action: ItemAction, ref: unknown, roll: (notation: string, label: string) => { total: number }): string | null {
+export function useItem(w: WorldState, c: Pick<Character, "id" | "name" | "equipment" | "money" | "classId">, rules: Rules, action: ItemAction, ref: unknown, roll: (notation: string, label: string) => { total: number }, target?: Pick<Character, "id" | "name"> | null): string | null {
   ensureInventory(w, [c], rules);
   const inv = w.inventory![c.id];
   const item = findItem(inv, String(ref ?? ""));
@@ -206,15 +218,19 @@ export function useItem(w: WorldState, c: Pick<Character, "id" | "name" | "equip
   }
   const heal = item.stats?.heilung;
   if (!heal) return `„${item.name}“ kann man nicht trinken.`;
-  if (w.hp[c.id] <= 0) return `${c.name} ist bewusstlos und kann nichts trinken.`;
-  if (w.hp[c.id] >= w.maxHp[c.id]) return `${c.name} ist schon unverletzt.`;
-  if (w.combat && w.drank?.[c.id] === w.combat.round) return "In dieser Kampfrunde hast du schon getrunken.";
-  const amount = /^\d$/.test(heal) ? Number(heal) : Math.max(1, roll(heal, `${c.name}: ${item.name}`).total);
+  // Selbst trinken oder einer anderen Figur geben (auch einer bewusstlosen – das holt sie zurück)
+  const t = target && target.id !== c.id ? target : c;
+  if (!(t.id in w.hp)) return "Diese Figur ist nicht in der Gruppe.";
+  if (w.hp[c.id] <= 0) return `${c.name} ist bewusstlos und kann nichts tun.`;
+  if (w.hp[t.id] >= w.maxHp[t.id]) return `${t.name} ist schon unverletzt.`;
+  if (w.combat && w.drank?.[c.id] === w.combat.round) return "In dieser Kampfrunde hast du schon einen Trank benutzt.";
+  const amount = /^\d$/.test(heal) ? Number(heal) : Math.max(1, roll(heal, `${t.name}: ${item.name}`).total);
   removeItem(inv, item.name, 1);
-  const before = w.hp[c.id];
-  w.hp[c.id] = Math.min(w.maxHp[c.id], before + amount);
+  const before = w.hp[t.id];
+  w.hp[t.id] = Math.min(w.maxHp[t.id], before + amount);
   if (w.combat) w.drank = { ...w.drank, [c.id]: w.combat.round };
-  w.itemLog = [...(w.itemLog ?? []), `${c.name} trinkt ${item.name} und heilt ${w.hp[c.id] - before} TP (jetzt ${w.hp[c.id]}/${w.maxHp[c.id]})`].slice(-10);
+  const healed = `${w.hp[t.id] - before} TP (jetzt ${w.hp[t.id]}/${w.maxHp[t.id]})${before <= 0 ? ", wieder bei Bewusstsein" : ""}`;
+  w.itemLog = [...(w.itemLog ?? []), t === c ? `${c.name} trinkt ${item.name} und heilt ${healed}` : `${c.name} flößt ${t.name} ${item.name} ein – ${t.name} heilt ${healed}`].slice(-10);
   return null;
 }
 

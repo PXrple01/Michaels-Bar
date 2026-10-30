@@ -354,7 +354,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       return { content: `Würfeltisch offen: gegen ${opponent}, höchstens ${moneyText(maxBet)}. Die Spieler würfeln über die Oberfläche.` };
     }
     case "gegenstand": {
-      ensureInventory(w, ctx.characters, ctx.data.rules);
+      ensureInventory(w, ctx.characters, ctx.data.rules, ctx.data.classes);
       const c = findCharacter(ctx, input.figur);
       if (!c) return err("Unbekannte Figur.");
       const inv = w.inventory![c.id];
@@ -392,7 +392,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       return { content: `${c.name}: ${itemText({ ...r.item, qty })} ${input.aktion === "verbrauchen" ? "verbraucht" : "verloren"}.` };
     }
     case "geld": {
-      ensureInventory(w, ctx.characters, ctx.data.rules);
+      ensureInventory(w, ctx.characters, ctx.data.rules, ctx.data.classes);
       const pf = toPfennig({ gulden: Number(input.gulden) || 0, groschen: Number(input.groschen) || 0, pfennig: Number(input.pfennig) || 0 });
       if (pf <= 0) return err("Betrag fehlt (gulden, groschen, pfennig).");
       if (pf > 240 * 500) return err("So viel Geld auf einmal ist unglaubwürdig (höchstens 500 Gulden).");

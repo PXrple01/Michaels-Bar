@@ -17,7 +17,7 @@ const agnes = mk("Agnes", "moench", ["glaube_sagen"]);
 const roll = () => ({ total: 5 });
 const setup = () => {
   const w = initWorld([hagen, agnes]);
-  ensureInventory(w, [hagen, agnes], data.rules);
+  ensureInventory(w, [hagen, agnes], data.rules, data.classes);
   const run = (name: string, input: object) => runAutoTool({ id: `toolu_${Math.random()}`, name, input }, { data, characters: [hagen, agnes], world: w, rolls: new RollLog(), onRoll: () => {} });
   return { w, run };
 };
@@ -35,7 +35,9 @@ describe("Inventar und Geld", () => {
     const names = w.inventory![hagen.id].items.map((i) => i.name);
     expect(names).toContain("Langschwert");
     expect(w.inventory![hagen.id].money).toBe(toPfennig(hagen.money));
-    expect(w.inventory![agnes.id].items.find((i) => i.name === "Heilsalbe")).toMatchObject({ qty: 3, kind: "trank", stats: { heilung: "1W4+1" } });
+    // Heiltränke sind selten: Die Mönchin (Heilerin) hat genau einen, der Ritter keinen
+    expect(w.inventory![agnes.id].items.filter((i) => i.stats?.heilung)).toEqual([expect.objectContaining({ name: "Heiltrank", qty: 1, kind: "trank", stats: { heilung: "1W4+1" } })]);
+    expect(w.inventory![hagen.id].items.some((i) => i.stats?.heilung)).toBe(false);
   });
 
   it("finden, verbrauchen (nur was da ist), weitergeben", async () => {
@@ -43,10 +45,10 @@ describe("Inventar und Geld", () => {
     expect((await run("gegenstand", { figur: "Hagen", aktion: "erhalten", name: "Heiltrank", anzahl: 2, art: "trank", notiz: "heilt 1W8+2" })).is_error).toBeUndefined();
     expect(w.inventory![hagen.id].items.find((i) => i.name === "Heiltrank")).toMatchObject({ qty: 2, kind: "trank", note: "heilt 1W8+2" });
     expect((await run("gegenstand", { figur: "Hagen", aktion: "verbrauchen", name: "heiltrank" })).content).toContain("verbraucht");
-    expect((await run("gegenstand", { figur: "Agnes", aktion: "verbrauchen", name: "Heiltrank" })).is_error).toBe(true);
+    expect((await run("gegenstand", { figur: "Agnes", aktion: "verbrauchen", name: "Gegengift" })).is_error).toBe(true);
     await run("gegenstand", { figur: "Hagen", aktion: "weitergeben", name: "Heiltrank", an: "Agnes" });
     expect(w.inventory![hagen.id].items.some((i) => i.name === "Heiltrank")).toBe(false);
-    expect(w.inventory![agnes.id].items.find((i) => i.name === "Heiltrank")?.qty).toBe(1);
+    expect(w.inventory![agnes.id].items.find((i) => i.name === "Heiltrank")?.qty).toBe(2); // ihr Starttrank + der von Hagen
   });
 
   it("Geld: Beute wird geteilt, ausgeben nur, wenn es reicht", async () => {
@@ -112,10 +114,10 @@ describe("Inventar und Geld", () => {
     w.combat = { round: 2, enemies: [] };
     expect(useItem(w, agnes, data.rules, "trinken", "Heiltrank", roll)).toBeNull();
     expect(w.hp[agnes.id]).toBe(6);
-    expect(useItem(w, agnes, data.rules, "trinken", "Heiltrank", roll)).toMatch(/schon getrunken/);
+    expect(useItem(w, agnes, data.rules, "trinken", "Heiltrank", roll)).toMatch(/schon einen Trank benutzt/);
     w.combat.round = 3;
     expect(useItem(w, agnes, data.rules, "trinken", "Heiltrank", roll)).toBeNull();
-    expect(w.inventory![agnes.id].items.find((i) => i.name === "Heiltrank")?.qty).toBe(1);
+    expect(w.inventory![agnes.id].items.find((i) => i.name === "Heiltrank")?.qty).toBe(2); // 1 vom Start + 3 erhalten − 2 getrunken
     expect(useItem(w, agnes, data.rules, "trinken", "Langschwert", roll)).toBeTruthy();
     expect(turnSummary(w, [hagen, agnes], data.rules)).toContain("Agnes trinkt Heiltrank und heilt 5 TP");
     expect(w.itemLog).toEqual([]);
@@ -124,6 +126,29 @@ describe("Inventar und Geld", () => {
     await run("kampf_beginnen", { gegner: [{ name: "Wolf", trefferpunkte: 6, ruestung: 11 }] });
     w.hp[agnes.id] = 1;
     expect(useItem(w, agnes, data.rules, "trinken", "Heiltrank", roll)).toBeNull();
+  });
+
+  it("Heiler-Klassen starten mit einem Heiltrank, wer sich nur selbst heilt, nicht", () => {
+    const hexe = mk("Grete", "kraeuterhexe", ["ueberleben", "taeuschen"]);
+    const soeldner = mk("Ulf", "soeldner", ["athletik", "wahrnehmung"]);
+    const w = initWorld([hexe, soeldner]);
+    ensureInventory(w, [hexe, soeldner], data.rules, data.classes);
+    expect(w.inventory![hexe.id].items.filter((i) => i.stats?.heilung).map((i) => [i.name, i.qty])).toEqual([["Heiltrank", 1]]);
+    expect(w.inventory![soeldner.id].items.some((i) => i.stats?.heilung)).toBe(false);
+  });
+
+  it("Trank einer anderen Figur geben – auch einer bewusstlosen", async () => {
+    const { w } = setup();
+    w.hp[hagen.id] = 0;
+    expect(useItem(w, agnes, data.rules, "trinken", "Heiltrank", roll, hagen)).toBeNull();
+    expect(w.hp[hagen.id]).toBe(5);
+    expect(w.itemLog?.at(-1)).toContain("Agnes flößt Hagen Heiltrank ein");
+    expect(w.itemLog?.at(-1)).toContain("wieder bei Bewusstsein");
+    expect(w.inventory![agnes.id].items.some((i) => i.name === "Heiltrank")).toBe(false);
+    // Wer selbst bewusstlos ist, kann niemandem etwas geben
+    w.inventory![hagen.id].items.push({ name: "Heiltrank", qty: 1, kind: "trank", stats: { heilung: "3" } });
+    w.hp[hagen.id] = 0; w.hp[agnes.id] = 2;
+    expect(useItem(w, hagen, data.rules, "trinken", "Heiltrank", roll, agnes)).toMatch(/bewusstlos/);
   });
 
   it("Seltene Stücke bringen beim Händler mehr", () => {

@@ -516,7 +516,7 @@ export class Narrator {
   async converse(messages: MessageParam[], scene: Scene, who: string, onText: (text: string) => void, opts: { compact?: boolean } = {}): Promise<ConverseResult> {
     const compact = opts.compact !== false;
     const { characters, data, world } = scene;
-    ensureInventory(world, characters, data.rules);
+    ensureInventory(world, characters, data.rules, data.classes);
     const history = [...messages];
     const base = requestBase(this.model, this.o.effort ?? "low");
     let cost = 0, imageUsd = 0, paintedTurn = false, nudged = false;

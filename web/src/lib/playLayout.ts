@@ -133,7 +133,9 @@ function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
   if (!list.length) return html``;
   const mine = w.inventory![list[0].id];
   const count = mine.items.reduce((n, i) => n + i.qty, 0);
-  return html`<details class="world-log side-sec inv-block">
+  // Mitspieler für „Trank geben“ (mit Lebenspunkten, damit man sieht, wer es braucht)
+  const team = members.filter((m) => !m.me && m.id in w.hp).map((m) => ({ id: m.id, name: m.name, hp: w.hp[m.id], max: w.maxHp[m.id] }));
+  return html`<details class="world-log side-sec inv-block" data-team="${JSON.stringify(team)}">
     <summary>${icon("bag")} Gepäck <small class="muted">· ${count} ${count === 1 ? "Ding" : "Dinge"} · ${moneyText(mine.money, true)}</small></summary>
     ${list.map((m) => {
       const inv = w.inventory![m.id];
@@ -151,8 +153,9 @@ function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
 }
 
 /** Kurze Rückmeldung nach Trinken/Anlegen. */
-export function itemDoneText(action: ItemAction, name: string, hpBefore: number | undefined, hpAfter: number | undefined): string {
-  if (action === "trinken") return `${name} getrunken: +${Math.max(0, (hpAfter ?? 0) - (hpBefore ?? 0))} TP`;
+export function itemDoneText(action: ItemAction, name: string, hpBefore: number | undefined, hpAfter: number | undefined, targetName?: string): string {
+  const gain = Math.max(0, (hpAfter ?? 0) - (hpBefore ?? 0));
+  if (action === "trinken") return targetName ? `${name} an ${targetName} gegeben: +${gain} TP${(hpBefore ?? 1) <= 0 ? " – wieder bei Bewusstsein!" : ""}` : `${name} getrunken: +${gain} TP`;
   return action === "anlegen" ? `${name} angelegt.` : `${name} abgelegt.`;
 }
 
@@ -168,6 +171,8 @@ const menuOutside = (e: Event) => { if (itemMenu && !itemMenu.contains(e.target 
 
 /** Kleines Menü direkt am Gegenstand: Trinken, Anlegen/Ablegen, Benutzen (als Text an den Spielleiter). */
 function openItemMenu(anchor: HTMLElement, name: string, heal: string | undefined, slot: Slot | undefined, worn: boolean) {
+  let team: { id: string; name: string; hp: number; max: number }[] = [];
+  try { team = JSON.parse(anchor.closest<HTMLElement>(".inv-block")?.dataset.team ?? "[]"); } catch { /* ohne Mitspieler */ }
   const again = itemMenu?.dataset.for === name;
   closeItemMenu();
   if (again) return;
@@ -176,7 +181,8 @@ function openItemMenu(anchor: HTMLElement, name: string, heal: string | undefine
   menu.dataset.for = name;
   menu.setAttribute("role", "menu");
   menu.innerHTML = html`
-    ${heal ? html`<button type="button" role="menuitem" data-item-act="trinken" data-item-name="${name}">${icon("potion")} Trinken <small>heilt ${heal}</small></button>` : ""}
+    ${heal ? html`<button type="button" role="menuitem" data-item-act="trinken" data-item-name="${name}">${icon("potion")} Selbst trinken <small>heilt ${heal}</small></button>
+      ${team.map((t) => html`<button type="button" role="menuitem" data-item-act="trinken" data-item-name="${name}" data-item-target="${t.id}" data-item-target-name="${t.name}">${icon("heart")} ${t.name} geben <small class="${t.hp <= 0 ? "down" : ""}">${t.hp <= 0 ? "bewusstlos" : `${t.hp}/${t.max} TP`}</small></button>`)}` : ""}
     ${slot ? html`<button type="button" role="menuitem" data-item-act="${worn ? "ablegen" : "anlegen"}" data-item-name="${name}">${icon(worn ? "x" : "check")} ${worn ? "Ablegen" : "Anlegen"} <small>${SLOT_NAME[slot]}</small></button>` : ""}
     <button type="button" role="menuitem" data-item-act="benutzen" data-item-name="${name}">${icon("feather")} Benutzen <small>dem Spielleiter sagen</small></button>`.value;
   anchor.closest(".inv")!.append(menu);
@@ -261,7 +267,7 @@ export function lageSide(w: WorldState | null | undefined): Raw {
  * Seitenleisten verdrahten: breit immer offen, schmal eingeklappt (antippen öffnet, nur eine zugleich, Tippen daneben schließt).
  * Gibt eine Aufräumfunktion zurück.
  */
-export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => void, onItem?: (action: ItemAction, name: string) => void): () => void {
+export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => void, onItem?: (action: ItemAction, name: string, target?: { id: string; name: string }) => void): () => void {
   const sides = [...root.querySelectorAll<HTMLDetailsElement>(".side")];
   const mq = matchMedia(WIDE);
   const apply = () => sides.forEach((d) => { d.open = mq.matches; });
@@ -285,10 +291,10 @@ export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => 
   const onUse = (e: Event) => {
     const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-item-act]");
     if (pick) {
-      const { itemAct, itemName } = pick.dataset;
+      const { itemAct, itemName, itemTarget, itemTargetName } = pick.dataset;
       closeItemMenu();
       if (itemAct === "benutzen") useText(itemName!);
-      else onItem?.(itemAct as ItemAction, itemName!);
+      else onItem?.(itemAct as ItemAction, itemName!, itemTarget ? { id: itemTarget, name: itemTargetName ?? "" } : undefined);
       return;
     }
     const b = (e.target as HTMLElement).closest<HTMLElement>("[data-use-item]");

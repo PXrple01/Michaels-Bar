@@ -55,7 +55,7 @@ export function sanitizeWorld(raw: unknown, c: Character, data: GameData): World
     // Vorbereitetes Abenteuer: eigene Startausrüstung und -geld der Figur, die Dinge aus dem Abenteuer kommen dazu
     // (ein Stück mit Werten wird dabei statt der Startwaffe angelegt)
     const start = { ...w, inventory: {} } as WorldState;
-    ensureInventory(start, [c], data.rules);
+    ensureInventory(start, [c], data.rules, data.classes);
     const mine = start.inventory![c.id];
     for (const it of items) { const { equipped: _, ...plain } = it; addItem(mine, plain); }
     mine.money = Math.min(240 * 500, mine.money + w.inventory[c.id].money);

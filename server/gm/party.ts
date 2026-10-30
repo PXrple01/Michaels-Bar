@@ -367,7 +367,7 @@ export class PartyService {
   }
 
   /** Im offenen Laden kaufen oder verkaufen, würfeln, Trank trinken, anlegen – für die eigene Figur, ohne Claude. */
-  async shop(body: { code?: unknown; token?: unknown; action?: unknown; ref?: unknown }): Promise<PartyView> {
+  async shop(body: { code?: unknown; token?: unknown; action?: unknown; ref?: unknown; target?: unknown }): Promise<PartyView> {
     const { party } = await this.load(body?.code);
     const me = this.player(party, body?.token);
     const done = await this.update(party.code, (p) => {
@@ -375,7 +375,7 @@ export class PartyService {
       if (p.busy && !isStale(p.busy)) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
       const rules = this.dataFor(p).rules;
       const problem = body.action === "spielen" ? playGamble(p.world, me.character, rules, body.ref, gambleRoll)
-        : ITEM_ACTIONS.includes(String(body.action)) ? useItem(p.world, me.character, rules, body.action as ItemAction, body.ref, itemRoll)
+        : ITEM_ACTIONS.includes(String(body.action)) ? useItem(p.world, me.character, rules, body.action as ItemAction, body.ref, itemRoll, p.players.find((pl) => pl.character.id === body.target)?.character ?? null)
         : trade(p.world, me.character, rules, body.action, body.ref);
       if (problem) throw new PartyError(problem);
     });
