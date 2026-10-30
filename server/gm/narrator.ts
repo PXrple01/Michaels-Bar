@@ -547,6 +547,17 @@ export class Narrator {
     const deadline = Date.now() + budget;
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), budget);
+    // Bilder und Porträts malen im Hintergrund, während Claude weitererzählt (Nano Banana Pro braucht bis zu einer Minute –
+    // das darf das Zeitbudget der Erzählung nicht auffressen). Fertige Bilder erscheinen nach dem Text.
+    const background: Promise<void>[] = [];
+    const shown: SceneImage[] = [];
+    const later = { ...scene, onImage: (img: SceneImage) => { shown.push(img); } };
+    const finish = async <T extends { imageUsd: number }>(r: T): Promise<T> => {
+      clearTimeout(timer);
+      await Promise.all(background);
+      for (const img of shown) scene.onImage?.(img);
+      return { ...r, imageUsd }; // inklusive der Bilder, die erst im Hintergrund fertig wurden
+    };
     try {
       for (let loop = 0; loop < MAX_LOOPS; loop++) {
         await this.o.guard.check(who);
@@ -595,14 +606,16 @@ export class Narrator {
           for (const b of uses) {
             if (b.name === TOOL_NAME || b.name === "gegner_greift_an") continue;
             if (b.name === "bild") {
-              const r = painted ? "Nur ein Bild pro Antwort." : await this.paint(b, scene);
+              if (painted) { byId.set(b.id, { type: "tool_result", tool_use_id: b.id, content: "Nur ein Bild pro Antwort." }); continue; }
               painted = paintedTurn = true;
-              if (typeof r !== "string") imageUsd += r.costUsd;
-              byId.set(b.id, { type: "tool_result", tool_use_id: b.id, content: typeof r === "string" ? r : "Das Bild wird den Spielern gezeigt." });
+              background.push(this.paint(b, later).then((r) => { if (typeof r !== "string") imageUsd += r.costUsd; }).catch(() => {}));
+              byId.set(b.id, { type: "tool_result", tool_use_id: b.id, content: "Das Bild wird gemalt und den Spielern gezeigt." });
               continue;
             }
             if ((AUTO_TOOLS as readonly string[]).includes(b.name)) await run(b);
             else byId.set(b.id, { type: "tool_result", tool_use_id: b.id, is_error: true, content: "Unbekanntes Werkzeug." });
+            // Neue Gegner: Porträts gleich im Hintergrund malen
+            if (b.name === "kampf_beginnen" && this.o.images?.ready) background.push(this.npcPortraits(world).then((u) => { imageUsd += u; }).catch(() => {}));
           }
           const pendings: PendingCheck[] = [];
           for (const b of uses.filter((x) => x.name === TOOL_NAME)) {
@@ -615,15 +628,15 @@ export class Narrator {
           // Gegnerzug: mit offenen Proben erst nach den Würfen (siehe enemyTurn), sonst sofort
           if (!pendings.length) for (const b of uses) if (b.name === "gegner_greift_an") await run(b);
           const results = uses.map((b) => byId.get(b.id)).filter((r): r is ToolResult => !!r);
-          if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
+          if (pendings.length) return await finish({ history, pending: pendings[0], pendings, held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage });
           const told = msg.content.some((b) => b.type === "text" && closes(b.text));
           // Abstimmung: Die Spieler antworten per Knopf – der Zug endet hier immer
           const ended = (uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished) || (uses.some((b) => b.name === "abstimmung") && !!world.vote && !world.vote.result);
-          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
+          if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return await finish({ history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage });
           // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.
           if (deadline - Date.now() < MIN_CALL_MS) {
             console.warn("[Claude] Zeitbudget fast aufgebraucht – Zug endet ohne weiteren Aufruf.");
-            return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
+            return await finish({ history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage });
           }
           history.push({ role: "user", content: results });
           continue;
@@ -643,7 +656,7 @@ export class Narrator {
           else history.push({ role: "user", content: [hint] });
           continue;
         }
-        return { history, pending: null, pendings: [], held: [], costUsd: cost, imageUsd, painted: paintedTurn, usage };
+        return await finish({ history, pending: null, pendings: [], held: [], costUsd: cost, imageUsd, painted: paintedTurn, usage });
       }
       throw new GmError("Der Spielleiter hat sich verhaspelt. Bitte versuch es noch einmal.", "api");
     } finally {

@@ -268,3 +268,20 @@ describe("Kampagne in Akten und Kapiteln", () => {
     expect(after.at(-1)).toMatchObject({ type: "error", message: expect.stringMatching(/abgeschlossen/) });
   });
 });
+
+describe("Bilder im Hintergrund", () => {
+  it("ein langsames Bild bricht den Zug nicht ab und erscheint nach dem Text", async () => {
+    const llm = new FakeLlm([
+      tools("Die Burg erhebt sich vor dir.", { id: "toolu_b1", name: "bild", input: { motiv: "A dark castle at dusk", titel: "Die Burg" } }),
+      text("Das Tor steht offen.\n» Vorschläge: Eintreten | Umkehren"),
+    ]);
+    const images = { ready: true, make: async () => { await new Promise((r) => setTimeout(r, 300)); return { url: "/api/images/x", costUsd: 0.134 }; } };
+    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET, images: images as never, turnBudgetMs: 200 });
+    const evs: GmEvent[] = [];
+    await gm.run("start", { character, previousOpenings: [] }, "t", (e) => evs.push(e));
+    expect(evs.find((e) => e.type === "error")).toBeUndefined();
+    const types = evs.map((e) => e.type);
+    expect(types.indexOf("image")).toBeGreaterThan(types.lastIndexOf("text"));
+    expect(done(evs).turnImageUsd).toBeGreaterThanOrEqual(0.134);
+  });
+});
