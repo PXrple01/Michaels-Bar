@@ -54,14 +54,15 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   const anthropic = env.ANTHROPIC_API_KEY ? new AnthropicLlm(env.ANTHROPIC_API_KEY) : null;
   // Google-Testphase: im Zeitfenster Claude über Vertex, Imagen und Chirp – danach automatisch wieder wie bisher
   const gcfg = googleConfig(env);
-  const google = gcfg ? new GoogleCloud(gcfg) : null;
+  const google = gcfg ? new GoogleCloud(gcfg, fetch, counters) : null;
   if (google) console.log(`[Google] Testphase eingerichtet bis ${gcfg!.until.toISOString().slice(0, 10)}${google.active() ? "" : " (vorbei – bisherige Anbieter)"}.`);
   const llm = google ? new SwitchingLlm(google, anthropic) : anthropic;
   // Monatsbudget nur, wenn MONTHLY_BUDGET_USD gesetzt ist (0 oder leer = ohne Grenze)
   const guard = new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD) || 0, Number(env.TURNS_PER_HOUR ?? 60) || 60);
   const model = pickModel(env.GM_MODEL, "claude-opus-5-5");
   const images = new ImageMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, google });
-  const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model, images });
+  const moreImages = async () => !!google?.active() && (await google.luxury());
+  const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model, images, moreImages });
   const audio = new AudioMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, googleKey: env.GOOGLE_TTS_KEY?.trim() || undefined, counters, paidFallback: env.TTS_PAID_FALLBACK === "1", google });
   return {
     gm,

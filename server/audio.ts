@@ -165,7 +165,9 @@ export class AudioMaker {
     const out = (await res.json()) as { audioContent?: string };
     if (!out.audioContent) throw new GoogleError("Google hat keinen Ton geliefert", 200);
     await this.o.store.put(id, { type: "audio/mpeg", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
-    return { url: `/api/images/${id}`, costUsd: (clean.length / 1000) * CHIRP_USD_PER_1000 };
+    const usd = (clean.length / 1000) * CHIRP_USD_PER_1000;
+    await g.addSpend(usd);
+    return { url: `/api/images/${id}`, costUsd: usd };
   }
 
   /** Google-Stimme (kostenlos im Kontingent). null = Kontingent aufgebraucht. Gespeicherte Texte zählen nicht erneut. */

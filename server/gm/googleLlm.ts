@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
 import { GoogleError, isProviderFailure, type GoogleCloud } from "../google";
 import { apiErrorText, type LlmClient, type Message } from "./narrator";
+import { costUsd } from "./usage";
 
 type StreamParams = Parameters<LlmClient["stream"]>[0];
 
@@ -37,7 +38,11 @@ export class SwitchingLlm implements LlmClient {
     }
     let emitted = false;
     try {
-      return await this.vertex.stream(params, (t) => { emitted = true; onText(t); }, signal);
+      // Luxus-Stufe (Guthaben reicht): Opus statt Sonnet
+      const model = (await this.g.luxury()) && params.model === "claude-sonnet-5-5" ? "claude-opus-5-5" : params.model;
+      const msg = await this.vertex.stream({ ...params, model } as StreamParams, (t) => { emitted = true; onText(t); }, signal);
+      await this.g.addSpend(costUsd(msg.usage, model));
+      return msg;
     } catch (e) {
       if (emitted || signal?.aborted || !this.backup) throw e;
       const status = e instanceof GoogleError ? e.status : e instanceof Anthropic.APIError ? e.status : undefined;

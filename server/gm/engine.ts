@@ -36,6 +36,7 @@ export interface GmOptions {
   effort?: "low" | "medium" | "high";
   turnBudgetMs?: number;
   images?: ImageMaker;
+  moreImages?: () => Promise<boolean>;
 }
 
 interface Saved { messages: MessageParam[]; world: WorldState; held: ToolResult[] }

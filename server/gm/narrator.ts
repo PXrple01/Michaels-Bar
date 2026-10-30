@@ -155,6 +155,8 @@ export interface NarratorOptions {
   turnBudgetMs?: number;
   /** Bilder über fal.ai (ohne FAL_KEY: keine Bilder). */
   images?: ImageMaker;
+  /** Mehr Bilder (mindestens jeder dritte Zug)? Für die Luxus-Stufe der Google-Testphase. */
+  moreImages?: () => Promise<boolean>;
 }
 
 /** Alles, was ein Zug über die Szene wissen muss. `world` wird von den Werkzeugen verändert. */
@@ -204,7 +206,9 @@ export class Narrator {
     const fightOver = !!o.wasFighting && !world.combat;
     // Ortswechsel (Claude hat mit ort einen anderen Ort gemeldet): Bild vom neuen Ort
     const moved = o.placeBefore !== undefined && !!world.map?.current && world.map.current !== o.placeBefore;
-    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved);
+    // Luxus-Stufe: spätestens jeder dritte Zug bekommt ein Bild
+    const stale = (world.sinceImage ?? 0) >= 2 && !!(await this.o.moreImages?.().catch(() => false));
+    const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved || stale);
     const [scene, map, faces] = await Promise.all([
       due ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
       this.mapBackground(world),

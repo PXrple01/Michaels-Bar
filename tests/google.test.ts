@@ -5,6 +5,7 @@ import { SwitchingLlm } from "../server/gm/googleLlm";
 import type { LlmClient } from "../server/gm/narrator";
 import { ImageMaker, MemoryImageStore } from "../server/images";
 import { AudioMaker } from "../server/audio";
+import { MemoryCounterStore } from "../server/gm/usage";
 
 const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048, privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
 const sa = JSON.stringify({ client_email: "spiel@projekt.iam.gserviceaccount.com", private_key: privateKey, project_id: "projekt" });
@@ -47,8 +48,9 @@ describe("Google-Testphase", () => {
     const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle(calls));
     const maker = new ImageMaker({ key: undefined, store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls) });
     const r = await maker.make("A misty monastery", "landscape_4_3");
-    expect(r.costUsd).toBe(0.04);
-    expect(calls.some((c) => c.includes("imagen-4.0-generate-001:predict"))).toBe(true);
+    // Noch nichts ausgegeben: Luxus-Stufe – Imagen 4 Ultra
+    expect(r.costUsd).toBe(0.06);
+    expect(calls.some((c) => c.includes("imagen-4.0-ultra-generate-001:predict"))).toBe(true);
     const broke = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle([], 403));
     const falCalls: string[] = [];
     const fal = (async (url: string) => { falCalls.push(url); if (url.includes("fal.run")) return Response.json({ images: [{ url: "data:image/webp;base64,AQI=", width: 1024, height: 768 }] }); return fakeGoogle([], 403)(url); }) as unknown as typeof fetch;
@@ -64,5 +66,23 @@ describe("Google-Testphase", () => {
     const r = await a.speak("Nebel hängt über dem Kloster.");
     expect(r.costUsd).toBeGreaterThan(0);
     expect(calls).toContain("voice:de-DE-Chirp3-HD-Charon");
+  });
+
+  it("Ausgabe-Regler: unter dem Tempo Luxus (Opus, Imagen Ultra), darüber normal – einmal pro Tag festgelegt", async () => {
+    const cfg = googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: "2026-01-01", GOOGLE_TRIAL_BUDGET_USD: "88" })!; // 1 $ pro Tag
+    const counters = new MemoryCounterStore();
+    const g = new GoogleCloud(cfg, fakeGoogle([]), counters);
+    const day3 = new Date("2026-01-03T10:00:00Z").getTime(); // Tempo bis Tag 3: 3 $
+    await g.addSpend(2.5);
+    expect(await g.luxury(day3)).toBe(true);
+    await g.addSpend(1);
+    expect(await g.luxury(day3)).toBe(true); // am selben Tag bleibt die Stufe
+    const g2 = new GoogleCloud(cfg, fakeGoogle([]), counters); // anderer Server, gleicher Tag: gleiche Stufe
+    expect(await g2.luxury(day3)).toBe(true);
+    expect(await g2.luxury(new Date("2026-01-03T23:00:00Z").getTime() + 3_600_000)).toBe(true); // Tag 4: Tempo 4 $, verbraucht 3,5 $
+    await g.addSpend(1);
+    expect(await new GoogleCloud(cfg, fakeGoogle([]), counters).luxury(new Date("2026-01-05T08:00:00Z").getTime())).toBe(true); // Tag 5: 5 $ > 4,5 $
+    await g.addSpend(2);
+    expect(await new GoogleCloud(cfg, fakeGoogle([]), counters).luxury(new Date("2026-01-06T08:00:00Z").getTime())).toBe(false); // Tag 6: 6 $ < 6,5 $
   });
 });

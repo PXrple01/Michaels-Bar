@@ -3,11 +3,14 @@
 // Startdatum) laufen automatisch wieder die bisherigen Anbieter (Anthropic, fal.ai, ElevenLabs bzw. WaveNet).
 // Lehnt Google vorher ab (Guthaben weg, Zugang falsch), wird für eine Weile ebenfalls auf die bisherigen umgeschaltet.
 import { createSign } from "node:crypto";
+import type { CounterStore } from "./gm/usage";
 
 /** 90 Tage Testphase, zwei Tage Puffer – damit nie eine echte Abrechnung beginnt. */
 export const TRIAL_DAYS = 88;
 /** So lange bleibt Google nach einer Ablehnung (Guthaben, Rechte, Kontingent) abgeschaltet, bevor es neu versucht wird. */
 const BROKEN_MS = 15 * 60_000;
+/** Zähler der Google-Ausgaben (in Hundertstel-Cent, damit er ganzzahlig bleibt). */
+const SPEND_KEY = "google-spend-cents100";
 
 export interface GoogleEnv {
   /** Inhalt der JSON-Schlüsseldatei des Dienstkontos (client_email, private_key, project_id). */
@@ -20,9 +23,13 @@ export interface GoogleEnv {
   GOOGLE_IMAGE_REGION?: string;
   /** Imagen-Modell (Standard: imagen-4.0-generate-001). */
   GOOGLE_IMAGE_MODEL?: string;
+  /** Imagen-Modell der Luxus-Stufe (Standard: imagen-4.0-ultra-generate-001). */
+  GOOGLE_IMAGE_MODEL_LUXURY?: string;
+  /** Guthaben, das in der Testphase ausgegeben werden soll, in Dollar (Standard: 300). */
+  GOOGLE_TRIAL_BUDGET_USD?: string;
 }
 
-export interface GoogleConfig { email: string; privateKey: string; projectId: string; region: string; imageRegion: string; imageModel: string; until: Date }
+export interface GoogleConfig { email: string; privateKey: string; projectId: string; region: string; imageRegion: string; imageModel: string; luxuryImageModel: string; budgetUsd: number; start: Date; until: Date }
 
 /** Liest die Einstellungen. null = Google ist nicht (vollständig) eingerichtet. */
 export function googleConfig(env: GoogleEnv): GoogleConfig | null {
@@ -31,12 +38,15 @@ export function googleConfig(env: GoogleEnv): GoogleConfig | null {
   try {
     const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT) as { client_email?: string; private_key?: string; project_id?: string };
     if (!sa.client_email || !sa.private_key || !sa.project_id) return null;
-    const until = new Date(`${start}T00:00:00Z`);
+    const from = new Date(`${start}T00:00:00Z`);
+    const until = new Date(from);
     until.setUTCDate(until.getUTCDate() + TRIAL_DAYS);
     return {
       email: sa.client_email, privateKey: sa.private_key.replace(/\\n/g, "\n"), projectId: sa.project_id,
       region: env.GOOGLE_REGION?.trim() || "global", imageRegion: env.GOOGLE_IMAGE_REGION?.trim() || "us-central1",
-      imageModel: env.GOOGLE_IMAGE_MODEL?.trim() || "imagen-4.0-generate-001", until,
+      imageModel: env.GOOGLE_IMAGE_MODEL?.trim() || "imagen-4.0-generate-001",
+      luxuryImageModel: env.GOOGLE_IMAGE_MODEL_LUXURY?.trim() || "imagen-4.0-ultra-generate-001",
+      budgetUsd: Number(env.GOOGLE_TRIAL_BUDGET_USD) > 0 ? Number(env.GOOGLE_TRIAL_BUDGET_USD) : 300, start: from, until,
     };
   } catch {
     console.error("[Google] GOOGLE_SERVICE_ACCOUNT ist kein gültiges JSON.");
@@ -50,7 +60,32 @@ export class GoogleCloud {
   private cached: { token: string; exp: number } | null = null;
   private brokenUntil = 0;
 
-  constructor(readonly cfg: GoogleConfig, private f: typeof fetch = fetch) {}
+  private tier: { day: string; luxury: boolean } | null = null;
+
+  constructor(readonly cfg: GoogleConfig, private f: typeof fetch = fetch, private counters?: CounterStore) {}
+
+  /** Ausgaben über Google mitzählen (für den Ausgabe-Regler). */
+  async addSpend(usd: number) { if (usd > 0) await this.counters?.add(SPEND_KEY, Math.round(usd * 10_000)); }
+  async spentUsd(): Promise<number> { return ((await this.counters?.get(SPEND_KEY)) ?? 0) / 10_000; }
+
+  /**
+   * Ausgabe-Regler: Liegt der Verbrauch unter dem gleichmäßigen Tempo (Guthaben ÷ Testtage), gilt heute die Luxus-Stufe
+   * (Opus, beste Bilder, mehr Bilder). Einmal pro Tag festgelegt – so bleibt der Cache stabil.
+   */
+  async luxury(now = Date.now()): Promise<boolean> {
+    const day = new Date(now).toISOString().slice(0, 10);
+    if (this.tier?.day === day) return this.tier.luxury;
+    const key = `google-tier-${day}`;
+    let stored = (await this.counters?.get(key)) ?? 0;
+    if (!stored) {
+      const elapsed = Math.max(0, Math.floor((now - this.cfg.start.getTime()) / 86_400_000));
+      const pace = (this.cfg.budgetUsd * (elapsed + 1)) / TRIAL_DAYS;
+      stored = (await this.spentUsd()) < pace ? 1 : 2;
+      await this.counters?.add(key, stored);
+    }
+    this.tier = { day, luxury: stored === 1 };
+    return this.tier.luxury;
+  }
 
   /** Wird Google gerade benutzt? Nur im Zeitfenster und wenn es nicht kürzlich abgelehnt hat. */
   active(now = Date.now()): boolean { return now < this.cfg.until.getTime() && now >= this.brokenUntil; }

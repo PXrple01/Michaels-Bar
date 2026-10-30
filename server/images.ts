@@ -49,7 +49,7 @@ export type ImageShape = "landscape_4_3" | "portrait_4_3" | "square";
 const SIZE: Record<ImageShape, string | { width: number; height: number }> = { landscape_4_3: "landscape_4_3", portrait_4_3: "portrait_4_3", square: { width: 992, height: 992 } };
 
 /** Imagen (Google, Testphase): Preis je Bild (Richtwert für imagen-4.0-generate-001). */
-const IMAGEN_USD = 0.04;
+const IMAGEN_USD = 0.04, IMAGEN_ULTRA_USD = 0.06;
 const IMAGEN_RATIO: Record<ImageShape, string> = { landscape_4_3: "4:3", portrait_4_3: "3:4", square: "1:1" };
 
 export class ImageMaker {
@@ -86,7 +86,9 @@ export class ImageMaker {
 
   private async paintImagen(g: GoogleCloud, motif: string, shape: ImageShape, id: string | undefined, style: boolean | undefined): Promise<{ url: string; costUsd: number }> {
     const prompt = style === false ? motif.trim().slice(0, 1600) : `${motif.trim().slice(0, 1200)}\n\n${STYLE}`;
-    const { projectId, imageRegion, imageModel } = g.cfg;
+    const luxury = await g.luxury();
+    const { projectId, imageRegion } = g.cfg;
+    const imageModel = luxury ? g.cfg.luxuryImageModel : g.cfg.imageModel;
     const res = await (this.o.fetch ?? fetch)(`https://${imageRegion}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${imageRegion}/publishers/google/models/${imageModel}:predict`, {
       method: "POST",
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
@@ -99,7 +101,9 @@ export class ImageMaker {
     if (!img?.bytesBase64Encoded) throw new GoogleError("Imagen hat kein Bild geliefert (vermutlich vom Sicherheitsfilter aussortiert)", 200);
     const finalId = id ?? `img-${randomBytes(9).toString("hex")}`;
     await this.o.store.put(finalId, { type: img.mimeType ?? "image/jpeg", bytes: new Uint8Array(Buffer.from(img.bytesBase64Encoded, "base64")) });
-    return { url: `/api/images/${finalId}?v=${Date.now().toString(36)}`, costUsd: IMAGEN_USD };
+    const usd = luxury ? IMAGEN_ULTRA_USD : IMAGEN_USD;
+    await g.addSpend(usd);
+    return { url: `/api/images/${finalId}?v=${Date.now().toString(36)}`, costUsd: usd };
   }
 
   /** Porträts der Figuren als data-URI (höchstens 4). */
