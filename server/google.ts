@@ -28,7 +28,7 @@ export interface GoogleEnv {
   GOOGLE_REGION?: string;
   /** Region für Imagen (Standard: us-central1). */
   GOOGLE_IMAGE_REGION?: string;
-  /** Bildmodell (Standard: gemini-3-pro-image-preview = Nano Banana Pro; „imagen-…“ geht auch). */
+  /** Bildmodell (Standard: gemini-3-pro-image = Nano Banana Pro; „imagen-…“ geht auch). */
   GOOGLE_IMAGE_MODEL?: string;
   /** Bildmodell der Luxus-Stufe (Standard: dasselbe – Nano Banana Pro ist schon das beste). */
   GOOGLE_IMAGE_MODEL_LUXURY?: string;
@@ -81,8 +81,8 @@ export function googleConfig(env: GoogleEnv): GoogleConfig | null {
     return {
       email: sa.client_email, privateKey: sa.private_key.replace(/\\n/g, "\n"), projectId: sa.project_id,
       region: env.GOOGLE_REGION?.trim() || "global", imageRegion: env.GOOGLE_IMAGE_REGION?.trim() || "us-central1",
-      imageModel: env.GOOGLE_IMAGE_MODEL?.trim() || "gemini-3-pro-image-preview",
-      luxuryImageModel: env.GOOGLE_IMAGE_MODEL_LUXURY?.trim() || env.GOOGLE_IMAGE_MODEL?.trim() || "gemini-3-pro-image-preview",
+      imageModel: env.GOOGLE_IMAGE_MODEL?.trim() || "gemini-3-pro-image",
+      luxuryImageModel: env.GOOGLE_IMAGE_MODEL_LUXURY?.trim() || env.GOOGLE_IMAGE_MODEL?.trim() || "gemini-3-pro-image",
       budgetUsd: Number(env.GOOGLE_TRIAL_BUDGET_USD) > 0 ? Number(env.GOOGLE_TRIAL_BUDGET_USD) : 300, start: from, until,
     };
   } catch {

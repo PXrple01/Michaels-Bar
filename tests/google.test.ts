@@ -50,7 +50,7 @@ describe("Google-Testphase", () => {
     const maker = new ImageMaker({ key: undefined, store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls) });
     const r = await maker.make("A misty monastery", "landscape_4_3");
     expect(r.costUsd).toBe(0.134);
-    expect(calls.some((c) => c.includes("locations/global/publishers/google/models/gemini-3-pro-image-preview:generateContent"))).toBe(true);
+    expect(calls.some((c) => c.includes("locations/global/publishers/google/models/gemini-3-pro-image:generateContent"))).toBe(true);
     expect(calls.find((c) => c.startsWith("body:"))).toContain('"aspectRatio":"4:3"');
     // Imagen per Einstellung weiterhin möglich
     const ig = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today, GOOGLE_IMAGE_MODEL: "imagen-4.0-generate-001" })!, fakeGoogle(calls));
