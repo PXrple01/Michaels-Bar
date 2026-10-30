@@ -2,6 +2,7 @@
 import type { ImageMaker } from "../images";
 import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest, type SceneImage, type CampaignSave, type ImportRequest, type LetterRequest } from "../../shared/campaign";
 import { sanitizeOpening, sanitizeStory } from "../../shared/saveFile";
+import { armLimitAttack, limitAttackNote } from "../../shared/growth";
 import { ImportError, importedMessages, sanitizeWorld } from "./importer";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
@@ -95,7 +96,7 @@ export class GameMaster {
       if (kind === "legend") {
         const { c, data } = this.character((body as { character?: unknown })?.character);
         const titles = Array.isArray((body as { titles?: unknown }).titles) ? ((body as { titles: unknown[] }).titles).filter((t): t is string => typeof t === "string") : [];
-        const r = await this.narrator.forgeLegend(c, data, titles, who);
+        const r = await this.narrator.forgeLegend(c, data, titles, who, (body as { tier?: unknown }).tier === 2 ? 2 : 1);
         return void emit({ type: "legend", options: r.options, budget: await this.o.guard.info() });
       }
       this.narrator.ensureReady();
@@ -130,9 +131,16 @@ export class GameMaster {
     const action = typeof req.action === "string" ? req.action.trim() : "";
     if (!action) throw new GmError("Was tust du? Schreib es in das Feld.", "state");
     if (action.length > MAX_ACTION_LENGTH) throw new GmError(`Bitte kürzer fassen (höchstens ${MAX_ACTION_LENGTH} Zeichen).`, "state");
+    // Limit-Angriff: einmal pro Abenteuer im Kampf – der nächste Angriff trifft kritisch
+    let note = "";
+    if ((req as { limit?: unknown }).limit === true) {
+      const e = armLimitAttack(world, c);
+      if (e) throw new GmError(e, "state");
+      note = `\n\n${limitAttackNote(c.name)}`;
+    }
     if (world.combat) world.combat.round++;
     countChapterTurn(world);
-    await this.converse([...messages, userTurn(held, `${action}\n\n<spielstand>\n${turnSummary(world, [c], data.rules)}\n</spielstand>`)], world, c, data, who, emit);
+    await this.converse([...messages, userTurn(held, `${action}${note}\n\n<spielstand>\n${turnSummary(world, [c], data.rules)}\n</spielstand>`)], world, c, data, who, emit);
   }
 
   private async roll(req: RollRequest, who: string, emit: (ev: GmEvent) => void) {

@@ -5,6 +5,8 @@ import { sessionToken } from "./account";
 import { html, raw, type Raw } from "./dom";
 import { accessCode } from "./gm";
 import { sigil } from "./icons";
+import { characterStore } from "./store";
+import { limitTier } from "../../../shared/growth";
 
 const KEY = "wus.portraits.v1";
 const read = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; } };
@@ -19,14 +21,16 @@ export const portraitOf = (characterId: string): string | null => read()[charact
  * Wappen mit Porträt darüber (falls vorhanden). `probe`: auch ohne gemerkten Link nachsehen (Figuren anderer Spieler).
  * Lädt das Bild nicht, bleibt einfach das Wappen sichtbar.
  */
-export function avatar(characterId: string, sigilName: string, opts: { probe?: boolean; draw?: boolean } = {}): Raw {
+export function avatar(characterId: string, sigilName: string, opts: { probe?: boolean; draw?: boolean; tier?: number } = {}): Raw {
   const url = portraitOf(characterId) ?? (opts.probe ? `/api/images/portrait-${characterId}` : null);
-  return html`<span class="avatar">${sigil(sigilName, opts.draw ? "draw" : "")}${url ? raw(`<img class="avatar-img" src="${url}" alt="" loading="lazy" onload="this.parentElement.classList.add('has-img')" onerror="this.remove()">`) : ""}</span>`;
+  // Rand der Legende: glühend nach dem Limit Break, golden nach dem Limit Break II
+  const tier = opts.tier ?? limitTier(characterStore.get(characterId)?.growth ?? null);
+  return html`<span class="avatar ${tier ? `aura-${tier}` : ""}" ${tier ? html`title="${tier === 2 ? "Legende – Limit Break II" : "Legende – Limit Break"}"` : ""}>${sigil(sigilName, opts.draw ? "draw" : "")}${url ? raw(`<img class="avatar-img" src="${url}" alt="" loading="lazy" onload="this.parentElement.classList.add('has-img')" onerror="this.remove()">`) : ""}</span>`;
 }
 
 /** Porträt malen lassen: Claude beschreibt, fal.ai malt (zusammen unter 1 Cent). Gibt Link und beide Kosten zurück. */
-export async function paintPortrait(c: Character): Promise<{ url: string; costUsd: number; claudeUsd: number }> {
-  const res = await fetch("/api/portrait", { method: "POST", headers: { "content-type": "application/json", "x-access-code": accessCode(), "x-session": sessionToken() }, body: JSON.stringify({ character: c }) });
+export async function paintPortrait(c: Character, legendary?: 1 | 2): Promise<{ url: string; costUsd: number; claudeUsd: number }> {
+  const res = await fetch("/api/portrait", { method: "POST", headers: { "content-type": "application/json", "x-access-code": accessCode(), "x-session": sessionToken() }, body: JSON.stringify({ character: c, ...(legendary ? { legendary } : {}) }) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.url) throw new Error(data.error ?? `Fehler ${res.status}`);
   try { localStorage.setItem(KEY, JSON.stringify({ ...read(), [c.id]: data.url })); } catch { /* Speicher voll */ }

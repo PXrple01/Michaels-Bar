@@ -1,6 +1,6 @@
 import { settings } from "../lib/settings";
 import { offerLetters } from "../lib/letters";
-import { heirloomPicker, syncCharacterGrowth } from "../lib/growthUi";
+import { heirloomPicker, limitAttackButton, runLimitAttack, syncCharacterGrowth } from "../lib/growthUi";
 import { setMusic } from "../lib/music";
 import { prepareRead, readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
@@ -337,7 +337,7 @@ export function partyPage(): Page {
             ${suggestions.length && !v.yourAction ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
             ${v.yourAction
               ? html`<div class="card locked-action">${icon("lock")}<div><div class="eyebrow">Deine Handlung ist abgegeben</div><p>„${v.yourAction}“</p><small class="muted">${waiting.length ? html`Der Spielleiter erzählt, sobald ${waiting.join(", ")} ${waiting.length > 1 ? "abgegeben haben" : "abgegeben hat"}.` : "Gleich geht es weiter."}</small></div>${waiting.length ? html`<button class="btn btn-ghost btn-sm" id="withdraw" title="Vertippt? Handlung zurückholen und neu schreiben">${icon("refresh")} Zurückziehen</button>` : ""}</div>`
-              : html`<form class="composer card" id="composer">
+              : html`${myChar ? limitAttackButton(v.world, myChar) : ""}<form class="composer card" id="composer">
                   <textarea class="textarea" id="action" maxlength="${MAX_ACTION_LENGTH}" rows="2" placeholder="Was tut ${myChar?.name ?? "deine Figur"}?">${draft}</textarea>
                   <button class="btn" type="submit" aria-label="Handlung abgeben">${icon("check")}</button>
                 </form>
@@ -356,7 +356,7 @@ export function partyPage(): Page {
         }
         // Offener Laden: jede Person kauft für ihre eigene Figur
         if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.shop && !v.world.arc?.finished && myCharId) {
-          content = html`${shopCard(v.world, myCharId)}${content}`;
+          content = html`${shopCard(v.world, myCharId, myChar && myChar.id === myCharId ? myChar : null)}${content}`;
         }
         // Würfeltisch: jede Person spielt mit ihrem eigenen Geld
         if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.gamble && !v.world.combat && !v.world.arc?.finished && myCharId) {
@@ -397,7 +397,7 @@ export function partyPage(): Page {
         if (v.status !== "playing") return;
         const open = !v.busy && !busyLocal && !v.pendings.length && !v.world?.arc?.finished;
         const members: TeamMember[] = v.players.map((p) => ({
-          id: p.characterId, name: p.name, sigil: p.sigil, className: p.className, host: p.host, me: p.id === me.playerId, abilities: p.abilities,
+          id: p.characterId, name: p.name, sigil: p.sigil, className: p.className, tier: p.tier, host: p.host, me: p.id === me.playerId, abilities: p.abilities,
           status: v.pendings.some((c) => c.playerId === p.id) ? "muss würfeln" : open ? (p.acted ? "hat gehandelt" : "überlegt …") : undefined,
         }));
         const waiting = open ? members.filter((m, i) => !v.players[i].acted) : [];
@@ -598,6 +598,13 @@ export function partyPage(): Page {
           catch (e) { toast((e as Error).message, "error", 6000); }
         });
         bindVote(belowEl, (option) => void stream("action", { text: "", vote: option }));
+        belowEl.querySelector("[data-limit-attack]")?.addEventListener("click", async () => {
+          if (!myChar) return;
+          const typed = belowEl.querySelector<HTMLTextAreaElement>("#action")?.value ?? "";
+          const text = await runLimitAttack(myChar, typed);
+          draft = "";
+          void stream("action", { text, limit: true });
+        });
         belowEl.querySelector("#now")?.addEventListener("click", () => void stream("action", { text: "", now: true }));
         belowEl.querySelector("#retry")?.addEventListener("click", () => void stream("action", { text: "", retry: true }));
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");

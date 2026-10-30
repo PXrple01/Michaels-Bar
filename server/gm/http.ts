@@ -96,7 +96,7 @@ async function audioJson(claude: Claude, kind: "tts" | "music", arg: unknown, wh
 /** Figurenporträt malen: JSON-Antwort mit dem Bild-Link. */
 async function portraitJson(claude: Claude, body: unknown, who: string): Promise<{ status: number; body: unknown }> {
   try {
-    return { status: 200, body: await claude.portrait((body as { character?: unknown } | null)?.character, who) };
+    return { status: 200, body: await claude.portrait((body as { character?: unknown } | null)?.character, who, (body as { legendary?: unknown } | null)?.legendary) };
   } catch (e) {
     if (e instanceof ValidationError) return { status: 400, body: { error: `Figur ungültig: ${e.problems.join(", ")}` } };
     if (e instanceof LimitError) return { status: 429, body: { error: e.message } };

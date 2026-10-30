@@ -83,6 +83,9 @@ export interface WorldState {
   fameBonus?: Record<string, { angriff: number }>;
   /** Machtstufe (Einstellung): Gegner passen sich erfahrenen Figuren an. */
   powerScaling?: "aus" | "angepasst" | "hart";
+  /** Limit-Angriff: in diesem Abenteuer schon benutzt bzw. für den nächsten Angriff bereit. */
+  limitUsed?: Record<string, boolean>;
+  limitArmed?: Record<string, boolean>;
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */

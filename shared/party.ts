@@ -21,6 +21,8 @@ export interface PartyPlayerView {
   classId: string;
   className: string;
   sigil: string;
+  /** Limit-Break-Stufe (0–2) – für den Rand der Legende. */
+  tier?: number;
   /** Hat in dieser Runde schon gehandelt? */
   acted: boolean;
   /** Fähigkeiten der Figur – damit alle sehen, was das Team kann. */

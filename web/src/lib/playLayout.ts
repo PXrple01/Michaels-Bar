@@ -23,6 +23,8 @@ export interface TeamMember {
   name: string;
   sigil: string;
   className: string;
+  /** Limit-Break-Stufe (Rand der Legende). */
+  tier?: number;
   host?: boolean;
   me: boolean;
   /** Gruppe: Status in dieser Runde („hat gehandelt“ …) */
@@ -71,7 +73,7 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
         const lv = w?.levels?.[m.id]?.level ?? 1;
         const down = !!w && hp <= 0;
         return html`<div class="tm ${m.me ? "me" : ""} ${down ? "down" : ""}">
-          <span class="tm-sigil">${avatar(m.id, m.sigil, { probe: !m.me })}</span>
+          <span class="tm-sigil">${avatar(m.id, m.sigil, { probe: !m.me, ...(m.tier !== undefined ? { tier: m.tier } : {}) })}</span>
           <div class="tm-body">
             <div class="tm-line"><button type="button" class="tm-name" data-sheet="${m.id}" title="Figurenblatt von ${m.name} ansehen">${m.name}</button>${m.host ? icon("crown") : ""}<span class="tm-lv" title="Stufe ${lv} · ${levelTitle(lv, rules)}">St. ${lv}</span></div>
             <small class="tm-sub">${m.className}${m.status ? ` · ${m.status}` : ""}</small>

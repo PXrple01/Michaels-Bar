@@ -208,3 +208,60 @@ describe("Beiname", () => {
     expect(() => resolveCharacter({ ...base, growth: { ...g({}), epithet: "der Unbändige" } }, data)).toThrow();
   });
 });
+
+describe("Limit Break II", () => {
+  const legend = { name: "Zorn des Ogertöters", type: "angriff" as const, uses: "einmal_pro_tag" as const, text: "Ein Schlag mit 3W8 zusätzlichem Schaden gegen einen Gegner.", beginnerText: "Ein gewaltiger Hieb." };
+  const legend2 = { name: "Sturm der Krone", type: "kontrolle" as const, uses: "einmal_pro_rast" as const, text: "Alle Gegner in der Nähe sind eine Runde lang benommen.", beginnerText: "Ein Schrei, der Heere erstarren lässt." };
+  it("ab 7 Abenteuern: Stufe 2, drei Truhenplätze, zweite legendäre Fähigkeit", async () => {
+    const { limitTier, heirloomSlots, legendAbilities } = await import("../shared/growth");
+    const seven = ["a", "b", "c", "d", "e", "f", "g"];
+    expect(limitTier(g({ earned: seven.slice(0, 2) }))).toBe(0);
+    expect(limitTier(g({ earned: seven.slice(0, 3) }))).toBe(1);
+    expect(limitTier(g({ earned: seven }))).toBe(2);
+    expect(heirloomSlots(g({ earned: seven }))).toBe(3);
+    expect(() => resolveCharacter({ ...base, growth: { ...g({ earned: seven.slice(0, 5) }), legend, legend2 } }, data)).toThrow();
+    const c = resolveCharacter({ ...base, growth: { ...g({ earned: seven }), legend, legend2 } }, data).c;
+    expect(legendAbilities(c).map((l) => l.id)).toEqual(["legende", "legende2"]);
+    expect(useAbility(initWorld([c]), c, data.classes, "Sturm der Krone").error).toBeUndefined();
+  });
+
+  it("Legenden zahlen beim Händler 10 % weniger", async () => {
+    const { trade } = await import("../shared/shop");
+    const vet = { ...base, growth: g({ earned: ["a", "b", "c"] }) };
+    const w = initWorld([vet]);
+    w.shop = { name: "Krämer", kind: "haendler", wares: [{ id: "w0", name: "Heiltrank", kind: "trank", price: 100 }], log: [] };
+    ensureInventory(w, [vet], data.rules, data.classes);
+    const before = w.inventory![vet.id].money;
+    expect(trade(w, vet, data.rules, "kaufen", "w0")).toBeNull();
+    expect(before - w.inventory![vet.id].money).toBe(90);
+    expect(w.shop.log[0]).toContain("Legenden-Rabatt");
+  });
+});
+
+describe("Limit-Angriff", () => {
+  it("einmal pro Abenteuer im Kampf: garantierter kritischer Treffer", async () => {
+    const { armLimitAttack, canLimitAttack } = await import("../shared/growth");
+    const { Narrator } = await import("../server/gm/narrator");
+    const { MemoryCounterStore, UsageGuard } = await import("../server/gm/usage");
+    const vet = { ...base, growth: g({ earned: ["a", "b", "c"] }) };
+    const w = initWorld([vet]);
+    expect(armLimitAttack(w, vet)).toMatch(/nur im Kampf/);
+    expect(armLimitAttack(initWorld([base]), base)).toMatch(/erst nach dem Limit Break/);
+    w.combat = { round: 1, enemies: [{ id: "o", name: "Oger", hp: 200, maxHp: 200, armor: 30 }] };
+    expect(canLimitAttack(w, vet)).toBe(true);
+    expect(armLimitAttack(w, vet)).toBeNull();
+    expect(canLimitAttack(w, vet)).toBe(false);
+    expect(armLimitAttack(w, vet)).toMatch(/schon verbraucht/);
+    const narrator = new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 60) });
+    const pending = { toolUseId: "toolu_la", characterId: vet.id, characterName: vet.name, art: "attack" as const, id: "waffe", sg: 30, modus: "normal" as const, grund: "Limit", label: "Angriff", ziel: "Oger" };
+    const scene = { characters: [vet], data, world: w };
+    const { record, damage } = await narrator.rollRecords(pending, scene);
+    expect(record.success).toBe(true); // Rüstung 30 – ohne Limit kaum zu treffen
+    expect(record.modifierParts).toContainEqual({ label: "Limit-Angriff", value: 20 });
+    expect(damage?.label).toContain("kritisch");
+    expect(damage?.modifierParts).toContainEqual({ label: "Limit-Angriff", value: 5 });
+    const { result } = narrator.applyRolls(pending, scene, record, damage);
+    expect(String(result.content)).toContain("LIMIT-ANGRIFF");
+    expect(w.limitArmed?.[vet.id]).toBeUndefined();
+  });
+});

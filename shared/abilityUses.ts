@@ -1,7 +1,7 @@
 // Begrenzte Fähigkeiten (1× pro Kampf, Rast oder Tag): Der Server zählt mit – fälschungssicher im Spielstand.
 // Kampfende und Rasten machen sie wieder verfügbar. Passive Fähigkeiten wirken immer und werden nie verbraucht.
 import type { Character, ClassDef } from "./schema";
-import { applyMastery, legendAbility } from "./growth";
+import { applyMastery, legendAbilities } from "./growth";
 import { effectiveAbilities } from "./upgrades";
 import { newWorldId, type WorldState } from "./world";
 
@@ -38,8 +38,7 @@ export function resetUses(w: WorldState, event: "kampf" | "kurz" | "lang"): void
 /** Die Fähigkeiten einer Figur in dieser Kampagne (mit Verbesserungen und Meisterschaft). */
 export function abilitiesOf(c: Character, classes: ClassDef[], w: WorldState) {
   const cls = classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
-  const legend = legendAbility(c);
-  return applyMastery([...effectiveAbilities(cls?.abilities ?? [], w.progress?.[c.id]), ...(legend ? [legend] : [])], c, w);
+  return applyMastery([...effectiveAbilities(cls?.abilities ?? [], w.progress?.[c.id]), ...legendAbilities(c)], c, w);
 }
 
 /**

@@ -15,7 +15,7 @@ import { costUsd, LimitError, PRICES, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
 import { bonusParts } from "../../shared/shop";
-import { ABILITY_TYPES, growthOf, legendOptionSchema, LIMIT_AFTER, limitBroken, type LegendOption } from "../../shared/growth";
+import { ABILITY_TYPES, LIMIT_ATTACK, growthOf, legendOptionSchema, LIMIT_AFTER, LIMIT2_AFTER, limitBroken, limitTier, type LegendOption } from "../../shared/growth";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -401,10 +401,16 @@ export class Narrator {
    * Legendäre Fähigkeit nach dem Limit Break: Claude entwirft aus der Geschichte der Figur (Narben, Erbstücke, Titel)
    * eine persönliche, starke, aber faire Fähigkeit. Ergebnis geprüft (legendSchema).
    */
-  async forgeLegend(c: Character, data: GameData, titles: string[], who: string): Promise<{ options: LegendOption[]; costUsd: number }> {
+  async forgeLegend(c: Character, data: GameData, titles: string[], who: string, tier: 1 | 2 = 1): Promise<{ options: LegendOption[]; costUsd: number }> {
     this.ensureReady();
-    if (!limitBroken(growthOf(c))) throw new GmError(`Eine legendäre Fähigkeit gibt es erst nach ${LIMIT_AFTER} bestandenen Abenteuern.`, "state");
-    if (growthOf(c).legend) throw new GmError("Diese Figur hat ihre legendäre Fähigkeit schon.", "state");
+    const g = growthOf(c);
+    if (tier === 1) {
+      if (!limitBroken(g)) throw new GmError(`Eine legendäre Fähigkeit gibt es erst nach ${LIMIT_AFTER} bestandenen Abenteuern.`, "state");
+      if (g.legend) throw new GmError("Diese Figur hat ihre legendäre Fähigkeit schon.", "state");
+    } else {
+      if (limitTier(g) < 2) throw new GmError(`Die zweite legendäre Fähigkeit gibt es erst nach ${LIMIT2_AFTER} bestandenen Abenteuern.`, "state");
+      if (g.legend2) throw new GmError("Diese Figur hat ihre zweite legendäre Fähigkeit schon.", "state");
+    }
     await this.o.guard.check(who);
     const one = { type: "object", additionalProperties: false, required: ["name", "type", "uses", "text", "beginnerText", "beiname"], properties: {
       beiname: { type: "string", description: "Passender Beiname für die Figur, mit Artikel, z. B. „der Unbändige“, „die Ogertöterin“ (Geschlecht aus Name/Aussehen; im Zweifel neutral wie „vom Falkenstein“)" },
@@ -420,7 +426,7 @@ export class Narrator {
       output_config: { effort: "low", format: { type: "json_schema", schema } },
       max_tokens: 2000,
       system: [{ type: "text", text: "Du entwirfst für ein deutsches Mittelalter-Rollenspiel (nach DnD-Art, Heiliges Römisches Reich um 1400, wenig Magie) eine legendäre Fähigkeit für eine Figur, die schon mehrere Abenteuer bestanden und ihr Limit gebrochen hat. Sie soll sich aus ihrer Geschichte ergeben (Narben, Erbstücke, Titel, Klasse) und sich episch anfühlen: deutlich stärker als normale Klassenfähigkeiten (z. B. 3W8 Schaden, Vorteil für die ganze Gruppe, einen Gegner eine Runde ausschalten), aber begrenzt einsetzbar und ohne Unverwundbarkeit oder sofortigen Sieg. Antworte nur im verlangten Format." }],
-      messages: [{ role: "user", content: `<figur>\n${characterSheetText(c, data)}\n</figur>${titles.length ? `\nEhrentitel: ${titles.slice(0, 10).map((t) => t.slice(0, 80)).join(", ")}` : ""}` }],
+      messages: [{ role: "user", content: `<figur>\n${characterSheetText(c, data)}\n</figur>${titles.length ? `\nEhrentitel: ${titles.slice(0, 10).map((t) => t.slice(0, 80)).join(", ")}` : ""}${tier === 2 ? `\n\nDies ist der ZWEITE Limit Break (Limit Break II): Die Figur ist eine lebende Legende. Entwirf eine zweite legendäre Fähigkeit – noch mächtiger als die erste und deutlich anders als „${g.legend?.name ?? ""}“ – und einen gesteigerten Beinamen, der den bisherigen („${g.epithet ?? ""}“) übertrifft.` : ""}` }],
     }, () => {}, AbortSignal.timeout(40_000));
     await this.o.guard.record(msg.usage, this.model);
     const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
@@ -523,9 +529,13 @@ export class Narrator {
     const { characters, data, world } = scene;
     const c = characters.find((x) => x.id === pending.characterId)!;
     const base = `gm-${pending.toolUseId.replace(/[^A-Za-z0-9-]/g, "-")}`.slice(0, 60);
-    const record = await this.rollCheck(c, data, pending.art, pending.id, base, pending.modus, pending.sg, pending.art === "damage" && !!world.critPending[c.id], world);
+    // Limit-Angriff: garantierter Treffer, kritischer Schaden mit Zusatz
+    const limit = pending.art === "attack" && !!world.limitArmed?.[c.id];
+    const rolled = await this.rollCheck(c, data, pending.art, pending.id, base, pending.modus, pending.sg, pending.art === "damage" && !!world.critPending[c.id], world, limit ? [{ label: "Limit-Angriff", value: LIMIT_ATTACK.hit }] : []);
+    // Garantiert: auch eine gewürfelte 1 trifft, und es ist immer ein kritischer Treffer
+    const record: RollRecord = limit ? { ...rolled, success: true, critical: "hit", label: `${rolled.label} – Limit-Angriff` } : rolled;
     const damage = pending.art === "attack" && pending.ziel && record.success
-      ? await this.rollCheck(c, data, "damage", "waffe", `${base}-d`, "normal", null, record.critical === "hit", world) : null;
+      ? await this.rollCheck(c, data, "damage", "waffe", `${base}-d`, "normal", null, record.critical === "hit" || limit, world, limit ? [{ label: "Limit-Angriff", value: LIMIT_ATTACK.damage }] : []) : null;
     return { record, damage };
   }
 
@@ -534,6 +544,10 @@ export class Narrator {
     const { characters, data, world } = scene;
     const ctx = { data, characters, world };
     let text = describeRoll(record) + applyPlayerRoll(ctx, pending.characterId, pending.art, pending.ziel ?? null, record);
+    if (pending.art === "attack" && world.limitArmed?.[pending.characterId]) {
+      delete world.limitArmed[pending.characterId];
+      text += " ⚡ LIMIT-ANGRIFF: garantierter kritischer Treffer – erzähle ihn als den gewaltigsten Schlag des Abenteuers.";
+    }
     const extra: RollRecord[] = [];
     const enemy = damage && world.combat?.enemies.find((e) => e.name === pending.ziel && e.hp > 0);
     if (damage && enemy) {
@@ -548,10 +562,11 @@ export class Narrator {
     return { record, ...this.applyRolls(pending, scene, record, damage) };
   }
 
-  private rollCheck(c: Character, data: GameData, art: PendingCheck["art"], id: string, requestId: string, mode: PendingCheck["modus"], dc: number | null, crit: boolean, world?: WorldState) {
+  private rollCheck(c: Character, data: GameData, art: PendingCheck["art"], id: string, requestId: string, mode: PendingCheck["modus"], dc: number | null, crit: boolean, world?: WorldState, extraParts: { label: string; value: number }[] = []) {
     const spec = characterRoll(c, data.rules, data.classes, art, id);
     // Verbesserungen vom Schmied und Boni aus dem Gepäck zählen mit
     if (art === "attack" || art === "damage") spec.parts = [...spec.parts, ...bonusParts(world, c.id, art === "attack" ? "angriff" : "schaden")];
+    if (extraParts.length) spec.parts = [...spec.parts, ...extraParts];
     // Narben: +1 auf Einschüchtern je Narbe (höchstens +2)
     if (art === "skill" && id === "einschuechtern") {
       const scars = growthOf(c).scars.filter((s) => s.campaign !== world?.id).length + (world?.scars?.[c.id]?.length ?? 0);

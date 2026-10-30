@@ -1,4 +1,5 @@
 // Baut den Spielleiter aus Umgebungsvariablen – gleich für lokal und Netlify.
+import { growthOf, limitTier } from "../../shared/growth";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { GameMaster } from "./engine";
@@ -43,7 +44,7 @@ const pickModel = (v: string | undefined, fallback: ModelId, name = "GM_MODEL"):
 export interface Claude {
   gm: GameMaster; reviewer: ClassReviewer; party: PartyService; openai: OpenAiGateway; images: ImageMaker; audio: AudioMaker;
   /** Figurenporträt: Claude schreibt die Bildbeschreibung, fal.ai malt (prüft die Figur, bucht die Kosten). */
-  portrait(raw: unknown, who: string): Promise<{ url: string; costUsd: number; claudeUsd: number }>;
+  portrait(raw: unknown, who: string, legendary?: unknown): Promise<{ url: string; costUsd: number; claudeUsd: number }>;
   /** Vorlesen und Stimmungsmusik (prüfen Budget und buchen die Kosten). */
   /** prefetch: im Hintergrund vorbereiten (nur in der Google-Testphase – sonst { skipped: true }, ohne Kosten). */
   speak(text: unknown, who: string, segments?: unknown, prefetch?: boolean): Promise<{ url: string; costUsd: number } | { skipped: true }>;
@@ -97,12 +98,16 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
       if (r.costUsd) await guard.addUsd(r.costUsd);
       return r;
     },
-    async portrait(raw, who) {
+    async portrait(raw, who, legendary) {
       if (!images.ready) throw new Error("Bilder sind nicht eingerichtet (FAL_KEY fehlt).");
       const { c, data: d } = resolveCharacter(raw, data(), secret);
       await guard.check(who);
       const { prompt, claudeUsd } = await portraitPrompt({ llm, guard }, c, d);
-      const res = await images.make(prompt, "portrait_4_3", `portrait-${c.id}`);
+      // Limit Break: dieselbe Figur, älter und gezeichnet, mit Erbstücken – das bisherige Porträt dient als Vorlage
+      const tier = legendary === 2 && limitTier(growthOf(c)) >= 2 ? 2 : legendary && limitTier(growthOf(c)) >= 1 ? 1 : 0;
+      const g = growthOf(c);
+      const legend = tier ? `\n\nThis person is now a living legend after ${g.earned.length} adventures: a few years older, weathered and battle-hardened${g.scars.length ? `, with visible scars (${g.scars.map((s) => s.name).join(", ")})` : ""}${g.heirlooms.length ? `, carrying ${g.heirlooms.map((h) => h.name).join(" and ")}` : ""}, proud and confident gaze, ${tier === 2 ? "a faint golden radiance around them, regal and awe-inspiring" : "faint glowing embers drifting around them"}. Keep the same face, hair and identity as in the reference image.` : "";
+      const res = await images.make(prompt + legend, "portrait_4_3", `portrait-${c.id}`, tier ? { refs: [{ characterId: c.id, label: c.name }] } : {});
       await guard.addUsd(res.costUsd);
       return { ...res, claudeUsd };
     },

@@ -24,7 +24,13 @@ export const PERK_IDS = Object.keys(PERKS) as PerkId[];
 
 /** Nach so vielen abgeschlossenen Abenteuern bricht das Limit: Vorteile über die Obergrenze, legendäre Fähigkeit, Meisterschaft III. */
 export const LIMIT_AFTER = 3;
+/** Limit Break II: goldene Ketten, zweite legendäre Fähigkeit, dritter Truhenplatz, goldener Rand. */
+export const LIMIT2_AFTER = 7;
 export const limitBroken = (g: { earned: string[] }) => g.earned.length >= LIMIT_AFTER;
+/** 0 = noch gebunden, 1 = Limit Break, 2 = Limit Break II. */
+export const limitTier = (g: { earned: string[] } | null | undefined): 0 | 1 | 2 => (!g ? 0 : g.earned.length >= LIMIT2_AFTER ? 2 : g.earned.length >= LIMIT_AFTER ? 1 : 0);
+/** Ruf eilt voraus: Händler geben Legenden Rabatt (in Prozent). */
+export const legendDiscount = (g: { earned: string[] } | null | undefined) => (limitTier(g) >= 1 ? 10 : 0);
 /** Obergrenze eines Vorteils – nach dem Limit Break doppelt so hoch. */
 export const perkMax = (p: PerkId, g: { earned: string[] }) => PERKS[p].max * (limitBroken(g) ? 2 : 1);
 
@@ -50,7 +56,7 @@ export const SCARS_MAX = 3;
 
 /** Ab so vielen abgeschlossenen Abenteuern („Wiedergeburten“) fasst die Truhe zwei Gegenstände. */
 export const HEIRLOOM_TWO_AFTER = 3;
-export const heirloomSlots = (g: { earned: string[] }) => (g.earned.length >= HEIRLOOM_TWO_AFTER ? 2 : 1);
+export const heirloomSlots = (g: { earned: string[] }) => (g.earned.length >= 7 ? 3 : g.earned.length >= HEIRLOOM_TWO_AFTER ? 2 : 1);
 export interface Scar { campaign: string; name: string; text: string }
 
 /* ── Meisterschaft ── */
@@ -77,11 +83,14 @@ export const growthSchema = z.object({
   perks: z.record(z.string(), z.number().int().min(0).max(10)).default({}) as unknown as z.ZodDefault<z.ZodType<Partial<Record<PerkId, number>>>>,
   scars: z.array(z.object({ campaign: z.string().max(80), name: z.string().max(60), text: z.string().max(160) })).max(SCARS_MAX).default([]),
   /** Erbstück-Truhe: 1 Platz, ab HEIRLOOM_TWO_AFTER abgeschlossenen Abenteuern 2. */
-  heirlooms: z.array(heirloomSchema).max(2).default([]),
+  heirlooms: z.array(heirloomSchema).max(3).default([]),
   /** Einsätze je Abenteuer und Fähigkeit (damit nichts doppelt zählt). */
   uses: z.record(z.string().max(80), z.record(z.string().max(60), z.number().int().min(0).max(999))).default({}),
-  /** Die Limit-Break-Animation wurde gezeigt. */
+  /** Die Limit-Break-Animation wurde gezeigt (I bzw. II). */
   limitSeen: z.boolean().optional(),
+  limitSeen2: z.boolean().optional(),
+  /** Zweite legendäre Fähigkeit (Limit Break II). */
+  legend2: legendSchema.nullable().optional(),
   /** Legendäre Fähigkeit (nach dem Limit Break, aus der Geschichte der Figur). */
   legend: legendSchema.nullable().optional(),
   /** Beiname nach dem Limit Break, z. B. „der Unbändige“. */
@@ -89,7 +98,8 @@ export const growthSchema = z.object({
 }).refine((g) => g.heirlooms.length <= heirloomSlots(g), "Zu viele Erbstücke für die Truhe")
   .refine((g) => Object.keys(g.perks).every((p) => p in PERKS && (g.perks[p as PerkId] ?? 0) <= perkMax(p as PerkId, g)), "Unbekannter oder zu oft gewählter Vorteil")
   .refine((g) => !g.legend || limitBroken(g), "Eine legendäre Fähigkeit gibt es erst nach dem Limit Break")
-  .refine((g) => !g.epithet || limitBroken(g), "Einen Beinamen gibt es erst nach dem Limit Break");
+  .refine((g) => !g.epithet || limitBroken(g), "Einen Beinamen gibt es erst nach dem Limit Break")
+  .refine((g) => !g.legend2 || limitTier(g) >= 2, "Die zweite legendäre Fähigkeit gibt es erst nach dem Limit Break II");
 export type Growth = z.infer<typeof growthSchema>;
 
 type WithGrowth = { id: string; growth?: Growth | null };
@@ -163,11 +173,13 @@ export function applyMastery<A extends { id: string; uses: string; text: string 
   });
 }
 
-/** Legendäre Fähigkeit als normale Fähigkeit (für Liste, Einsatz und Meisterschaft). */
-export function legendAbility(c: WithGrowth) {
-  const l = growthOf(c).legend;
-  if (!l || !limitBroken(growthOf(c))) return null;
-  return { id: "legende", name: l.name, type: l.type, uses: l.uses, text: l.text, beginnerText: l.beginnerText, legendary: true as const };
+/** Legendäre Fähigkeiten als normale Fähigkeiten (für Liste, Einsatz und Meisterschaft). */
+export function legendAbilities(c: WithGrowth) {
+  const g = growthOf(c), tier = limitTier(g);
+  const out: { id: string; name: string; type: Legend["type"]; uses: Legend["uses"]; text: string; beginnerText: string; legendary: true }[] = [];
+  if (g.legend && tier >= 1) out.push({ id: "legende", ...g.legend, legendary: true });
+  if (g.legend2 && tier >= 2) out.push({ id: "legende2", ...g.legend2, legendary: true });
+  return out;
 }
 
 /* ── Zu Beginn eines Abenteuers ── */
@@ -187,6 +199,25 @@ export function toggleHeirloom(g: Growth, item: Growth["heirlooms"][number]): Gr
   const list = has ? g.heirlooms.filter((h) => h.name !== item.name) : [...g.heirlooms, { ...item, qty: 1 }].slice(-heirloomSlots(g));
   return { ...g, heirlooms: list };
 }
+
+/* ── Limit-Angriff (einmal pro Abenteuer, nach dem Limit Break) ── */
+
+/** Bonus des Limit-Angriffs auf den Angriffswurf (garantierter Treffer) und auf den Schaden. */
+export const LIMIT_ATTACK = { hit: 20, damage: 5 } as const;
+export const canLimitAttack = (w: WorldState | null | undefined, c: WithGrowth) => !!w?.combat && limitTier(growthOf(c)) >= 1 && !w.limitUsed?.[c.id];
+
+/** Limit-Angriff scharf machen: Der nächste Angriff dieser Figur trifft kritisch. Fehlertext oder null. */
+export function armLimitAttack(w: WorldState, c: WithGrowth & { name: string }): string | null {
+  if (limitTier(growthOf(c)) < 1) return "Den Limit-Angriff gibt es erst nach dem Limit Break.";
+  if (!w.combat) return "Den Limit-Angriff kann man nur im Kampf entfesseln.";
+  if (w.limitUsed?.[c.id]) return "Der Limit-Angriff ist in diesem Abenteuer schon verbraucht.";
+  w.limitUsed = { ...w.limitUsed, [c.id]: true };
+  w.limitArmed = { ...w.limitArmed, [c.id]: true };
+  return null;
+}
+
+/** Hinweis für Claude zur Handlung mit Limit-Angriff. */
+export const limitAttackNote = (name: string) => `⚡ LIMIT-ANGRIFF: ${name} entfesselt die ganze Kraft der Legende (einmal pro Abenteuer). Verlange jetzt sofort einen Angriff (probe_anfordern, art attack) gegen das Ziel aus der Handlung – oder den gefährlichsten Gegner. Der Server macht daraus einen garantierten kritischen Treffer mit Zusatzschaden. Erzähle ihn filmreif und episch.`;
 
 /* ── Erwachende Erbstücke ── */
 
@@ -258,5 +289,7 @@ export function growthSummary(c: WithGrowth & { name: string }): string {
   if (g.earned.length) parts.push(`hat schon ${g.earned.length} ${g.earned.length === 1 ? "Abenteuer" : "Abenteuer"} bestanden`);
   if (limitBroken(g)) parts.push(`hat das Limit gebrochen – eine Legende${g.epithet ? `; man kennt ${c.name} als „${c.name} ${g.epithet}“ (nenne den Beinamen gelegentlich)` : ""}`);
   if (g.legend && limitBroken(g)) parts.push(`legendäre Fähigkeit „${g.legend.name}“ (${g.legend.uses.replace(/_/g, " ")}): ${g.legend.text}`);
+  if (g.legend2 && limitTier(g) >= 2) parts.push(`zweite legendäre Fähigkeit „${g.legend2.name}“ (${g.legend2.uses.replace(/_/g, " ")}): ${g.legend2.text}`);
+  if (limitBroken(g)) parts.push(`Der Ruf eilt ${c.name} voraus: Viele erkennen ${c.name}${g.epithet ? ` als „${c.name} ${g.epithet}“` : ""} – manche bitten um Hilfe, andere fordern ${c.name} heraus, Händler geben ${legendDiscount(g)} % Rabatt (wird beim Kauf schon abgezogen). Lass das gelegentlich in Begegnungen einfließen`);
   return parts.join(". ");
 }

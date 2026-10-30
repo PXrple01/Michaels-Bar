@@ -2,7 +2,8 @@
 // Erbstück wählen. Die Regeln selbst stehen in shared/growth.ts (der Server rechnet gleich).
 import { legacyOf } from "./legacy";
 import { streamGm } from "./gm";
-import { LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, type Growth, type PerkId } from "../../../shared/growth";
+import { imagesEnabled, paintPortrait, portraitOf } from "./portraits";
+import { canLimitAttack, fullName, LIMIT2_AFTER, limitTier, LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, type Growth, type PerkId } from "../../../shared/growth";
 import { rarityOf, statsText, type InvItem } from "../../../shared/inventory";
 import type { Character } from "../../../shared/schema";
 import type { LegendOption } from "../../../shared/growth";
@@ -28,7 +29,7 @@ export function syncCharacterGrowth(characterId: string, w: WorldState | null | 
     if (old && JSON.stringify(old.stats) !== JSON.stringify(h.stats)) toast(`Das Erbstück „${h.name}“ ist erwacht: ${statsText(h.stats as InvItem["stats"])}`, "success", 8000);
   }
   // Drittes bestandenes Abenteuer: Limit Break
-  if (limitBroken(after) && !after.limitSeen) void maybeLimitBreak(c.id);
+  if ((limitBroken(after) && !after.limitSeen) || (limitTier(after) >= 2 && !after.limitSeen2)) void maybeLimitBreak(c.id);
   return next;
 }
 
@@ -53,28 +54,45 @@ export function usesWithMastery(baseUses: string, c: { id: string; growth?: Grow
 /** Limit-Break-Szene zeigen, falls noch nicht gesehen (danach gemerkt). */
 export async function maybeLimitBreak(characterId: string, again = false): Promise<void> {
   const c = characterStore.get(characterId);
-  if (!c || !limitBroken(growthOf(c)) || (growthOf(c).limitSeen && !again)) return;
-  characterStore.save({ ...c, growth: { ...growthOf(c), limitSeen: true }, updatedAt: new Date().toISOString() });
+  if (!c) return;
+  const g = growthOf(c), tier = limitTier(g);
+  if (!tier) return;
+  // Die höchste noch nicht gesehene Stufe (beim Wiederansehen: die höchste erreichte)
+  const show: 1 | 2 | 0 = again ? tier : tier >= 2 && !g.limitSeen2 ? 2 : !g.limitSeen ? 1 : 0;
+  if (!show) return;
+  characterStore.save({ ...c, growth: { ...g, limitSeen: true, ...(show === 2 ? { limitSeen2: true } : {}) }, updatedAt: new Date().toISOString() });
   const { playLimitBreak } = await import("../fx/limitBreak");
-  await playLimitBreak(c.name, growthOf(c).legend ? undefined : () => void forgeLegend(characterId));
+  const missing = show === 2 ? !g.legend2 : !g.legend;
+  await playLimitBreak(fullName(c), missing ? () => void forgeLegend(characterId, undefined, show) : undefined, show);
+  // Neues Porträt: älter, gezeichnet, mit Erbstücken (nur beim ersten Erleben)
+  if (!again) void repaintLegend(characterId, show);
+}
+
+/** Porträt neu malen lassen (altes Porträt als Vorlage). Fehler sind still – das alte bleibt. */
+async function repaintLegend(characterId: string, tier: 1 | 2) {
+  const c = characterStore.get(characterId);
+  if (!c || !(await imagesEnabled())) return;
+  toast(`Ein neues Porträt von ${fullName(c)} wird gemalt …`, "info", 6000);
+  try { await paintPortrait(c, tier); toast("Das neue Porträt ist fertig.", "success", 5000); dispatchEvent(new Event("wus:portrait")); }
+  catch (e) { console.warn("[Porträt]", (e as Error).message); }
 }
 
 /** Legendäre Fähigkeit erschaffen lassen (Claude) und an der Figur speichern. */
-export async function forgeLegend(characterId: string, onDone?: (c: Character) => void): Promise<void> {
+export async function forgeLegend(characterId: string, onDone?: (c: Character) => void, tier: 1 | 2 = 1): Promise<void> {
   const c = characterStore.get(characterId);
   if (!c) return;
   toast(`Die Legende von ${c.name} nimmt Gestalt an …`, "info", 6000);
   let options: LegendOption[] = [];
-  await streamGm("legend", { character: c, titles: legacyOf(c.id).map((l) => l.title) }, (ev) => {
+  await streamGm("legend", { character: c, titles: legacyOf(c.id).map((l) => l.title), tier }, (ev) => {
     if (ev.type === "error") toast(ev.message, "error", 7000);
     if (ev.type === "legend") options = ev.options;
   });
   if (!options.length) return;
-  const pick = await chooseLegend(c.name, options);
+  const pick = await chooseLegend(c.name, options, tier);
   if (!pick) { toast("Keine Wahl getroffen – du kannst die Fähigkeit später auf dem Figurenbogen erwecken.", "info", 6000); return; }
   const fresh = characterStore.get(characterId) ?? c;
   const { beiname, ...legend } = pick;
-  const saved = { ...fresh, growth: { ...growthOf(fresh), legend, epithet: beiname }, updatedAt: new Date().toISOString() };
+  const saved = { ...fresh, growth: { ...growthOf(fresh), ...(tier === 2 ? { legend2: legend } : { legend }), epithet: beiname }, updatedAt: new Date().toISOString() };
   characterStore.save(saved);
   toast(`${c.name} ${beiname} – legendäre Fähigkeit „${pick.name}“: ${pick.beginnerText}`, "success", 10000);
   onDone?.(saved);
@@ -83,12 +101,12 @@ export async function forgeLegend(characterId: string, onDone?: (c: Character) =
 const USES_DE: Record<string, string> = { einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag" };
 
 /** Zwei Vorschläge – eine Wahl (für immer). null = abgebrochen. */
-function chooseLegend(name: string, options: LegendOption[]): Promise<LegendOption | null> {
+function chooseLegend(name: string, options: LegendOption[], tier: 1 | 2 = 1): Promise<LegendOption | null> {
   return new Promise((resolve) => {
     const el = fragment(html`
       <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Legendäre Fähigkeit wählen">
         <div class="modal card glow-border legend-pick">
-          <div class="limit-badge">LEGENDÄRE FÄHIGKEIT</div>
+          <div class="limit-badge">${tier === 2 ? "ZWEITE LEGENDÄRE FÄHIGKEIT" : "LEGENDÄRE FÄHIGKEIT"}</div>
           <p>Wähle die Fähigkeit, die ${name} für immer begleitet – mit ihr kommt ein Beiname. Die Wahl gilt endgültig.</p>
           <div class="legend-options">${options.map((o, i) => html`<button class="legend-option" data-pick-legend="${i}">
             <em class="legend-epithet">${name} ${o.beiname}</em>
@@ -109,6 +127,20 @@ function chooseLegend(name: string, options: LegendOption[]): Promise<LegendOpti
   });
 }
 
+/** Knopf „Limit-Angriff“ (im Kampf, einmal pro Abenteuer, nach dem Limit Break). */
+export function limitAttackButton(w: WorldState | null | undefined, c: { id: string; growth?: Growth | null }): Raw {
+  if (!canLimitAttack(w, c)) return html``;
+  return html`<div class="limit-attack-row"><button type="button" class="limit-attack-btn ${limitTier(growthOf(c)) >= 2 ? "gold" : ""}" data-limit-attack title="Einmal pro Abenteuer: garantierter kritischer Treffer. Schreib vorher ins Feld, wen du angreifst – sonst trifft es den gefährlichsten Gegner.">⚡ LIMIT-ANGRIFF</button></div>`;
+}
+
+/** Animation abspielen und den Text für die Handlung liefern. */
+export async function runLimitAttack(c: Character, typed: string): Promise<string> {
+  const { playLimitAttack } = await import("../fx/limitAttack");
+  const { sigil } = await import("./icons");
+  await playLimitAttack({ name: fullName(c), portrait: portraitOf(c.id), sigilSvg: sigil("shield", "").value, tier: limitTier(growthOf(c)) });
+  return typed.trim() || "Ich entfessele meinen Limit-Angriff auf den gefährlichsten Gegner!";
+}
+
 /** Figurenbogen: Ruhm, Vorteile, Narben, Erbstück. */
 export function growthSection(c: Character): Raw {
   const g = growthOf(c);
@@ -116,11 +148,14 @@ export function growthSection(c: Character): Raw {
     <h2 class="sec-title">${icon("crown")} Ruhm &amp; Entwicklung</h2>
     <p class="muted small">Was ${c.name} von Abenteuer zu Abenteuer mitnimmt. Ruhm gibt es am Ende jedes Abenteuers (Sieg +${FAME_FOR.sieg}, Niederlage +${FAME_FOR.niederlage}). Vorteile gelten ab dem nächsten Abenteuer.</p>
     <div class="fame-purse">${icon("crown")} <b>${g.fame}</b> Ruhm verfügbar</div>
-    ${limitBroken(g) ? html`<div class="limit-box">
-      <div class="limit-badge">LIMIT BREAK</div>
+    ${limitBroken(g) ? html`<div class="limit-box ${limitTier(g) >= 2 ? "gold" : ""}">
+      <div class="limit-badge">LIMIT BREAK${limitTier(g) >= 2 ? " II" : ""}</div>
       ${g.legend ? html`<div class="legend-ab"><b>${icon("crown")} ${g.legend.name}</b> <small class="chip gold">legendär · ${({ einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag" } as Record<string, string>)[g.legend.uses]}</small><p>${g.legend.beginnerText}</p><details><summary>Genaue Regel</summary><p class="rule-text">${g.legend.text}</p></details></div>`
         : html`<p class="small">Das Limit ist gebrochen – erwecke die legendäre Fähigkeit von ${c.name}. Der Spielleiter entwirft zwei Vorschläge aus der Geschichte der Figur, du wählst einen (kostet etwa 1–2 Cent).</p><button class="btn btn-sm glow-border" data-legend>${icon("crown")} Legendäre Fähigkeit erwecken</button>`}
-      <button class="btn btn-ghost btn-sm" data-limit-replay>${icon("play")} Limit Break noch einmal ansehen</button>
+      ${limitTier(g) >= 2 ? (g.legend2 ? html`<div class="legend-ab"><b>${icon("crown")} ${g.legend2.name}</b> <small class="chip gold">zweite Legende · ${({ einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag" } as Record<string, string>)[g.legend2.uses]}</small><p>${g.legend2.beginnerText}</p><details><summary>Genaue Regel</summary><p class="rule-text">${g.legend2.text}</p></details></div>`
+        : html`<button class="btn btn-sm glow-border" data-legend2>${icon("crown")} Zweite legendäre Fähigkeit erwecken</button>`)
+        : html`<p class="muted small">${icon("lock")} Limit Break II nach ${LIMIT2_AFTER} bestandenen Abenteuern (bisher ${g.earned.length}): zweite legendäre Fähigkeit, neuer Beiname, dritter Truhenplatz, goldener Rand.</p>`}
+      <button class="btn btn-ghost btn-sm" data-limit-replay>${icon("play")} Limit Break${limitTier(g) >= 2 ? " II" : ""} noch einmal ansehen</button>
     </div>` : html`<p class="muted small">${icon("lock")} Limit Break nach ${LIMIT_AFTER} bestandenen Abenteuern (bisher ${g.earned.length}): Vorteile über die Obergrenze, legendäre Fähigkeit, Meisterschaft III.</p>`}
     <div class="perks">${PERK_IDS.map((p) => {
       const perk = PERKS[p], have = g.perks[p] ?? 0, max = perkMax(p, g), full = have >= max;
@@ -132,7 +167,7 @@ export function growthSection(c: Character): Raw {
     <div class="growth-cols">
       <div><h3 class="small-head">${icon("star")} Erbstück-Truhe <small class="muted">${g.heirlooms.length}/${heirloomSlots(g)}</small></h3>
         ${g.heirlooms.length ? html`<ul class="heirlooms">${g.heirlooms.map((h) => html`<li class="heirloom r-${rarityOf(h as InvItem)}"><b>${h.name}</b>${h.stats ? html` <small>${statsText(h.stats as InvItem["stats"])}</small>` : ""}</li>`)}</ul><small class="muted">Reist in jedes neue Abenteuer mit.</small>` : html`<p class="muted small">Leer. Am Ende eines Abenteuers kannst du einen Gegenstand hineinlegen.</p>`}
-        <p class="muted small">${heirloomSlots(g) > 1 ? "Zwei Plätze – freigeschaltet durch drei bestandene Abenteuer." : `Ab ${HEIRLOOM_TWO_AFTER} bestandenen Abenteuern fasst die Truhe zwei Gegenstände (bisher ${g.earned.length}).`}</p></div>
+        <p class="muted small">${heirloomSlots(g) > 2 ? "Drei Plätze – freigeschaltet durch den Limit Break II." : heirloomSlots(g) > 1 ? `Zwei Plätze – ab ${LIMIT2_AFTER} bestandenen Abenteuern drei.` : `Ab ${HEIRLOOM_TWO_AFTER} bestandenen Abenteuern fasst die Truhe zwei Gegenstände (bisher ${g.earned.length}).`}</p></div>
       <div><h3 class="small-head">${icon("fist")} Narben <small class="muted">${g.scars.length}/${SCARS_MAX}</small></h3>${g.scars.length ? html`<ul class="scars">${g.scars.map((s) => html`<li><b>${s.name}</b><small>${s.text}</small></li>`)}</ul>` : html`<p class="muted small">Noch keine. Wer im Kampf zu Boden geht und überlebt, trägt eine Narbe davon (+1 auf Einschüchtern).</p>`}</div>
     </div>
   </section>`;

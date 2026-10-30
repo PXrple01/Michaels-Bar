@@ -1,7 +1,7 @@
 import { settings } from "../lib/settings";
 import { letterStore, offerLetters } from "../lib/letters";
-import { heirloomPicker, syncCharacterGrowth } from "../lib/growthUi";
-import { fullName, legendAbility } from "../../../shared/growth";
+import { heirloomPicker, limitAttackButton, runLimitAttack, syncCharacterGrowth } from "../lib/growthUi";
+import { fullName, legendAbilities } from "../../../shared/growth";
 import { exportSave, importSaveFile } from "../lib/saveTransfer";
 import type { ItemAction } from "../../../shared/inventory";
 import { setMusic } from "../lib/music";
@@ -342,13 +342,14 @@ export function playPage(): Page {
         else if (save!.state.world?.arc?.finished) content = html`${endCard(save!.state.world, [character], { href: "#/abenteuer#neues-abenteuer", label: "Neue Kampagne beginnen" }, `#/chronik/${save!.id}`)}${heirloomPicker(save!.state.world, character)}`;
         else content = html`
           ${suggestions.length ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
+          ${limitAttackButton(save!.state.world, character)}
           <form class="composer card" id="composer">
             <textarea class="textarea" id="action" maxlength="${MAX_ACTION_LENGTH}" rows="2" placeholder="Was tust du? Beschreibe es in eigenen Worten …"></textarea>
             <button class="btn" type="submit" aria-label="Handlung senden">${icon("arrowRight")}</button>
           </form>
           <p class="hint center">Enter sendet, Umschalt+Enter macht eine neue Zeile. Du kannst alles versuchen – nicht nur die Ideen.</p>`;
         const world = save!.state.world;
-        if (!lastError && !busy && !save!.pending && world?.shop && !world.arc?.finished) content = html`${shopCard(world, character.id)}${content}`;
+        if (!lastError && !busy && !save!.pending && world?.shop && !world.arc?.finished) content = html`${shopCard(world, character.id, character)}${content}`;
         if (!lastError && !busy && !save!.pending && world?.gamble && !world.combat && !world.arc?.finished) content = html`${gambleCard(world, character.id)}${content}`;
         const showUpgrade = !lastError && !busy && !world?.arc?.finished && (forging || upgradeState(world, character.id) !== "none");
         if (showUpgrade) content = html`${upgradeCard(world!, character.id, abilityType, forging)}${content}`;
@@ -395,8 +396,7 @@ export function playPage(): Page {
       const myClassDef = () => dataFor(data, character).classes.find((x) => x.id === character.classId);
       const abilityType = (id: string) => myClassDef()?.abilities.find((a) => a.id === id)?.type ?? "unterstuetzung";
       function renderAbilities() {
-        const legend = legendAbility(character);
-        const abilities = [...effectiveAbilities(myClassDef()?.abilities ?? [], save!.state.world?.progress?.[character.id]), ...(legend ? [legend] : [])];
+        const abilities = [...effectiveAbilities(myClassDef()?.abilities ?? [], save!.state.world?.progress?.[character.id]), ...legendAbilities(character)];
         $("#my-abilities", root).innerHTML = abilityList(character.name, abilities, save!.state.world, character.id, character).value;
       }
 
@@ -485,6 +485,11 @@ export function playPage(): Page {
 
       function bindBelow() {
         belowEl.querySelector("#composer")?.addEventListener("submit", (e) => { e.preventDefault(); void sendAction(); });
+        belowEl.querySelector("[data-limit-attack]")?.addEventListener("click", async () => {
+          if (busy) return;
+          const typed = belowEl.querySelector<HTMLTextAreaElement>("#action")?.value ?? "";
+          void sendAction(`⚡ Limit-Angriff! ${await runLimitAttack(character, typed)}`, true);
+        });
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
         ta?.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendAction(); } });
         ta?.addEventListener("input", () => { ta.style.height = "auto"; ta.style.height = `${Math.min(220, ta.scrollHeight)}px`; });
@@ -582,7 +587,7 @@ export function playPage(): Page {
         renderBelow();
       }
 
-      async function sendAction(text?: string) {
+      async function sendAction(text?: string, limit = false) {
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");
         const action = (text ?? ta?.value ?? "").trim();
         if (!action || busy) return;
@@ -594,7 +599,7 @@ export function playPage(): Page {
         renderBelow(); scrollDown();
         const before = save!.state;
         retry = () => { save!.story.pop(); renderStory(); void sendAction(action); };
-        await streamGm("turn", { character, state: before, action, power: settings().powerScaling }, handle);
+        await streamGm("turn", { character, state: before, action, power: settings().powerScaling, ...(limit ? { limit: true } : {}) }, handle);
         busy = false;
         if (!lastError) {
           save!.started = true; retry = null; persist();

@@ -2,7 +2,7 @@
 // gefesselt. Leertaste (oder Tippen) hämmern, bis sie reißen (kann nicht scheitern). Dann fliegen die Glieder in einer
 // Explosion davon, und groß erscheint „LIMIT BREAK“.
 import { playChainRattle, playExplosion, unlockAudio } from "../dice3d/audio";
-import { html } from "../lib/dom";
+import { html, raw } from "../lib/dom";
 import { settings } from "../lib/settings";
 
 interface Link { el: SVGGElement; x: number; y: number; angle: number }
@@ -87,13 +87,14 @@ function sparks(canvas: HTMLCanvasElement) {
  * Zeigt die ganze Szene und löst auf, wenn der Spieler auf „Weiter“ drückt. `onLegend`: optionaler Knopf am Ende
  * („Legendäre Fähigkeit erwecken“).
  */
-export function playLimitBreak(name: string, onLegend?: () => void): Promise<void> {
+export function playLimitBreak(name: string, onLegend?: () => void, tier: 1 | 2 = 1): Promise<void> {
+  const gold = tier === 2;
   return new Promise((resolve) => {
     const calm = settings().animation === "off" || matchMedia("(prefers-reduced-motion: reduce)").matches;
     const touch = matchMedia("(pointer: coarse)").matches;
     const w = innerWidth, h = innerHeight;
     const root = document.createElement("div");
-    root.className = "lb-overlay";
+    root.className = `lb-overlay ${gold ? "lb-gold" : ""}`;
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-label", "Limit Break");
     root.innerHTML = html`
@@ -101,7 +102,8 @@ export function playLimitBreak(name: string, onLegend?: () => void): Promise<voi
       <svg class="lb-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
         <defs>
           <linearGradient id="lbIron" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="#9aa0a6"/><stop offset="0.45" stop-color="#4b4f55"/><stop offset="0.55" stop-color="#2b2e33"/><stop offset="1" stop-color="#6e5a48"/>
+            ${gold ? raw('<stop offset="0" stop-color="#fff2b8"/><stop offset="0.4" stop-color="#e2b13c"/><stop offset="0.55" stop-color="#8a5a12"/><stop offset="1" stop-color="#f3cd6a"/>')
+              : raw('<stop offset="0" stop-color="#9aa0a6"/><stop offset="0.45" stop-color="#4b4f55"/><stop offset="0.55" stop-color="#2b2e33"/><stop offset="1" stop-color="#6e5a48"/>')}
           </linearGradient>
           <radialGradient id="lbHeat"><stop offset="0" stop-color="#ffb347" stop-opacity="0.9"/><stop offset="1" stop-color="#ff3d00" stop-opacity="0"/></radialGradient>
         </defs>
@@ -109,17 +111,18 @@ export function playLimitBreak(name: string, onLegend?: () => void): Promise<voi
         <g class="lb-cracks"></g>
       </svg>
       <div class="lb-prompt">
-        <div class="lb-bound">${name} liegt in Ketten …</div>
+        <div class="lb-bound">${gold ? `Goldene Ketten halten ${name} …` : `${name} liegt in Ketten …`}</div>
         <div class="lb-key">${touch ? "Tippen!" : "LEERTASTE"}</div>
         <div class="lb-meter"><i></i></div>
         <small>${touch ? "Tippe so schnell du kannst" : "Hämmere auf die Leertaste"}, um dich zu befreien</small>
       </div>
       <div class="lb-flash"></div>
       <div class="lb-result" hidden>
-        <h1 class="lb-title"><span>LIMIT</span> <span>BREAK</span></h1>
-        <p class="lb-sub">Die Ketten sind gesprengt. ${name} wächst über sich hinaus.</p>
-        <ul class="lb-gains"><li>Ruhm-Vorteile über die Obergrenze</li><li>Eine legendäre Fähigkeit</li><li>Meisterschaft III: verstärkte Wirkung</li><li>Zwei Plätze in der Erbstück-Truhe</li></ul>
-        <div class="lb-actions">${onLegend ? html`<button class="btn btn-lg" data-lb="legend">Legendäre Fähigkeit erwecken</button>` : ""}<button class="btn btn-lg btn-ghost" data-lb="close">Weiter</button></div>
+        <h1 class="lb-title"><span>LIMIT</span> <span>BREAK${gold ? " II" : ""}</span></h1>
+        <p class="lb-sub">${gold ? `Selbst die goldenen Ketten zerbersten. ${name} ist eine lebende Legende.` : `Die Ketten sind gesprengt. ${name} wächst über sich hinaus.`}</p>
+        <ul class="lb-gains">${gold ? raw("<li>Eine zweite legendäre Fähigkeit</li><li>Ein neuer Beiname</li><li>Drei Plätze in der Erbstück-Truhe</li><li>Der goldene Rand der Legende</li>")
+          : raw("<li>Ruhm-Vorteile über die Obergrenze</li><li>Eine legendäre Fähigkeit</li><li>Meisterschaft III: verstärkte Wirkung</li><li>Zwei Plätze in der Erbstück-Truhe</li><li>Der glühende Rand der Legende</li>")}</ul>
+        <div class="lb-actions">${onLegend ? html`<button class="btn btn-lg" data-lb="legend">${gold ? "Zweite legendäre Fähigkeit erwecken" : "Legendäre Fähigkeit erwecken"}</button>` : ""}<button class="btn btn-lg btn-ghost" data-lb="close">Weiter</button></div>
       </div>`.value;
     document.body.append(root);
     const svg = root.querySelector<SVGSVGElement>(".lb-svg")!;

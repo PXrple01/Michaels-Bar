@@ -3,6 +3,7 @@
 import { addItem, ensureInventory, findItem, itemBonuses, itemText, moneyText, rarityOf, removeItem, type InvItem, type ItemKind, type ItemStats, type Rarity } from "./inventory";
 import type { Character, Rules } from "./schema";
 import type { WorldState } from "./world";
+import { legendDiscount } from "./growth";
 
 export type BonusTarget = "angriff" | "schaden" | "ruestung";
 export interface Ware { id: string; name: string; kind: ItemKind | "verbesserung"; price: number; note?: string; stock?: number; bonus?: { target: BonusTarget; value: number }; stats?: ItemStats }
@@ -34,7 +35,10 @@ export function sellPrice(shop: Shop, item: Pick<InvItem, "name" | "kind" | "sta
 }
 
 /** Kaufen oder verkaufen. Gibt einen Fehlertext zurück – oder null, wenn es geklappt hat. */
-export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipment" | "money">, rules: Rules, action: unknown, ref: unknown): string | null {
+/** Preis für diese Figur: Legenden bekommen Rabatt (Ruf eilt voraus). */
+export const priceFor = (price: number, c: { growth?: Character["growth"] } | null | undefined) => Math.max(1, Math.round((price * (100 - legendDiscount(c?.growth ?? null))) / 100));
+
+export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipment" | "money"> & { growth?: Character["growth"] }, rules: Rules, action: unknown, ref: unknown): string | null {
   const shop = w.shop;
   if (!shop) return "Gerade ist kein Laden offen.";
   ensureInventory(w, [c], rules);
@@ -43,7 +47,8 @@ export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipme
     const ware = shop.wares.find((x) => x.id === ref);
     if (!ware) return "Diese Ware gibt es nicht (mehr).";
     if (ware.stock !== undefined && ware.stock <= 0) return `„${ware.name}“ ist ausverkauft.`;
-    if (inv.money < ware.price) return `Dafür reicht dein Geld nicht (${moneyText(inv.money)} von ${moneyText(ware.price)}).`;
+    const price = priceFor(ware.price, c);
+    if (inv.money < price) return `Dafür reicht dein Geld nicht (${moneyText(inv.money)} von ${moneyText(price)}).`;
     if (ware.kind === "verbesserung") {
       if (!ware.bonus) return "Diese Verbesserung ist ungültig.";
       const gear = { ...gearOf(w, c.id) };
@@ -54,9 +59,9 @@ export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipme
       const e = addItem(inv, { name: ware.name, qty: 1, kind: ware.kind, ...(ware.note ? { note: ware.note } : {}), ...(ware.stats ? { stats: ware.stats } : {}) });
       if (e) return e;
     }
-    inv.money -= ware.price;
+    inv.money -= price;
     if (ware.stock !== undefined) ware.stock--;
-    shop.log.push(`${c.name} kauft ${ware.name} für ${moneyText(ware.price)}`);
+    shop.log.push(`${c.name} kauft ${ware.name} für ${moneyText(price)}${price < ware.price ? " (Legenden-Rabatt)" : ""}`);
     return null;
   }
   if (action === "verkaufen") {

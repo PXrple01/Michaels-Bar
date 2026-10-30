@@ -239,10 +239,10 @@ export function sheetPage(): Page {
       $("#growth-box", root).addEventListener("click", (e) => {
         const t = e.target as HTMLElement;
         if (t.closest("[data-limit-replay]")) { void maybeLimitBreak(c.id, true); return; }
-        const lg = t.closest<HTMLButtonElement>("[data-legend]");
+        const lg = t.closest<HTMLButtonElement>("[data-legend], [data-legend2]");
         if (lg) {
           lg.disabled = true;
-          void forgeLegend(c.id, (nc) => { c = nc; $("#growth-box", root).innerHTML = growthSection(c).value; }).finally(() => { lg.disabled = false; });
+          void forgeLegend(c.id, (nc) => { c = nc; $("#growth-box", root).innerHTML = growthSection(c).value; }, lg.hasAttribute("data-legend2") ? 2 : 1).finally(() => { lg.disabled = false; });
           return;
         }
         const b = t.closest<HTMLButtonElement>("[data-perk]");

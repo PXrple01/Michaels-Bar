@@ -12,7 +12,7 @@ import { startPlace, visitPlace } from "../../shared/map";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
 import { castVote, resolveVote } from "../../shared/vote";
-import { legendAbility } from "../../shared/growth";
+import { armLimitAttack, growthOf, legendAbilities, limitAttackNote, limitTier } from "../../shared/growth";
 import { setPower } from "./engine";
 import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
 import { playGamble } from "../../shared/gamble";
@@ -188,9 +188,9 @@ export class PartyService {
       code: party.code, status: party.status, you, version: party.version, core: party.core ?? 0,
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
-        return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions,
+        return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", tier: limitTier(growthOf(p.character)), acted: p.id in party.actions,
           abilities: [...effectiveAbilities(cls?.abilities ?? [], party.world?.progress?.[p.character.id]).map((x) => ({ id: x.id, name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded })),
-            ...(legendAbility(p.character) ? [{ ...legendAbility(p.character)!, upgraded: false }] : [])] };
+            ...legendAbilities(p.character).map((l) => ({ ...l, upgraded: false }))] };
       }),
       opening: party.opening,
       story: party.story,
@@ -424,6 +424,8 @@ export class PartyService {
     const done = await this.update(party.code, (p) => {
       if (p.busy && !isStale(p.busy)) throw new PartyError("Der Spielleiter erzählt schon – zu spät zum Zurückziehen.");
       if (!(me.id in p.actions)) throw new PartyError("Du hast in dieser Runde noch nichts abgegeben.");
+      // Zurückgezogener Limit-Angriff: wieder verfügbar
+      if (p.actions[me.id]?.startsWith("⚡ Limit-Angriff!") && p.world?.limitArmed?.[me.character.id]) { delete p.world.limitArmed[me.character.id]; if (p.world.limitUsed) delete p.world.limitUsed[me.character.id]; }
       delete p.actions[me.id];
       if (p.world?.vote && !p.world.vote.result) delete p.world.vote.votes[me.character.id];
     });
@@ -456,6 +458,12 @@ export class PartyService {
         return;
       }
       if (text && me.id in p.actions) throw new PartyError("Deine Handlung ist schon abgegeben – zieh sie zurück, um sie zu ändern.");
+      if (body.limit === true && text) {
+        const e = armLimitAttack(p.world!, me.character);
+        if (e) throw new PartyError(e);
+        p.actions[me.id] = `⚡ Limit-Angriff! ${text}`;
+        return;
+      }
       if (text) p.actions[me.id] = text;
     });
     const all = updated.players.every((p) => p.id in updated.actions);
@@ -513,7 +521,8 @@ export class PartyService {
         consumed = { ...p.actions };
         const items = p.players.map((pl) => ({ playerId: pl.id, name: pl.character.name, text: consumed[pl.id] ?? "" }));
         p.story.push({ type: "actions", items: items.filter((i) => i.text) });
-        const lines = items.map((i) => `- ${i.name}: ${i.text || "(keine Angabe – handelt passend zur Lage)"}`).join("\n");
+        const lines = items.map((i) => `- ${i.name}: ${i.text || "(keine Angabe – handelt passend zur Lage)"}`).join("\n")
+          + p.players.filter((pl) => p.world!.limitArmed?.[pl.character.id]).map((pl) => `\n${limitAttackNote(pl.character.name)}`).join("");
         if (p.world!.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
         if (p.world!.combat) p.world!.combat.round++;
         if (p.world!.vote) resolveVote(p.world!, (n) => randomInt(n));

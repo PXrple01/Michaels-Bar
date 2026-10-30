@@ -1,13 +1,14 @@
 // Laden-Karte: Waren mit Preis und „Kaufen“, darunter eigenes Gepäck zum Verkaufen. Ohne Claude, sofort.
 import { moneyText, rarityOf, statsText } from "../../../shared/inventory";
-import { BONUS_NAME, gearOf, GEAR_MAX, sellPrice } from "../../../shared/shop";
+import { BONUS_NAME, gearOf, GEAR_MAX, priceFor, sellPrice } from "../../../shared/shop";
+import type { Character } from "../../../shared/schema";
 import type { WorldState } from "../../../shared/world";
 import { html, type Raw } from "./dom";
 import { icon } from "./icons";
 
 const KIND_ICON: Record<string, string> = { waffe: "sword", ruestung: "shield", schild: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star", verbesserung: "fist" };
 
-export function shopCard(w: WorldState | null | undefined, characterId: string): Raw {
+export function shopCard(w: WorldState | null | undefined, characterId: string, who?: { growth?: Character["growth"] } | null): Raw {
   const shop = w?.shop;
   if (!w || !shop) return html``;
   const inv = w.inventory?.[characterId];
@@ -22,11 +23,12 @@ export function shopCard(w: WorldState | null | undefined, characterId: string):
     <div class="shop-wares">${shop.wares.map((x) => {
       const maxed = x.bonus ? gear[x.bonus.target] + x.bonus.value > GEAR_MAX : false;
       const soldOut = x.stock !== undefined && x.stock <= 0;
-      const tooPoor = money < x.price;
+      const price = priceFor(x.price, who);
+      const tooPoor = money < price;
       return html`<div class="ware k-${x.kind} r-${rarityOf(x)}">
         <span class="ware-icon">${icon(KIND_ICON[x.kind] ?? "star")}</span>
         <span class="ware-text"><b>${x.name}</b><small>${x.bonus ? `${BONUS_NAME[x.bonus.target]} +${x.bonus.value} – dauerhaft` : [statsText(x.stats), x.note].filter(Boolean).join(" · ")}${x.stock !== undefined ? ` · noch ${x.stock}` : ""}</small></span>
-        <span class="ware-price">${moneyText(x.price, true)}</span>
+        <span class="ware-price">${price < x.price ? html`<s class="muted">${moneyText(x.price, true)}</s> ` : ""}${moneyText(price, true)}</span>
         <button class="btn btn-sm" data-buy="${x.id}" ${tooPoor || soldOut || maxed ? "disabled" : ""} title="${soldOut ? "ausverkauft" : maxed ? `höchstens +${GEAR_MAX}` : tooPoor ? "zu teuer" : ""}">${soldOut ? "aus" : maxed ? "max." : "Kaufen"}</button>
       </div>`;
     })}</div>
