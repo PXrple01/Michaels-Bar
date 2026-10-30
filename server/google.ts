@@ -19,6 +19,11 @@ export interface GoogleEnv {
   GOOGLE_SERVICE_ACCOUNT?: string;
   /** Erster Tag der Testphase, JJJJ-MM-TT. Ohne Datum wird Google nie benutzt. */
   GOOGLE_TRIAL_START?: string;
+  /**
+   * „1“ = Claude über Google (Vertex/Agent Platform). Standard aus: Claude ist dort ein Marketplace-Produkt, das das
+   * Startguthaben meist NICHT abdeckt – es würde echt abgerechnet. Bilder und Stimme laufen auch ohne über Google.
+   */
+  GOOGLE_CLAUDE?: string;
   /** Region für Claude (Standard: global). */
   GOOGLE_REGION?: string;
   /** Region für Imagen (Standard: us-central1). */

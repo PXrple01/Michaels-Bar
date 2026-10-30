@@ -58,7 +58,8 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   const gcfg = googleConfig(env);
   const google = gcfg ? new GoogleCloud(gcfg, fetch, counters) : null;
   if (google) console.log(`[Google] Testphase eingerichtet bis ${gcfg!.until.toISOString().slice(0, 10)}${google.active() ? "" : " (vorbei – bisherige Anbieter)"}.`);
-  const llm = google ? new SwitchingLlm(google, anthropic) : anthropic;
+  // Claude über Google nur auf ausdrücklichen Wunsch (GOOGLE_CLAUDE=1) – das Startguthaben deckt Marketplace-Modelle meist nicht
+  const llm = google && env.GOOGLE_CLAUDE === "1" ? new SwitchingLlm(google, anthropic) : anthropic;
   // Monatsbudget nur, wenn MONTHLY_BUDGET_USD gesetzt ist (0 oder leer = ohne Grenze)
   const guard = new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD) || 0, Number(env.TURNS_PER_HOUR ?? 60) || 60);
   const model = pickModel(env.GM_MODEL, "claude-opus-5-5");
