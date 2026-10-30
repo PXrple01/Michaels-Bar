@@ -116,3 +116,16 @@ describe("Google-Testphase", () => {
     expect(await g.spentUsd()).toBeCloseTo(15);
   });
 });
+
+describe("Schlüsseldatei einlesen", () => {
+  const good = { type: "service_account", project_id: "p-1", private_key: "-----BEGIN PRIVATE KEY-----\nABC\nDEF\n-----END PRIVATE KEY-----\n", client_email: "x@p-1.iam.gserviceaccount.com" };
+  it("nimmt sauberes JSON, echte Zeilenumbrüche im Schlüssel, Anführungszeichen und Base64", async () => {
+    const { parseServiceAccount } = await import("../server/google");
+    const json = JSON.stringify(good, null, 2);
+    expect(parseServiceAccount(json)).toEqual(good);
+    expect(parseServiceAccount(json.replace(/\\n/g, "\n"))).toEqual(good);
+    expect(parseServiceAccount(`'${json}'`)).toEqual(good);
+    expect(parseServiceAccount(Buffer.from(json).toString("base64"))).toEqual(good);
+    expect(() => parseServiceAccount("{ kaputt")).toThrow();
+  });
+});

@@ -40,12 +40,36 @@ export interface GoogleEnv {
 
 export interface GoogleConfig { email: string; privateKey: string; projectId: string; region: string; imageRegion: string; imageModel: string; luxuryImageModel: string; budgetUsd: number; start: Date; until: Date }
 
+/**
+ * Schlüsseldatei lesen – auch wenn sie beim Einfügen gelitten hat: in Anführungszeichen gesetzt, als Base64,
+ * oder mit echten Zeilenumbrüchen statt „\n“ im privaten Schlüssel (das macht manches Eingabefeld).
+ */
+export function parseServiceAccount(raw: string): unknown {
+  let s = raw.trim().replace(/^\uFEFF/, "");
+  if (!s.startsWith("{") && /^[A-Za-z0-9+/=\s]+$/.test(s)) { try { s = Buffer.from(s, "base64").toString("utf8").trim(); } catch { /* kein Base64 */ } }
+  if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"{') && s.endsWith('}"'))) { try { const inner = s.startsWith('"') ? JSON.parse(s) : s.slice(1, -1); if (typeof inner === "string") s = inner.trim(); } catch { s = s.slice(1, -1); } }
+  try { return JSON.parse(s); } catch { /* weiter unten reparieren */ }
+  // Zeilenumbrüche innerhalb von Zeichenketten wieder zu \n machen
+  let out = "", inStr = false, esc = false;
+  for (const ch of s) {
+    if (inStr) {
+      if (esc) { esc = false; out += ch; continue; }
+      if (ch === "\\") { esc = true; out += ch; continue; }
+      if (ch === '"') inStr = false;
+      if (ch === "\n") { out += "\\n"; continue; }
+      if (ch === "\r") continue;
+    } else if (ch === '"') inStr = true;
+    out += ch;
+  }
+  return JSON.parse(out);
+}
+
 /** Liest die Einstellungen. null = Google ist nicht (vollständig) eingerichtet. */
 export function googleConfig(env: GoogleEnv): GoogleConfig | null {
   const start = env.GOOGLE_TRIAL_START?.trim();
   if (!env.GOOGLE_SERVICE_ACCOUNT?.trim() || !start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return null;
   try {
-    const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT) as { client_email?: string; private_key?: string; project_id?: string };
+    const sa = parseServiceAccount(env.GOOGLE_SERVICE_ACCOUNT) as { client_email?: string; private_key?: string; project_id?: string };
     if (!sa.client_email || !sa.private_key || !sa.project_id) return null;
     const from = new Date(`${start}T00:00:00Z`);
     const until = new Date(from);
@@ -58,7 +82,9 @@ export function googleConfig(env: GoogleEnv): GoogleConfig | null {
       budgetUsd: Number(env.GOOGLE_TRIAL_BUDGET_USD) > 0 ? Number(env.GOOGLE_TRIAL_BUDGET_USD) : 300, start: from, until,
     };
   } catch {
-    console.error("[Google] GOOGLE_SERVICE_ACCOUNT ist kein gültiges JSON.");
+    const raw = env.GOOGLE_SERVICE_ACCOUNT.trim();
+    // Nur Form-Hinweise, nie Inhalt (der Schlüssel ist geheim)
+    console.error(`[Google] GOOGLE_SERVICE_ACCOUNT ist kein gültiges JSON (Länge ${raw.length}, beginnt mit „${raw[0]}“, endet mit „${raw.at(-1)}“). Bitte den ganzen Inhalt der JSON-Datei von { bis } einfügen.`);
     return null;
   }
 }
