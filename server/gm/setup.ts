@@ -66,7 +66,7 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   const model = pickModel(env.GM_MODEL, "claude-opus-5-5");
   const images = new ImageMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, google });
   const moreImages = async () => !!google?.active() && (await google.luxury());
-  const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model, images, moreImages });
+  const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model, images, moreImages, allEnemyPortraits: () => !!google?.active() });
   const audio = new AudioMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, googleKey: env.GOOGLE_TTS_KEY?.trim() || undefined, counters, paidFallback: env.TTS_PAID_FALLBACK === "1", google, geminiTtsModel: env.GOOGLE_TTS_MODEL?.trim() || undefined });
   return {
     gm,

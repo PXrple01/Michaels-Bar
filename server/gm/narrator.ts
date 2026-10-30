@@ -158,6 +158,8 @@ export interface NarratorOptions {
   images?: ImageMaker;
   /** Mehr Bilder (mindestens jeder dritte Zug)? Für die Luxus-Stufe der Google-Testphase. */
   moreImages?: () => Promise<boolean>;
+  /** Jeder Gegner bekommt ein Porträt, nicht nur besondere (in der Google-Testphase – das Guthaben zahlt). */
+  allEnemyPortraits?: () => boolean;
 }
 
 /** Alles, was ein Zug über die Szene wissen muss. `world` wird von den Werkzeugen verändert. */
@@ -255,9 +257,26 @@ export class Narrator {
     }
   }
 
-  /** Porträts für wichtige Personen, Begleiter und besondere Gegner, deren Aussehen Claude angegeben hat (höchstens 3 je Zug). */
+  /**
+   * Porträts für wichtige Personen, Begleiter und besondere Gegner, deren Aussehen Claude angegeben hat (höchstens 3 je Zug).
+   * In der Google-Testphase bekommt jeder Gegner eines – gleiche Gegner („Räuber 1“, „Räuber 2“) teilen sich das Bild.
+   */
   private async npcPortraits(world: WorldState): Promise<number> {
     type Holder = { name: string; look?: string; portrait?: string };
+    const enemies = world.combat?.enemies ?? [];
+    if (this.o.allEnemyPortraits?.()) {
+      const base = (n: string) => n.replace(/\s+\d+$/, "").trim();
+      const painting = new Set<string>();
+      for (const e of enemies) {
+        if (e.portrait) continue;
+        const twin = enemies.find((x) => x !== e && x.portrait && base(x.name) === base(e.name));
+        if (twin) { e.portrait = twin.portrait; continue; }
+        // Nur der erste seiner Sorte wird gemalt, die anderen bekommen danach dasselbe Bild
+        if (painting.has(base(e.name))) { if (!e.look?.trim()) e.look = undefined; continue; }
+        painting.add(base(e.name));
+        if (!e.look) e.look = `${base(e.name)} (medieval enemy in a dark fantasy role-playing game)`;
+      }
+    }
     const faces: { who: Holder; role: string }[] = [
       ...(world.companions ?? []).map((c) => ({ who: c as Holder, role: c.role })),
       ...(world.people ?? []).map((p) => ({ who: p as Holder, role: p.role })),
@@ -269,6 +288,9 @@ export class Narrator {
         const kind = enemyIds.has(who.name) && !role ? "a dangerous medieval adversary" : `a medieval ${role || "person"}`;
         const { url, costUsd: usd } = await this.o.images!.make(`Head-and-shoulders portrait of ${kind}, looking at the viewer, plain dark background. ${who.look}`, "portrait_4_3");
         who.portrait = url;
+        // Gleichnamige Gegner („Räuber 1“, „Räuber 2“) bekommen dasselbe Bild
+        const stem = who.name.replace(/\s+\d+$/, "").trim();
+        for (const e of enemies) if (!e.portrait && e.name.replace(/\s+\d+$/, "").trim() === stem) e.portrait = url;
         // Gleiche Person auch an den anderen Stellen (ein Begleiter steht oft auch im Personenverzeichnis)
         for (const g of [...(world.people ?? []), ...(world.companions ?? [])]) if (g.name.toLowerCase() === who.name.toLowerCase() && !g.portrait) g.portrait = url;
         await this.o.guard.addUsd(usd);

@@ -154,3 +154,26 @@ describe("Porträts als Referenz für Szenenbilder", () => {
     expect(r.costUsd).toBe(0.012);
   });
 });
+
+describe("Gegner-Porträts in der Google-Testphase", () => {
+  it("jeder Gegner bekommt eins, gleichnamige teilen sich das Bild; ohne Testphase nur besondere", async () => {
+    const { Narrator } = await import("../server/gm/narrator");
+    const { RollLog } = await import("../server/dice/log");
+    const { MemoryCounterStore, UsageGuard } = await import("../server/gm/usage");
+    const made: string[] = [];
+    const images = { make: async (motif: string) => { made.push(motif); return { url: `/api/images/p${made.length}`, costUsd: 0.134 }; } };
+    const world = () => ({ combat: { round: 1, enemies: [{ id: "a", name: "Räuber 1", hp: 5, maxHp: 5, armor: 11 }, { id: "b", name: "Räuber 2", hp: 5, maxHp: 5, armor: 11 }, { id: "c", name: "Wolf", hp: 4, maxHp: 4, armor: 10 }] } }) as never as import("../shared/world").WorldState;
+    const mk = (all: boolean) => new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 60), images: images as never, allEnemyPortraits: () => all });
+    const w = world();
+    const cost = await (mk(true) as unknown as { npcPortraits(w: unknown): Promise<number> }).npcPortraits(w);
+    expect(made).toHaveLength(2); // Räuber + Wolf
+    expect(cost).toBeCloseTo(0.268);
+    const [r1, r2, wolf] = w.combat!.enemies;
+    expect(r1.portrait).toBe(r2.portrait);
+    expect(wolf.portrait).toBeTruthy();
+    made.length = 0;
+    const plain = world();
+    await (mk(false) as unknown as { npcPortraits(w: unknown): Promise<number> }).npcPortraits(plain);
+    expect(made).toHaveLength(0);
+  });
+});

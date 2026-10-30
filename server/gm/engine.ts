@@ -40,6 +40,7 @@ export interface GmOptions {
   turnBudgetMs?: number;
   images?: ImageMaker;
   moreImages?: () => Promise<boolean>;
+  allEnemyPortraits?: () => boolean;
 }
 
 interface Saved { messages: MessageParam[]; world: WorldState; held: ToolResult[] }
