@@ -5,8 +5,8 @@
 import { createSign } from "node:crypto";
 import type { CounterStore } from "./gm/usage";
 
-/** 90 Tage Testphase, zwei Tage Puffer – damit nie eine echte Abrechnung beginnt. */
-export const TRIAL_DAYS = 88;
+/** 90 Tage Testphase, ein Tag Puffer – damit nie eine echte Abrechnung beginnt. */
+export const TRIAL_DAYS = 89;
 /** So lange bleibt Google nach einer Ablehnung (Guthaben, Rechte, Kontingent) abgeschaltet, bevor es neu versucht wird. */
 const BROKEN_MS = 15 * 60_000;
 /** Zähler der Google-Ausgaben (in Hundertstel-Cent, damit er ganzzahlig bleibt). */

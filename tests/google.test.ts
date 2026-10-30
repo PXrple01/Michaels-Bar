@@ -28,11 +28,11 @@ describe("Google-Testphase", () => {
     expect(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa })).toBeNull();
     expect(googleConfig({ GOOGLE_TRIAL_START: today })).toBeNull();
     const cfg = googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: "2026-01-01" })!;
-    expect(cfg.until.toISOString().slice(0, 10)).toBe("2026-03-30");
+    expect(cfg.until.toISOString().slice(0, 10)).toBe("2026-03-31");
     const g = new GoogleCloud(cfg);
-    expect(g.active(new Date("2026-03-29T12:00:00Z").getTime())).toBe(true);
-    expect(g.active(new Date("2026-03-30T00:00:01Z").getTime())).toBe(false);
-    expect(TRIAL_DAYS).toBe(88);
+    expect(g.active(new Date("2026-03-30T12:00:00Z").getTime())).toBe(true);
+    expect(g.active(new Date("2026-03-31T00:00:01Z").getTime())).toBe(false);
+    expect(TRIAL_DAYS).toBe(89);
   });
 
   it("Claude: nach der Testphase sofort Anthropic, ohne Google zu fragen", async () => {
@@ -69,7 +69,7 @@ describe("Google-Testphase", () => {
   });
 
   it("Ausgabe-Regler: unter dem Tempo Luxus (Opus, Imagen Ultra), darüber normal – einmal pro Tag festgelegt", async () => {
-    const cfg = googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: "2026-01-01", GOOGLE_TRIAL_BUDGET_USD: "88" })!; // 1 $ pro Tag
+    const cfg = googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: "2026-01-01", GOOGLE_TRIAL_BUDGET_USD: "89" })!; // 1 $ pro Tag
     const counters = new MemoryCounterStore();
     const g = new GoogleCloud(cfg, fakeGoogle([]), counters);
     const day3 = new Date("2026-01-03T10:00:00Z").getTime(); // Tempo bis Tag 3: 3 $
