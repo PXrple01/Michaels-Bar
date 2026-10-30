@@ -183,8 +183,8 @@ describe("Legendäre Fähigkeit erwecken", () => {
     const { GameMaster } = await import("../server/gm/engine");
     const { MemoryCounterStore, UsageGuard } = await import("../server/gm/usage");
     const reply = JSON.stringify({ optionen: [
-      { name: "Zorn des Ogertöters", type: "angriff", uses: "einmal_pro_tag", text: "Ein Schlag mit 3W8 zusätzlichem Schaden gegen einen Gegner.", beginnerText: "Ein gewaltiger Hieb." },
-      { name: "Schild der Gefallenen", type: "verteidigung", uses: "einmal_pro_kampf", text: "Alle Verbündeten erhalten bis zum Ende der Runde +3 Rüstung.", beginnerText: "Du schützt deine Freunde." },
+      { name: "Zorn des Ogertöters", type: "angriff", uses: "einmal_pro_tag", text: "Ein Schlag mit 3W8 zusätzlichem Schaden gegen einen Gegner.", beginnerText: "Ein gewaltiger Hieb.", beiname: "der Ogertöter" },
+      { name: "Schild der Gefallenen", type: "verteidigung", uses: "einmal_pro_kampf", text: "Alle Verbündeten erhalten bis zum Ende der Runde +3 Rüstung.", beginnerText: "Du schützt deine Freunde.", beiname: "der Unbeugsame" },
       { name: "kaputt" },
     ] });
     const calls: unknown[] = [];
@@ -197,5 +197,14 @@ describe("Legendäre Fähigkeit erwecken", () => {
     expect(evs[0].type).toBe("legend");
     expect(evs[0].options!.map((o) => o.name)).toEqual(["Zorn des Ogertöters", "Schild der Gefallenen"]); // ungültige fallen weg
     expect(JSON.stringify(calls[0])).toContain("Retter von Falkenstein");
+  });
+});
+
+describe("Beiname", () => {
+  it("nach dem Limit Break trägt die Figur ihren Beinamen", async () => {
+    const { fullName } = await import("../shared/growth");
+    expect(fullName({ ...base, growth: g({ earned: ["a", "b", "c"], epithet: "der Unbändige" }) })).toBe("Makkalot der Unbändige");
+    expect(fullName(base)).toBe("Makkalot");
+    expect(() => resolveCharacter({ ...base, growth: { ...g({}), epithet: "der Unbändige" } }, data)).toThrow();
   });
 });

@@ -1,3 +1,4 @@
+import { fullName } from "../../../shared/growth";
 import { avatar } from "./portraits";
 // Figurenblatt im Abenteuer: Name in der Seitenleiste antippen → Werte der Figur auf einen Blick
 // (mit Stufenaufstiegen, Schmied-Verbesserungen, Boni aus dem Gepäck und aufgewerteten Fähigkeiten dieser Kampagne).
@@ -34,7 +35,7 @@ function sheetBody(c: Character, data: GameData, w: WorldState | null | undefine
     <div class="cs-head">
       <span class="cs-sigil">${avatar(c.id, cls.sigil, { probe: true })}</span>
       <div class="cs-id">
-        <h3>${c.name}</h3>
+        <h3>${fullName(c)}</h3>
         <small class="muted">${cls.name}${stand ? ` · ${stand.name}` : ""}</small>
         <div class="cs-lv"><b>Stufe ${c.level}</b> · ${levelTitle(c.level, rules)}<span class="lv-bar"><i style="width:${to === null ? 100 : Math.max(0, Math.min(100, ((xp - from) / (to - from)) * 100))}%"></i></span><small>${to === null ? `${xp} EP` : `${xp} / ${to} EP`}</small></div>
       </div>

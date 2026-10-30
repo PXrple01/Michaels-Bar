@@ -1,3 +1,4 @@
+import { fullName } from "../../../shared/growth";
 import { avatar } from "../lib/portraits";
 import { ACHIEVEMENTS } from "../../../shared/achievements";
 import { unlockedAchievements } from "../lib/achievements";
@@ -47,7 +48,7 @@ export function charactersPage(): Page {
                 <button class="icon-btn char-delete" data-delete="${c.id}" aria-label="${c.name} löschen" title="Figur löschen">${icon("trash")}</button>
                 <a class="card char-card tilt" href="#/figur/${c.id}">
                   <div class="char-sigil">${avatar(c.id, cls?.sigil ?? "shield", { draw: true })}</div>
-                  <h3>${c.name}</h3>
+                  <h3>${fullName(c)}</h3>
                   <p class="muted">${cls?.name ?? c.classId} · ${stand?.name ?? c.stand} · Stufe ${c.level}</p>
                   <div class="mini-hp" title="${c.hp.current} von ${c.hp.max} Trefferpunkten"><i style="width:${hpPct}%"></i></div>
                   <span class="link-arrow">Bogen öffnen ${icon("arrowRight")}</span>

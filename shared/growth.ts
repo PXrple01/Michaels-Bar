@@ -37,6 +37,9 @@ const legendSchema = z.object({
   beginnerText: z.string().min(5).max(200),
 });
 export type Legend = z.infer<typeof legendSchema>;
+/** Vorschlag beim Erwecken: Fähigkeit plus passender Beiname („der Ogertöter“). */
+export const legendOptionSchema = legendSchema.extend({ beiname: z.string().min(3).max(40) });
+export type LegendOption = z.infer<typeof legendOptionSchema>;
 export { legendSchema };
 
 /* ── Narben ── */
@@ -81,12 +84,18 @@ export const growthSchema = z.object({
   limitSeen: z.boolean().optional(),
   /** Legendäre Fähigkeit (nach dem Limit Break, aus der Geschichte der Figur). */
   legend: legendSchema.nullable().optional(),
+  /** Beiname nach dem Limit Break, z. B. „der Unbändige“. */
+  epithet: z.string().min(3).max(40).optional(),
 }).refine((g) => g.heirlooms.length <= heirloomSlots(g), "Zu viele Erbstücke für die Truhe")
   .refine((g) => Object.keys(g.perks).every((p) => p in PERKS && (g.perks[p as PerkId] ?? 0) <= perkMax(p as PerkId, g)), "Unbekannter oder zu oft gewählter Vorteil")
-  .refine((g) => !g.legend || limitBroken(g), "Eine legendäre Fähigkeit gibt es erst nach dem Limit Break");
+  .refine((g) => !g.legend || limitBroken(g), "Eine legendäre Fähigkeit gibt es erst nach dem Limit Break")
+  .refine((g) => !g.epithet || limitBroken(g), "Einen Beinamen gibt es erst nach dem Limit Break");
 export type Growth = z.infer<typeof growthSchema>;
 
 type WithGrowth = { id: string; growth?: Growth | null };
+
+/** Name mit Beinamen („Georg der Unbändige“) – für Anzeige und Erzählung. */
+export const fullName = (c: { name: string; growth?: Growth | null }) => (c.growth?.epithet && c.growth.earned.length >= LIMIT_AFTER ? `${c.name} ${c.growth.epithet}` : c.name);
 export const growthOf = (c: WithGrowth | null | undefined): Growth => c?.growth ?? { fame: 0, earned: [], perks: {}, scars: [], heirlooms: [], uses: {} };
 export const perkCount = (c: WithGrowth | null | undefined, p: PerkId) => growthOf(c).perks[p] ?? 0;
 
@@ -247,7 +256,7 @@ export function growthSummary(c: WithGrowth & { name: string }): string {
   if (g.scars.length) parts.push(`Narben aus früheren Abenteuern: ${g.scars.map((s) => `${s.name} (${s.text})`).join("; ")} – greif sie gelegentlich erzählerisch auf`);
   if (g.heirlooms.length) parts.push(`${g.heirlooms.length > 1 ? "Erbstücke" : "Erbstück"}, das ${c.name} immer bei sich trägt: ${g.heirlooms.map((h) => h.name).join(", ")}`);
   if (g.earned.length) parts.push(`hat schon ${g.earned.length} ${g.earned.length === 1 ? "Abenteuer" : "Abenteuer"} bestanden`);
-  if (limitBroken(g)) parts.push(`hat das Limit gebrochen – eine Legende`);
+  if (limitBroken(g)) parts.push(`hat das Limit gebrochen – eine Legende${g.epithet ? `; man kennt ${c.name} als „${c.name} ${g.epithet}“ (nenne den Beinamen gelegentlich)` : ""}`);
   if (g.legend && limitBroken(g)) parts.push(`legendäre Fähigkeit „${g.legend.name}“ (${g.legend.uses.replace(/_/g, " ")}): ${g.legend.text}`);
   return parts.join(". ");
 }

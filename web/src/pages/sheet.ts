@@ -1,5 +1,5 @@
 import { legacyOf } from "../lib/legacy";
-import type { PerkId } from "../../../shared/growth";
+import { fullName, type PerkId } from "../../../shared/growth";
 import { forgeLegend, growthSection, masteryBar, maybeLimitBreak, redeemPerk, usesWithMastery } from "../lib/growthUi";
 import { costText } from "../../../shared/campaign";
 import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
@@ -59,7 +59,7 @@ export function sheetPage(): Page {
             <div class="sh-sigil" id="sh-portrait">${avatar(c.id, cls.sigil, { draw: true })}</div>
             <div class="sh-id">
               <div class="eyebrow">${cls.name} · ${stand.name}</div>
-              <h1>${c.name}</h1>
+              <h1>${fullName(c)}</h1>
               ${legacyOf(c.id).length ? html`<div class="hp-titles">${legacyOf(c.id).map((l) => html`<span class="chip legacy-chip" title="Erbstück: ${l.heirloom} – aus „${l.campaignTitle}“">${icon("crown")} ${l.title}</span>`)}</div>` : ""}
               <div class="sh-chips">
                 <span class="chip">${term("stufe", `Stufe ${c.level}`)}</span>

@@ -5,7 +5,7 @@ import { streamGm } from "./gm";
 import { LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, type Growth, type PerkId } from "../../../shared/growth";
 import { rarityOf, statsText, type InvItem } from "../../../shared/inventory";
 import type { Character } from "../../../shared/schema";
-import type { Legend } from "../../../shared/growth";
+import type { LegendOption } from "../../../shared/growth";
 import type { WorldState } from "../../../shared/world";
 import { $, fragment, html, type Raw } from "./dom";
 import { icon } from "./icons";
@@ -64,7 +64,7 @@ export async function forgeLegend(characterId: string, onDone?: (c: Character) =
   const c = characterStore.get(characterId);
   if (!c) return;
   toast(`Die Legende von ${c.name} nimmt Gestalt an …`, "info", 6000);
-  let options: Legend[] = [];
+  let options: LegendOption[] = [];
   await streamGm("legend", { character: c, titles: legacyOf(c.id).map((l) => l.title) }, (ev) => {
     if (ev.type === "error") toast(ev.message, "error", 7000);
     if (ev.type === "legend") options = ev.options;
@@ -73,30 +73,32 @@ export async function forgeLegend(characterId: string, onDone?: (c: Character) =
   const pick = await chooseLegend(c.name, options);
   if (!pick) { toast("Keine Wahl getroffen – du kannst die Fähigkeit später auf dem Figurenbogen erwecken.", "info", 6000); return; }
   const fresh = characterStore.get(characterId) ?? c;
-  const saved = { ...fresh, growth: { ...growthOf(fresh), legend: pick }, updatedAt: new Date().toISOString() };
+  const { beiname, ...legend } = pick;
+  const saved = { ...fresh, growth: { ...growthOf(fresh), legend, epithet: beiname }, updatedAt: new Date().toISOString() };
   characterStore.save(saved);
-  toast(`Legendäre Fähigkeit: „${pick.name}“ – ${pick.beginnerText}`, "success", 10000);
+  toast(`${c.name} ${beiname} – legendäre Fähigkeit „${pick.name}“: ${pick.beginnerText}`, "success", 10000);
   onDone?.(saved);
 }
 
 const USES_DE: Record<string, string> = { einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag" };
 
 /** Zwei Vorschläge – eine Wahl (für immer). null = abgebrochen. */
-function chooseLegend(name: string, options: Legend[]): Promise<Legend | null> {
+function chooseLegend(name: string, options: LegendOption[]): Promise<LegendOption | null> {
   return new Promise((resolve) => {
     const el = fragment(html`
       <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Legendäre Fähigkeit wählen">
         <div class="modal card glow-border legend-pick">
           <div class="limit-badge">LEGENDÄRE FÄHIGKEIT</div>
-          <p>Wähle die Fähigkeit, die ${name} für immer begleitet. Die Wahl gilt endgültig.</p>
+          <p>Wähle die Fähigkeit, die ${name} für immer begleitet – mit ihr kommt ein Beiname. Die Wahl gilt endgültig.</p>
           <div class="legend-options">${options.map((o, i) => html`<button class="legend-option" data-pick-legend="${i}">
+            <em class="legend-epithet">${name} ${o.beiname}</em>
             <b>${icon("crown")} ${o.name}</b><small class="chip gold">${USES_DE[o.uses] ?? o.uses}</small>
             <span>${o.beginnerText}</span><small class="muted">${o.text}</small>
           </button>`)}</div>
           <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-ghost btn-sm" data-pick-legend="">Später entscheiden</button></div>
         </div>
       </div>`);
-    const close = (l: Legend | null) => { el.remove(); removeEventListener("keydown", onKey); resolve(l); };
+    const close = (l: LegendOption | null) => { el.remove(); removeEventListener("keydown", onKey); resolve(l); };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(null); };
     el.addEventListener("click", (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>("[data-pick-legend]");

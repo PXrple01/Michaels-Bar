@@ -1,7 +1,7 @@
 import { settings } from "../lib/settings";
 import { letterStore, offerLetters } from "../lib/letters";
 import { heirloomPicker, syncCharacterGrowth } from "../lib/growthUi";
-import { legendAbility } from "../../../shared/growth";
+import { fullName, legendAbility } from "../../../shared/growth";
 import { exportSave, importSaveFile } from "../lib/saveTransfer";
 import type { ItemAction } from "../../../shared/inventory";
 import { setMusic } from "../lib/music";
@@ -145,7 +145,7 @@ export function adventuresPage(): Page {
                 const cls = data.classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
                 return html`<button class="card char-card tilt start-card" data-start="${c.id}" data-reveal="scale" style="--i:${i}">
                   <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>
-                  <h3>${c.name}</h3>
+                  <h3>${fullName(c)}</h3>
                   <p class="muted">${cls?.name ?? c.classId}</p>
                   <span class="link-arrow">Mit ${c.name} losziehen ${icon("arrowRight")}</span>
                 </button>`;
@@ -244,7 +244,7 @@ export function playPage(): Page {
       const renderWorld = () => {
         const w = save!.state.world;
         const cls = myClassDef();
-        const me: TeamMember = { id: character.id, name: character.name, sigil: cls?.sigil ?? "shield", className: cls?.name ?? character.classId, me: true, abilities: effectiveAbilities(cls?.abilities ?? [], w?.progress?.[character.id]) };
+        const me: TeamMember = { id: character.id, name: fullName(character), sigil: cls?.sigil ?? "shield", className: cls?.name ?? character.classId, me: true, abilities: effectiveAbilities(cls?.abilities ?? [], w?.progress?.[character.id]) };
         fillSide(root.querySelector("#side-left"), teamSide(w, [me], data.rules));
         fillSide(root.querySelector("#side-right"), lageSide(w));
         setMapData(root, w?.map);

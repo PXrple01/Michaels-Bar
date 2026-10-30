@@ -15,7 +15,7 @@ import { costUsd, LimitError, PRICES, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
 import { bonusParts } from "../../shared/shop";
-import { ABILITY_TYPES, growthOf, legendSchema, LIMIT_AFTER, limitBroken, type Legend } from "../../shared/growth";
+import { ABILITY_TYPES, growthOf, legendOptionSchema, LIMIT_AFTER, limitBroken, type LegendOption } from "../../shared/growth";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -401,12 +401,13 @@ export class Narrator {
    * Legendäre Fähigkeit nach dem Limit Break: Claude entwirft aus der Geschichte der Figur (Narben, Erbstücke, Titel)
    * eine persönliche, starke, aber faire Fähigkeit. Ergebnis geprüft (legendSchema).
    */
-  async forgeLegend(c: Character, data: GameData, titles: string[], who: string): Promise<{ options: Legend[]; costUsd: number }> {
+  async forgeLegend(c: Character, data: GameData, titles: string[], who: string): Promise<{ options: LegendOption[]; costUsd: number }> {
     this.ensureReady();
     if (!limitBroken(growthOf(c))) throw new GmError(`Eine legendäre Fähigkeit gibt es erst nach ${LIMIT_AFTER} bestandenen Abenteuern.`, "state");
     if (growthOf(c).legend) throw new GmError("Diese Figur hat ihre legendäre Fähigkeit schon.", "state");
     await this.o.guard.check(who);
-    const one = { type: "object", additionalProperties: false, required: ["name", "type", "uses", "text", "beginnerText"], properties: {
+    const one = { type: "object", additionalProperties: false, required: ["name", "type", "uses", "text", "beginnerText", "beiname"], properties: {
+      beiname: { type: "string", description: "Passender Beiname für die Figur, mit Artikel, z. B. „der Unbändige“, „die Ogertöterin“ (Geschlecht aus Name/Aussehen; im Zweifel neutral wie „vom Falkenstein“)" },
       name: { type: "string", description: "2–4 Wörter, deutsch, klangvoll (z. B. „Zorn des Ogertöters“)" },
       type: { type: "string", enum: [...ABILITY_TYPES] },
       uses: { type: "string", enum: ["einmal_pro_kampf", "einmal_pro_rast", "einmal_pro_tag"] },
@@ -426,7 +427,7 @@ export class Narrator {
     let parsed: unknown = null;
     try { parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { /* unten */ }
     const raw = (parsed as { optionen?: unknown[] } | null)?.optionen ?? [];
-    const options = raw.map((o) => legendSchema.safeParse(o)).filter((r) => r.success).map((r) => r.data!).slice(0, 2);
+    const options = raw.map((o) => legendOptionSchema.safeParse(o)).filter((r) => r.success).map((r) => r.data!).slice(0, 2);
     if (!options.length) throw new GmError("Die legendäre Fähigkeit konnte nicht erschaffen werden – versuch es gleich noch einmal.", "api");
     return { options, costUsd: costUsd(msg.usage, this.model) };
   }
