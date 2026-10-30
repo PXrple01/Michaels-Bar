@@ -3,11 +3,23 @@
 import type { Character, Money, Rules } from "./schema";
 import type { WorldState } from "./world";
 
-export const ITEM_KINDS = ["waffe", "ruestung", "trank", "werkzeug", "schatz", "gegenstand"] as const;
+export const ITEM_KINDS = ["waffe", "ruestung", "schild", "trank", "werkzeug", "schatz", "gegenstand"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
-/** Werte eines Gegenstands: Boni zählen bei den Würfen mit (je Wert gilt das beste Stück), Heilung würfelt der Server beim Verbrauchen. */
-export interface ItemStats { angriff?: number; schaden?: number; ruestung?: number; heilung?: string }
-export interface InvItem { name: string; qty: number; kind: ItemKind; note?: string; stats?: ItemStats }
+export const RARITIES = ["gewoehnlich", "ungewoehnlich", "selten", "sagenhaft"] as const;
+export type Rarity = (typeof RARITIES)[number];
+export const RARITY_NAME: Record<Rarity, string> = { gewoehnlich: "gewöhnlich", ungewoehnlich: "ungewöhnlich", selten: "selten", sagenhaft: "sagenhaft" };
+/** Höchste Summe aller Boni je Seltenheit. */
+const RARITY_CAP: Record<Rarity, number> = { gewoehnlich: 1, ungewoehnlich: 2, selten: 3, sagenhaft: 6 };
+/**
+ * Werte eines Gegenstands: Boni zählen bei den Würfen mit, solange das Stück angelegt ist (je eine Waffe, Rüstung, Schild);
+ * Heilung würfelt der Server beim Verbrauchen bzw. Trinken.
+ */
+export interface ItemStats { angriff?: number; schaden?: number; ruestung?: number; heilung?: string; seltenheit?: Rarity }
+export interface InvItem { name: string; qty: number; kind: ItemKind; note?: string; stats?: ItemStats; equipped?: boolean }
+export type Slot = "waffe" | "ruestung" | "schild";
+export const SLOTS: readonly Slot[] = ["waffe", "ruestung", "schild"];
+export const SLOT_NAME: Record<Slot, string> = { waffe: "Waffe", ruestung: "Rüstung", schild: "Schild" };
+export const slotOf = (i: Pick<InvItem, "kind">): Slot | null => ((SLOTS as readonly string[]).includes(i.kind) ? (i.kind as Slot) : null);
 /** Geld in Pfennig (1 Gulden = 20 Groschen = 240 Pfennig, 1 Groschen = 12 Pfennig). */
 export interface Inventory { items: InvItem[]; money: number }
 
@@ -28,7 +40,7 @@ export function moneyText(pf: number, short = false): string {
   return parts.filter(Boolean).join(short ? " " : ", ") || (short ? "0 Pf" : "kein Geld");
 }
 
-const KIND_OF: Record<string, ItemKind> = { weapon: "waffe", armor: "ruestung", shield: "ruestung", consumable: "trank", gear: "werkzeug" };
+const KIND_OF: Record<string, ItemKind> = { weapon: "waffe", armor: "ruestung", shield: "schild", consumable: "trank", gear: "werkzeug" };
 export const kindOf = (v: unknown): ItemKind => ((ITEM_KINDS as readonly string[]).includes(String(v)) ? (v as ItemKind) : "gegenstand");
 
 /** Startausrüstung und -geld der Figur übernehmen (einmal je Kampagne). */
@@ -41,6 +53,7 @@ export function ensureInventory(w: WorldState, characters: Pick<Character, "id" 
       const it = rules.items.find((i) => i.id === id);
       if (it) addItem({ items, money: 0 }, { name: it.name, qty: 1, kind: KIND_OF[it.type] ?? "gegenstand" });
     }
+    fillSlots({ items, money: 0 });
     w.inventory[c.id] = { items, money: toPfennig(c.money ?? {}) };
   }
 }
@@ -49,10 +62,44 @@ const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLow
 export const findItem = (inv: Inventory, name: string) => inv.items.find((i) => same(i.name, name)) ?? inv.items.find((i) => i.name.toLowerCase().includes(name.trim().toLowerCase()) && name.trim().length >= 4);
 
 export function addItem(inv: Inventory, item: InvItem): string | null {
+  const { equipped: _, ...clean } = item;
   const has = inv.items.find((i) => same(i.name, item.name));
-  if (has) { has.qty += item.qty; if (item.note) has.note = item.note; if (item.stats) has.stats = item.stats; return null; }
+  if (has) { has.qty += item.qty; if (item.note) has.note = item.note; if (item.stats) has.stats = item.stats; fillSlots(inv, has); return null; }
   if (inv.items.length >= MAX_ITEMS) return `Das Gepäck ist voll (höchstens ${MAX_ITEMS} verschiedene Dinge).`;
-  inv.items.push({ ...item });
+  const added = { ...clean };
+  inv.items.push(added);
+  fillSlots(inv, added);
+  return null;
+}
+
+const statSum = (i: InvItem) => (i.stats?.angriff ?? 0) + (i.stats?.schaden ?? 0) + (i.stats?.ruestung ?? 0);
+
+/**
+ * Leere Plätze automatisch belegen: mit dem neuen Stück bzw. dem besten übrigen. Ein neues Stück mit Werten ersetzt
+ * außerdem ein angelegtes ohne Werte (z. B. das alte Schwert vom Start) – bewusst Gewechseltes bleibt sonst, wie es ist.
+ */
+function fillSlots(inv: Inventory, fresh?: InvItem) {
+  for (const slot of SLOTS) {
+    const worn = inv.items.find((i) => i.equipped && slotOf(i) === slot);
+    if (fresh && slotOf(fresh) === slot && fresh !== worn && (!worn || (!statSum(worn) && statSum(fresh)))) {
+      if (worn) worn.equipped = false;
+      fresh.equipped = true;
+      continue;
+    }
+    if (worn) continue;
+    const best = inv.items.filter((i) => slotOf(i) === slot).sort((a, b) => statSum(b) - statSum(a))[0];
+    if (best) best.equipped = true;
+  }
+}
+
+/** Anlegen oder ablegen (auch im Kampf). Fehlertext oder null. */
+export function equipItem(inv: Inventory, name: string, on: boolean): string | null {
+  const item = findItem(inv, name);
+  if (!item) return "Das ist nicht in deinem Gepäck.";
+  const slot = slotOf(item);
+  if (!slot) return `„${item.name}“ kann man nicht anlegen.`;
+  if (on) inv.items.forEach((i) => { if (slotOf(i) === slot) i.equipped = false; });
+  item.equipped = on;
   return null;
 }
 
@@ -62,7 +109,7 @@ export function removeItem(inv: Inventory, name: string, qty: number): { item: I
   if (!has) return { error: `„${name}“ ist nicht im Gepäck. Vorhanden: ${inv.items.map((i) => (i.qty > 1 ? `${i.qty}× ${i.name}` : i.name)).join(", ") || "nichts"}.` };
   if (has.qty < qty) return { error: `Nur ${has.qty}× „${has.name}“ vorhanden.` };
   has.qty -= qty;
-  if (has.qty <= 0) inv.items.splice(inv.items.indexOf(has), 1);
+  if (has.qty <= 0) { inv.items.splice(inv.items.indexOf(has), 1); if (has.equipped) fillSlots(inv); }
   return { item: has };
 }
 
@@ -82,10 +129,27 @@ export function cleanStats(raw: Record<string, unknown> | null | undefined): Ite
     const v = Math.round(Number(raw[k]) || 0);
     if (v > 0) s[k] = Math.min(ITEM_STAT_MAX, v);
   }
+  const rarity = (RARITIES as readonly string[]).includes(String(raw.seltenheit)) ? (raw.seltenheit as Rarity) : null;
+  if (rarity) {
+    // Zu starke Boni für die Seltenheit kürzen (zuerst Schaden, dann Rüstung, dann Angriff)
+    let over = STAT_TARGETS.reduce((n, k) => n + (s[k] ?? 0), 0) - RARITY_CAP[rarity];
+    for (const k of ["schaden", "ruestung", "angriff"] as const) {
+      while (over > 0 && s[k]) { s[k]!--; over--; }
+      if (!s[k]) delete s[k];
+    }
+    if (rarity !== "gewoehnlich") s.seltenheit = rarity;
+  }
   const h = String(raw.heilung ?? "").trim().replace(/\s+/g, "");
   const m = HEAL_RE.exec(h);
   if (m) s.heilung = m[4] ?? `${Math.min(2, Math.max(1, Number(m[1])))}W${m[2]}${m[3] ? (Number(m[3]) > 0 ? `+${Math.min(5, Number(m[3]))}` : String(Math.max(-5, Number(m[3])))) : ""}`;
   return Object.keys(s).length ? s : undefined;
+}
+
+/** Seltenheit: angegeben oder aus der Stärke der Boni geschätzt. */
+export function rarityOf(i: Pick<InvItem, "stats">): Rarity {
+  if (i.stats?.seltenheit) return i.stats.seltenheit;
+  const sum = (i.stats?.angriff ?? 0) + (i.stats?.schaden ?? 0) + (i.stats?.ruestung ?? 0);
+  return sum >= 4 ? "sagenhaft" : sum === 3 ? "selten" : sum === 2 ? "ungewoehnlich" : "gewoehnlich";
 }
 
 /** „+1 Angriff, heilt 2W4+2“ */
@@ -94,17 +158,16 @@ export function statsText(s: ItemStats | undefined): string {
   return [...STAT_TARGETS.filter((k) => s[k]).map((k) => `+${s[k]} ${STAT_NAME[k]}`), ...(s.heilung ? [`heilt ${s.heilung}`] : [])].join(", ");
 }
 
-/** Bester Bonus je Wert aus dem Gepäck (mehrere Schwerter zählen nicht doppelt) – mit dem Namen des Stücks. */
-export function itemBonus(inv: Inventory | undefined, target: StatTarget): { value: number; name: string } | null {
-  let best: { value: number; name: string } | null = null;
-  for (const i of inv?.items ?? []) {
-    const v = i.stats?.[target] ?? 0;
-    if (v > (best?.value ?? 0)) best = { value: v, name: i.name };
-  }
-  return best;
+/** Boni der angelegten Stücke auf einen Wert – mit dem Namen des Stücks. */
+export function itemBonuses(inv: Inventory | undefined, target: StatTarget): { value: number; name: string }[] {
+  return (inv?.items ?? []).filter((i) => i.equipped && i.stats?.[target]).map((i) => ({ value: i.stats![target]!, name: i.name }));
 }
 
-const itemWithStats = (i: InvItem) => (i.stats ? `${itemText(i)} [${statsText(i.stats)}]` : itemText(i));
+function itemWithStats(i: InvItem): string {
+  const r = rarityOf(i);
+  const tags = [...(r !== "gewoehnlich" ? [RARITY_NAME[r]] : []), ...(i.stats ? [statsText(i.stats)].filter(Boolean) : []), ...(i.equipped ? ["angelegt"] : [])];
+  return tags.length ? `${itemText(i)} [${tags.join(", ")}]` : itemText(i);
+}
 
 /** Für Claude: wer trägt was (kompakt). */
 export function inventorySummary(w: WorldState, characters: Pick<Character, "id" | "name">[]): string {
@@ -113,5 +176,45 @@ export function inventorySummary(w: WorldState, characters: Pick<Character, "id"
     const inv = w.inventory![c.id];
     return `${c.name}: ${inv.items.map(itemWithStats).join(", ") || "nichts"}; ${moneyText(inv.money, true)}`;
   });
-  return parts.length ? `Inventar – ${parts.join(" | ")}${/ \[/.test(parts.join("")) ? " (Werte in [] zählen bei den Würfen schon mit – je Wert das beste Stück)" : ""}` : "";
+  return parts.length ? `Inventar – ${parts.join(" | ")}${/ \[.*angelegt/.test(parts.join("")) ? " (Boni angelegter Stücke zählen bei den Würfen schon mit; anlegen und Tränke trinken können die Spieler auch selbst über die Oberfläche)" : ""}` : "";
+}
+
+export type ItemAction = "trinken" | "anlegen" | "ablegen";
+export const ITEM_ACTIONS: readonly string[] = ["trinken", "anlegen", "ablegen"];
+
+/**
+ * Über die Oberfläche, ohne Claude: Trank trinken (der Server würfelt die Heilung; im Kampf einmal je Runde) oder
+ * Ausrüstung an-/ablegen. Claude erfährt es im nächsten Zug. Fehlertext oder null.
+ */
+export function useItem(w: WorldState, c: Pick<Character, "id" | "name" | "equipment" | "money">, rules: Rules, action: ItemAction, ref: unknown, roll: (notation: string, label: string) => { total: number }): string | null {
+  ensureInventory(w, [c], rules);
+  const inv = w.inventory![c.id];
+  const item = findItem(inv, String(ref ?? ""));
+  if (!item) return "Das ist nicht in deinem Gepäck.";
+  if (action !== "trinken") {
+    const e = equipItem(inv, item.name, action === "anlegen");
+    if (e) return e;
+    w.itemLog = [...(w.itemLog ?? []), `${c.name} ${action === "anlegen" ? "legt" : "legt ab:"} ${item.name}${action === "anlegen" ? " an" : ""}`].slice(-10);
+    return null;
+  }
+  const heal = item.stats?.heilung;
+  if (!heal) return `„${item.name}“ kann man nicht trinken.`;
+  if (w.hp[c.id] <= 0) return `${c.name} ist bewusstlos und kann nichts trinken.`;
+  if (w.hp[c.id] >= w.maxHp[c.id]) return `${c.name} ist schon unverletzt.`;
+  if (w.combat && w.drank?.[c.id] === w.combat.round) return "In dieser Kampfrunde hast du schon getrunken.";
+  const amount = /^\d$/.test(heal) ? Number(heal) : Math.max(1, roll(heal, `${c.name}: ${item.name}`).total);
+  removeItem(inv, item.name, 1);
+  const before = w.hp[c.id];
+  w.hp[c.id] = Math.min(w.maxHp[c.id], before + amount);
+  if (w.combat) w.drank = { ...w.drank, [c.id]: w.combat.round };
+  w.itemLog = [...(w.itemLog ?? []), `${c.name} trinkt ${item.name} und heilt ${w.hp[c.id] - before} TP (jetzt ${w.hp[c.id]}/${w.maxHp[c.id]})`].slice(-10);
+  return null;
+}
+
+/** Für Claude: was die Spieler seit dem letzten Zug selbst mit ihren Sachen gemacht haben (danach wird es geleert). */
+export function itemLogSummary(w: WorldState): string {
+  if (!w.itemLog?.length) return "";
+  const line = `Selbst erledigt (schon verbucht, nur erzählen): ${w.itemLog.join("; ")}`;
+  w.itemLog = [];
+  return line;
 }

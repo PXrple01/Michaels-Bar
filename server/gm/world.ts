@@ -12,7 +12,7 @@ import { BONUS_NAME, bonusTotal, type Ware } from "../../shared/shop";
 import { GAMBLE_MAX } from "../../shared/gamble";
 import { ATTITUDE_NAME, ATTITUDES, upsertPerson } from "../../shared/people";
 import { PLACE_KINDS, PLACE_NAME, visitPlace } from "../../shared/map";
-import { addItem, cleanStats, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, removeItem, statsText, toPfennig } from "../../shared/inventory";
+import { addItem, cleanStats, ensureInventory, ITEM_KINDS, RARITIES, itemText, kindOf, moneyText, removeItem, statsText, toPfennig } from "../../shared/inventory";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
@@ -43,8 +43,9 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
   const statProps = {
     angriff: { type: "integer", description: "Optional, Waffen: Bonus 1–3" },
     schaden: { type: "integer", description: "Optional, Waffen: Bonus 1–3" },
-    ruestung: { type: "integer", description: "Optional, Rüstung/Schild: Bonus 1–3" },
+    ruestung: { type: "integer", description: "Optional, Rüstung/Schild (art schild): Bonus 1–3" },
     heilung: dice("Optional, Tränke/Kräuter: Heilwürfel, z. B. 2W4+2 (höchstens 2W8+5)"),
+    seltenheit: { type: "string", enum: [...RARITIES], description: "Optional, Standard gewoehnlich" },
   };
   const tool = (name: string, description: string, properties: Record<string, object>, required: string[]): Anthropic.Beta.BetaTool => ({
     name, description, eager_input_streaming: true, input_schema: { type: "object", properties, required },
@@ -75,7 +76,7 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       vergeht: { type: "string", enum: ["kurz", "stunden", "bis_abend", "bis_nacht", "bis_morgen"] },
       wetter: { type: "string", description: "Optional: neues Wetter in wenigen Worten, z. B. „Nieselregen“, „klirrender Frost“" },
     }, ["vergeht"]),
-    tool("gegenstand", "Führt das Gepäck einer Figur (wird den Spielern angezeigt): erhalten (Beute, Geschenk, Fund), verbrauchen (Trank getrunken, Fackel abgebrannt), verlieren (gestohlen, zerbrochen), weitergeben (an eine andere Figur). Was nicht im Gepäck ist, kann nicht verbraucht werden. Gib Waffen, Rüstungen und Tränken beim Erhalten Werte: Boni (angriff, schaden, ruestung je 1–3; je Wert zählt das beste Stück im Gepäck automatisch bei den Würfen) und heilung (z. B. 2W4+2). Wird ein Stück mit heilung verbraucht, würfelt der Server die Heilung selbst – dann kein extra heilen." + " Gewöhnliches +1, gutes +2, sagenhaftes +3.", {
+    tool("gegenstand", "Führt das Gepäck einer Figur (wird den Spielern angezeigt): erhalten (Beute, Geschenk, Fund), verbrauchen (Trank getrunken, Fackel abgebrannt), verlieren (gestohlen, zerbrochen), weitergeben (an eine andere Figur). Was nicht im Gepäck ist, kann nicht verbraucht werden. Gib Waffen, Rüstungen, Schilden und Tränken beim Erhalten Werte: seltenheit, Boni (angriff, schaden, ruestung je 1–3) und heilung (z. B. 2W4+2). Boni zählen automatisch bei den Würfen, solange das Stück angelegt ist (je eine Waffe, Rüstung, Schild; die Spieler wechseln selbst). Summe der Boni: gewöhnlich höchstens 1, ungewöhnlich 2, selten 3, sagenhaft mehr – sagenhafte Stücke sind sehr selten und besonders. Wird ein Stück mit heilung verbraucht, würfelt der Server die Heilung selbst – dann kein extra heilen.", {
       ...(party ? { figur: nameProp(characters, "Wessen Gepäck") } : {}),
       aktion: { type: "string", enum: ["erhalten", "verbrauchen", "verlieren", "weitergeben"] },
       name: { type: "string", description: "Kurzer Name, z. B. „Heiltrank“, „Silberner Dolch“" },

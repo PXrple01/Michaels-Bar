@@ -10,7 +10,8 @@ import { initTime } from "../../shared/time";
 import { upsertPerson } from "../../shared/people";
 import { startPlace, visitPlace } from "../../shared/map";
 import { trade } from "../../shared/shop";
-import { gambleRoll } from "../dice/engine";
+import { gambleRoll, itemRoll } from "../dice/engine";
+import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
 import { playGamble } from "../../shared/gamble";
 import { turnSummary } from "./summary";
 import { countChapterTurn, enforceDefeat } from "./world";
@@ -364,7 +365,7 @@ export class PartyService {
     return this.view(done, me.id, await this.o.guard.info());
   }
 
-  /** Im offenen Laden kaufen oder verkaufen – für die eigene Figur, ohne Claude. */
+  /** Im offenen Laden kaufen oder verkaufen, würfeln, Trank trinken, anlegen – für die eigene Figur, ohne Claude. */
   async shop(body: { code?: unknown; token?: unknown; action?: unknown; ref?: unknown }): Promise<PartyView> {
     const { party } = await this.load(body?.code);
     const me = this.player(party, body?.token);
@@ -372,7 +373,9 @@ export class PartyService {
       if (!p.world) throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
       if (p.busy && !isStale(p.busy)) throw new PartyError("Der Spielleiter erzählt gerade – einen Moment.");
       const rules = this.dataFor(p).rules;
-      const problem = body.action === "spielen" ? playGamble(p.world, me.character, rules, body.ref, gambleRoll) : trade(p.world, me.character, rules, body.action, body.ref);
+      const problem = body.action === "spielen" ? playGamble(p.world, me.character, rules, body.ref, gambleRoll)
+        : ITEM_ACTIONS.includes(String(body.action)) ? useItem(p.world, me.character, rules, body.action as ItemAction, body.ref, itemRoll)
+        : trade(p.world, me.character, rules, body.action, body.ref);
       if (problem) throw new PartyError(problem);
     });
     return this.view(done, me.id, await this.o.guard.info());

@@ -1,11 +1,11 @@
 // Laden-Karte: Waren mit Preis und „Kaufen“, darunter eigenes Gepäck zum Verkaufen. Ohne Claude, sofort.
-import { moneyText, statsText } from "../../../shared/inventory";
+import { moneyText, rarityOf, statsText } from "../../../shared/inventory";
 import { BONUS_NAME, gearOf, GEAR_MAX, sellPrice } from "../../../shared/shop";
 import type { WorldState } from "../../../shared/world";
 import { html, type Raw } from "./dom";
 import { icon } from "./icons";
 
-const KIND_ICON: Record<string, string> = { waffe: "sword", ruestung: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star", verbesserung: "fist" };
+const KIND_ICON: Record<string, string> = { waffe: "sword", ruestung: "shield", schild: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star", verbesserung: "fist" };
 
 export function shopCard(w: WorldState | null | undefined, characterId: string): Raw {
   const shop = w?.shop;
@@ -23,7 +23,7 @@ export function shopCard(w: WorldState | null | undefined, characterId: string):
       const maxed = x.bonus ? gear[x.bonus.target] + x.bonus.value > GEAR_MAX : false;
       const soldOut = x.stock !== undefined && x.stock <= 0;
       const tooPoor = money < x.price;
-      return html`<div class="ware k-${x.kind}">
+      return html`<div class="ware k-${x.kind} r-${rarityOf(x)}">
         <span class="ware-icon">${icon(KIND_ICON[x.kind] ?? "star")}</span>
         <span class="ware-text"><b>${x.name}</b><small>${x.bonus ? `${BONUS_NAME[x.bonus.target]} +${x.bonus.value} – dauerhaft` : [statsText(x.stats), x.note].filter(Boolean).join(" · ")}${x.stock !== undefined ? ` · noch ${x.stock}` : ""}</small></span>
         <span class="ware-price">${moneyText(x.price, true)}</span>

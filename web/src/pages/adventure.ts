@@ -1,3 +1,4 @@
+import type { ItemAction } from "../../../shared/inventory";
 import { setMusic } from "../lib/music";
 import { readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
@@ -16,7 +17,7 @@ import { campaignStore } from "../lib/campaigns";
 import { dataFor } from "../lib/customClasses";
 import { $, fragment, html, raw, setHTML, uuid, type Raw } from "../lib/dom";
 import { setAccessCode, streamGm } from "../lib/gm";
-import { bindSides, fillSide, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
+import { bindSides, fillSide, itemDoneText, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { bindShop, shopCard } from "../lib/shopUi";
@@ -210,7 +211,7 @@ export function playPage(): Page {
             <div id="below"></div>
             <div id="my-abilities"></div>`)}
         </div>`);
-      unbindSides = bindSides(root, () => openSheet(async () => effectiveCharacter(character, save!.state.world), data, () => save!.state.world));
+      unbindSides = bindSides(root, () => openSheet(async () => effectiveCharacter(character, save!.state.world), data, () => save!.state.world), (action, name) => void doItem(action, name));
       const storyEl = $("#story", root);
       $("#help", root).addEventListener("click", () => showTutorial(`solo-${save.id}`, SOLO_TUTORIAL, true));
       const belowEl = $("#below", root);
@@ -423,6 +424,19 @@ export function playPage(): Page {
             const loot = lootText(before, ev.state.world?.inventory?.[character.id]);
             toast(action === "kaufen" ? (loot ?? "Gekauft – deine Ausrüstung ist jetzt besser.") : "Verkauft.", "success", 4000);
           } else if (ev.type === "error") toast(ev.message, "error", 6000);
+        });
+        renderWorld();
+        renderBelow();
+      }
+      /** Trank trinken oder Ausrüstung an-/ablegen (ohne Claude). */
+      async function doItem(action: ItemAction, name: string) {
+        if (busy) { toast("Einen Moment – der Spielleiter erzählt gerade.", "info", 3000); return; }
+        undo = null;
+        const before = save!.state.world?.hp[character.id];
+        await streamGm("shop", { character, state: save!.state, action, ref: name }, (ev) => {
+          if (!alive) return;
+          if (ev.type === "upgrade") { save!.state = ev.state; persist(); toast(itemDoneText(action, name, before, ev.state.world?.hp[character.id]), "success", 3500); }
+          else if (ev.type === "error") toast(ev.message, "error", 6000);
         });
         renderWorld();
         renderBelow();

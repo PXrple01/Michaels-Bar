@@ -1124,7 +1124,7 @@ body.auth main { padding-bottom: 40px; }
 
 /* Gepäck */
 .inv-block { display: grid; gap: 8px; }
-.inv { display: grid; gap: 6px; margin-top: 8px; }
+.inv { position: relative; display: grid; gap: 6px; margin-top: 8px; }
 .inv-who { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
 .inv-items { display: flex; flex-wrap: wrap; gap: 5px; }
 .inv-item { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; border-radius: 999px; border: 1px solid var(--line); background: rgba(var(--c-s08), 0.5); color: var(--text-2); font: inherit; font-size: 0.78rem; line-height: 1.3; }
@@ -1514,3 +1514,27 @@ body.fal-on .read-btn { display: inline-flex; }
 .rumors li { font-size: 0.84rem; font-style: italic; color: var(--text-2); }
 .person.has-face { grid-template-columns: 34px 1fr; }
 .inv-stat { margin-left: 2px; padding: 0 5px; border-radius: 999px; background: rgba(var(--c-s08), 0.9); color: var(--gold); font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
+/* Seltenheit: Farbe am Rand; sagenhaft glüht rot und flammt */
+.inv-item.r-ungewoehnlich, .ware.r-ungewoehnlich { --rar: #5fd38a; border-color: rgba(95, 211, 138, 0.55); }
+.inv-item.r-selten, .ware.r-selten { --rar: #5aa8ff; border-color: rgba(90, 168, 255, 0.6); }
+.inv-item.r-sagenhaft, .ware.r-sagenhaft { --rar: #ff5a3c; border-color: rgba(255, 90, 60, 0.75); }
+.inv-item.r-ungewoehnlich svg, .inv-item.r-selten svg, .inv-item.r-sagenhaft svg { color: var(--rar); }
+.inv-item.r-sagenhaft { position: relative; isolation: isolate; color: #ffe2d6; background: linear-gradient(180deg, rgba(120, 20, 8, 0.55), rgba(40, 6, 2, 0.6)); box-shadow: 0 0 10px rgba(255, 80, 40, 0.45), inset 0 0 8px rgba(255, 120, 60, 0.25); animation: rar-glow 2.4s ease-in-out infinite; }
+.inv-item.r-sagenhaft::before { content: ""; position: absolute; inset: -10px 6px auto; height: 15px; z-index: -1; border-radius: 50% 50% 0 0; background: radial-gradient(ellipse at 50% 100%, rgba(255, 170, 60, 0.85), rgba(255, 70, 30, 0.5) 45%, transparent 70%); filter: blur(2px); transform-origin: 50% 100%; animation: rar-flame 0.9s ease-in-out infinite alternate; pointer-events: none; }
+.inv-item.r-sagenhaft::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(110deg, transparent 30%, rgba(255, 220, 180, 0.35) 50%, transparent 70%); background-size: 250% 100%; animation: rar-shine 3.2s linear infinite; pointer-events: none; }
+.ware.r-sagenhaft { box-shadow: 0 0 12px rgba(255, 80, 40, 0.35); }
+@keyframes rar-glow { 50% { box-shadow: 0 0 16px rgba(255, 90, 40, 0.7), inset 0 0 10px rgba(255, 140, 60, 0.35); } }
+@keyframes rar-flame { 0% { transform: scaleY(0.8) skewX(-4deg); opacity: 0.75; } 100% { transform: scaleY(1.25) skewX(5deg); opacity: 1; } }
+@keyframes rar-shine { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .inv-item.r-sagenhaft, .inv-item.r-sagenhaft::before, .inv-item.r-sagenhaft::after { animation: none; } }
+/* Angelegt */
+.inv-item.worn { border-style: solid; border-width: 1.5px; font-weight: 600; }
+.inv-worn { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--purple-2); color: #fff; }
+.inv-item .inv-worn svg { width: 11px; height: 11px; stroke: #fff; stroke-width: 3.2; color: #fff; }
+/* Menü am Gegenstand */
+.item-menu { position: absolute; z-index: 30; display: grid; min-width: 190px; padding: 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2, #15100e); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); animation: item-menu-in 0.14s ease-out; }
+.item-menu button { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 0; border-radius: 7px; background: none; color: var(--text); font: inherit; font-size: 0.85rem; text-align: left; cursor: pointer; }
+.item-menu button:hover, .item-menu button:focus-visible { background: rgba(var(--c-s08), 0.9); outline: none; }
+.item-menu button small { margin-left: auto; color: var(--muted); font-size: 0.72rem; }
+.item-menu svg { width: 15px; height: 15px; flex: none; }
+@keyframes item-menu-in { from { opacity: 0; transform: translateY(-4px); } }

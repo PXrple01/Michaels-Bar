@@ -91,4 +91,7 @@ export function performRoll(spec: RollSpec, rng: RandomInt = cryptoRandomInt): R
 }
 
 /** Wurf am Würfeltisch der Taverne (2W6, ohne Modifikator). */
+/** Heiltrank über die Oberfläche (Würfel vom Gegenstand). */
+export const itemRoll = (notation: string, label: string) => performRoll({ requestId: randomUUID(), kind: "free", label, notation });
+
 export const gambleRoll = (who: string) => performRoll({ requestId: randomUUID(), kind: "free", label: `${who}: Würfelspiel`, notation: "2W6" });

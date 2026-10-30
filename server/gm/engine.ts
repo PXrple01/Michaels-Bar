@@ -2,7 +2,8 @@
 import type { ImageMaker } from "../images";
 import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest, type SceneImage } from "../../shared/campaign";
 import { trade } from "../../shared/shop";
-import { gambleRoll } from "../dice/engine";
+import { gambleRoll, itemRoll } from "../dice/engine";
+import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
 import { playGamble } from "../../shared/gamble";
 import { emptyProgression, upgradeDue } from "../../shared/upgrades";
 import { applyLevels, chooseLevelReward, effectiveCharacter } from "../../shared/levels";
@@ -165,11 +166,13 @@ export class GameMaster {
     emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: world.progress?.[c.id]?.offer ?? null, budget: await this.o.guard.info() });
   }
 
-  /** Im offenen Laden kaufen oder verkaufen – ohne Claude, kostet nichts. Claude erfährt es im nächsten Zug. */
+  /** Im offenen Laden kaufen oder verkaufen, würfeln, Trank trinken, anlegen – ohne Claude, kostet nichts. Claude erfährt es im nächsten Zug. */
   private async shop(req: ShopRequest, emit: (ev: GmEvent) => void) {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
-    const problem = req.action === "spielen" ? playGamble(world, c, data.rules, req.ref, gambleRoll) : trade(world, c, data.rules, req.action, req.ref);
+    const problem = req.action === "spielen" ? playGamble(world, c, data.rules, req.ref, gambleRoll)
+      : ITEM_ACTIONS.includes(String(req.action)) ? useItem(world, c, data.rules, req.action as ItemAction, req.ref, itemRoll)
+      : trade(world, c, data.rules, req.action, req.ref);
     if (problem) throw new GmError(problem, "state");
     emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: world.progress?.[c.id]?.offer ?? null, budget: await this.o.guard.info() });
   }

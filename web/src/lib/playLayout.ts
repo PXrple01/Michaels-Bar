@@ -7,7 +7,7 @@ import { avatar } from "./portraits";
 // in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
 import { currentChapter, isArc, type Arc, type WorldState } from "../../../shared/world";
 import { PHASE_NAME } from "../../../shared/time";
-import { itemText, moneyText, statsText, type Inventory, type ItemKind } from "../../../shared/inventory";
+import { itemText, moneyText, RARITY_NAME, rarityOf, SLOT_NAME, slotOf, statsText, type Inventory, type ItemAction, type ItemKind, type Slot } from "../../../shared/inventory";
 import { ATTITUDE_NAME } from "../../../shared/people";
 import { mapBlock, openMap } from "./mapUi";
 import type { Rules } from "../../../shared/schema";
@@ -125,9 +125,9 @@ function face(url: string | undefined, name: string, fallback: string): Raw {
   return url ? html`<button type="button" class="face" data-zoom="${url}" data-caption="${name}" aria-label="Porträt von ${name}"><img src="${url}" alt="" loading="lazy"></button>` : html`<span class="face empty">${icon(fallback)}</span>`;
 }
 
-const KIND_ICON: Record<ItemKind, string> = { waffe: "sword", ruestung: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star" };
+const KIND_ICON: Record<ItemKind, string> = { waffe: "sword", ruestung: "shield", schild: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star" };
 
-/** Gepäck: eigenes zuerst und aufgeklappt; eigene Gegenstände antippen = „Ich benutze …“ ins Eingabefeld. */
+/** Gepäck: eigenes zuerst und aufgeklappt; eigene Gegenstände antippen = kleines Menü (trinken, anlegen, benutzen). */
 function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
   const list = [...members].sort((a, b) => Number(b.me) - Number(a.me)).filter((m) => w.inventory![m.id]);
   if (!list.length) return html``;
@@ -139,12 +139,50 @@ function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
       const inv = w.inventory![m.id];
       return html`<div class="inv ${m.me ? "me" : ""}">
         ${members.length > 1 ? html`<div class="inv-who">${m.me ? "Du" : m.name}</div>` : ""}
-        <div class="inv-items">${inv.items.length ? inv.items.map((i) => html`<${m.me ? "button" : "span"} class="inv-item k-${i.kind}" ${m.me ? html`type="button" data-use-item="${i.name}"` : ""} title="${[statsText(i.stats), i.note, m.me ? "Antippen: benutzen" : ""].filter(Boolean).join(" – ")}">${icon(KIND_ICON[i.kind])}<span>${itemText(i)}</span>${i.stats ? html`<small class="inv-stat">${statsText(i.stats)}</small>` : ""}</${m.me ? "button" : "span"}>`) : html`<small class="muted">nichts</small>`}</div>
+        <div class="inv-items">${inv.items.length ? inv.items.map((i) => {
+          const r = rarityOf(i);
+          return html`<${m.me ? "button" : "span"} class="inv-item k-${i.kind} r-${r}${i.equipped ? " worn" : ""}" ${m.me ? html`type="button" data-use-item="${i.name}"${i.stats?.heilung ? html` data-heal="${i.stats.heilung}"` : ""}${slotOf(i) ? html` data-slot="${slotOf(i)!}"` : ""}${i.equipped ? html` data-worn="1"` : ""}` : ""} title="${[r !== "gewoehnlich" ? RARITY_NAME[r] : "", statsText(i.stats), i.equipped ? "angelegt" : "", i.note, m.me ? "Antippen" : ""].filter(Boolean).join(" – ")}">${icon(KIND_ICON[i.kind])}<span>${itemText(i)}</span>${i.stats && statsText(i.stats) ? html`<small class="inv-stat">${statsText(i.stats)}</small>` : ""}${i.equipped ? html`<small class="inv-worn" aria-label="angelegt">${icon("check")}</small>` : ""}</${m.me ? "button" : "span"}>`;
+        }) : html`<small class="muted">nichts</small>`}</div>
         <div class="inv-money">${icon("coins")} ${moneyText(inv.money)}</div>
         ${w.gear?.[m.id] ? html`<div class="inv-gear">${icon("fist")} Vom Schmied: ${(["angriff", "schaden", "ruestung"] as const).filter((k) => w.gear![m.id][k]).map((k) => `${({ angriff: "Angriff", schaden: "Schaden", ruestung: "Rüstung" })[k]} +${w.gear![m.id][k]}`).join(", ")}</div>` : ""}
       </div>`;
     })}
   </details>`;
+}
+
+/** Kurze Rückmeldung nach Trinken/Anlegen. */
+export function itemDoneText(action: ItemAction, name: string, hpBefore: number | undefined, hpAfter: number | undefined): string {
+  if (action === "trinken") return `${name} getrunken: +${Math.max(0, (hpAfter ?? 0) - (hpBefore ?? 0))} TP`;
+  return action === "anlegen" ? `${name} angelegt.` : `${name} abgelegt.`;
+}
+
+let itemMenu: HTMLElement | null = null;
+function closeItemMenu() {
+  itemMenu?.remove();
+  itemMenu = null;
+  removeEventListener("pointerdown", menuOutside);
+}
+const menuOutside = (e: Event) => { if (itemMenu && !itemMenu.contains(e.target as Node) && !(e.target as HTMLElement).closest("[data-use-item]")) closeItemMenu(); };
+
+/** Kleines Menü direkt am Gegenstand: Trinken, Anlegen/Ablegen, Benutzen (als Text an den Spielleiter). */
+function openItemMenu(anchor: HTMLElement, name: string, heal: string | undefined, slot: Slot | undefined, worn: boolean) {
+  const again = itemMenu?.dataset.for === name;
+  closeItemMenu();
+  if (again) return;
+  const menu = document.createElement("div");
+  menu.className = "item-menu";
+  menu.dataset.for = name;
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = html`
+    ${heal ? html`<button type="button" role="menuitem" data-item-act="trinken" data-item-name="${name}">${icon("potion")} Trinken <small>heilt ${heal}</small></button>` : ""}
+    ${slot ? html`<button type="button" role="menuitem" data-item-act="${worn ? "ablegen" : "anlegen"}" data-item-name="${name}">${icon(worn ? "x" : "check")} ${worn ? "Ablegen" : "Anlegen"} <small>${SLOT_NAME[slot]}</small></button>` : ""}
+    <button type="button" role="menuitem" data-item-act="benutzen" data-item-name="${name}">${icon("feather")} Benutzen <small>dem Spielleiter sagen</small></button>`.value;
+  anchor.closest(".inv")!.append(menu);
+  menu.style.top = `${anchor.offsetTop + anchor.offsetHeight + 4}px`;
+  menu.style.left = `${Math.max(0, Math.min(anchor.offsetLeft, (menu.parentElement!.clientWidth || 240) - 200))}px`;
+  itemMenu = menu;
+  (menu.querySelector("button") as HTMLButtonElement).focus();
+  setTimeout(() => addEventListener("pointerdown", menuOutside));
 }
 
 /** Was ist neu im eigenen Gepäck? (für den kurzen Beute-Hinweis) */
@@ -221,7 +259,7 @@ export function lageSide(w: WorldState | null | undefined): Raw {
  * Seitenleisten verdrahten: breit immer offen, schmal eingeklappt (antippen öffnet, nur eine zugleich, Tippen daneben schließt).
  * Gibt eine Aufräumfunktion zurück.
  */
-export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => void): () => void {
+export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => void, onItem?: (action: ItemAction, name: string) => void): () => void {
   const sides = [...root.querySelectorAll<HTMLDetailsElement>(".side")];
   const mq = matchMedia(WIDE);
   const apply = () => sides.forEach((d) => { d.open = mq.matches; });
@@ -233,16 +271,29 @@ export function bindSides(root: HTMLElement, onSheet?: (characterId: string) => 
     if (d.open) sides.forEach((o) => { if (o !== d) o.open = false; });
   };
   sides.forEach((d) => d.addEventListener("toggle", onToggle));
-  // Gegenstand antippen: „Ich benutze …“ ins Eingabefeld
-  const onUse = (e: Event) => {
-    const b = (e.target as HTMLElement).closest<HTMLElement>("[data-use-item]");
-    if (!b) return;
+  // Gegenstand antippen: Trinken/Anlegen sofort, sonst „Ich benutze …“ ins Eingabefeld
+  const useText = (name: string) => {
     const ta = root.querySelector<HTMLTextAreaElement>("#action");
     if (!ta) return;
-    ta.value = `Ich benutze ${b.dataset.useItem}.`;
+    ta.value = `Ich benutze ${name}.`;
     ta.dispatchEvent(new Event("input", { bubbles: true }));
     if (!mq.matches) sides.forEach((d) => { d.open = false; });
     ta.focus();
+  };
+  const onUse = (e: Event) => {
+    const pick = (e.target as HTMLElement).closest<HTMLElement>("[data-item-act]");
+    if (pick) {
+      const { itemAct, itemName } = pick.dataset;
+      closeItemMenu();
+      if (itemAct === "benutzen") useText(itemName!);
+      else onItem?.(itemAct as ItemAction, itemName!);
+      return;
+    }
+    const b = (e.target as HTMLElement).closest<HTMLElement>("[data-use-item]");
+    if (!b) return;
+    const { useItem: name, heal, slot, worn } = b.dataset;
+    if (!onItem || (!heal && !slot)) { useText(name!); return; }
+    openItemMenu(b, name!, heal, slot as Slot | undefined, !!worn);
   };
   root.addEventListener("click", onUse);
   // Name einer Figur antippen: Figurenblatt

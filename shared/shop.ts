@@ -1,6 +1,6 @@
 // Händler und Schmiede: Claude öffnet einen Laden mit Waren und Preisen, gekauft und verkauft wird über die Oberfläche –
 // ohne Modellaufruf und ohne Mogeln (der Server prüft Geld, Bestand und Grenzen). Claude erfährt die Einkäufe im nächsten Zug.
-import { addItem, ensureInventory, findItem, itemBonus, itemText, moneyText, removeItem, type ItemKind, type ItemStats } from "./inventory";
+import { addItem, ensureInventory, findItem, itemBonuses, itemText, moneyText, removeItem, type ItemKind, type ItemStats } from "./inventory";
 import type { Character, Rules } from "./schema";
 import type { WorldState } from "./world";
 
@@ -13,14 +13,14 @@ export interface Gear { angriff: number; schaden: number; ruestung: number }
 export const GEAR_MAX = 2;
 export const BONUS_NAME: Record<BonusTarget, string> = { angriff: "Angriff", schaden: "Schaden", ruestung: "Rüstung" };
 /** Ankaufspreis, wenn der Händler die Sache nicht selbst führt (in Pfennig). */
-const RESALE: Record<ItemKind, number> = { waffe: 72, ruestung: 120, trank: 36, werkzeug: 24, schatz: 240, gegenstand: 12 };
+const RESALE: Record<ItemKind, number> = { waffe: 72, ruestung: 120, schild: 60, trank: 36, werkzeug: 24, schatz: 240, gegenstand: 12 };
 
 export const gearOf = (w: WorldState | null | undefined, id: string): Gear => w?.gear?.[id] ?? { angriff: 0, schaden: 0, ruestung: 0 };
 
-/** Alle Ausrüstungs-Boni auf einen Wert: Schmied plus das beste Stück im Gepäck (für Würfe und Anzeige). */
+/** Alle Ausrüstungs-Boni auf einen Wert: Schmied plus die angelegten Stücke (für Würfe und Anzeige). */
 export function bonusParts(w: WorldState | null | undefined, id: string, target: BonusTarget): { label: string; value: number }[] {
-  const smith = gearOf(w, id)[target], item = itemBonus(w?.inventory?.[id], target);
-  return [...(smith ? [{ label: "Schmied", value: smith }] : []), ...(item ? [{ label: item.name, value: item.value }] : [])];
+  const smith = gearOf(w, id)[target];
+  return [...(smith ? [{ label: "Schmied", value: smith }] : []), ...itemBonuses(w?.inventory?.[id], target).map((i) => ({ label: i.name, value: i.value }))];
 }
 export const bonusTotal = (w: WorldState | null | undefined, id: string, target: BonusTarget) => bonusParts(w, id, target).reduce((n, p) => n + p.value, 0);
 

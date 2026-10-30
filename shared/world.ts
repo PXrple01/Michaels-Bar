@@ -44,6 +44,10 @@ export interface WorldState {
   gear?: Record<string, Gear>;
   /** Gepäck und Geld je Figur */
   inventory?: Record<string, Inventory>;
+  /** Was die Spieler selbst mit ihren Sachen gemacht haben (Trinken, Anlegen) – für Claudes nächsten Zug. */
+  itemLog?: string[];
+  /** In welcher Kampfrunde eine Figur zuletzt per Knopf getrunken hat. */
+  drank?: Record<string, number>;
   /** Tag, Tageszeit und Wetter */
   time?: GameTime;
   /** Züge seit dem letzten Szenenbild (für das Mindestmaß an Bildern). */

@@ -23,7 +23,7 @@ import { go, type Page } from "../lib/router";
 import { confirmDialog, toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
 import { noteParty } from "../lib/achievements";
-import { bindSides, fillSide, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
+import { bindSides, fillSide, itemDoneText, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
 import { bindShop, shopCard } from "../lib/shopUi";
@@ -214,6 +214,13 @@ export function partyPage(): Page {
       unbindSides = bindSides(root, (charId) => {
         const p = view?.players.find((x) => x.characterId === charId);
         if (p) openSheet(async () => (await partyApi.sheet(me, p.id)).character, data, () => view?.world);
+      }, async (action, name) => {
+        const before = view?.world?.hp[me.characterId];
+        try {
+          apply(await partyApi.shop(me, action, name));
+          renderBelow();
+          toast(itemDoneText(action, name, before, view?.world?.hp[me.characterId]), "success", 3500);
+        } catch (e) { toast((e as Error).message, "error", 6000); }
       });
       const storyEl = $("#story", root), belowEl = $("#below", root);
       $("#help", root).addEventListener("click", () => showTutorial(`gruppe-${code}`, PARTY_TUTORIAL, true));
