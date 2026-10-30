@@ -87,8 +87,9 @@ export function mountHeroDie(host: HTMLElement): HeroDie {
     if ((!visible && !throwState) || document.hidden) return;
     const moved = !!throwState;
     if (throwState) {
-      const el = now - throwState.start;
-      if (el < tumbleMs) {
+      // Der Bild-Zeitstempel kann knapp vor dem Klick liegen – nie negativ rechnen (ohne Taumeln: sonst Division durch 0)
+      const el = Math.max(0, now - throwState.start);
+      if (tumbleMs > 0 && el < tumbleMs) {
         const speed = 18 * (1 - el / tumbleMs) + 4;
         die.rotateOnWorldAxis(axis, dt * speed);
         die.rotation.z += dt * speed * 0.3;
