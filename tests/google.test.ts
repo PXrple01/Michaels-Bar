@@ -64,12 +64,15 @@ describe("Google-Testphase", () => {
     expect(broke.active()).toBe(false);
   });
 
-  it("Vorlesen: im Zeitfenster Chirp-Stimmen (Erzähler Charon), sonst wie bisher", async () => {
+  it("Vorlesen: im Zeitfenster Gemini-TTS (Erzähler Charon, mit Regieanweisung), auf Wunsch Chirp", async () => {
     const calls: string[] = [];
     const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle(calls));
     const a = new AudioMaker({ store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls) });
     const r = await a.speak("Nebel hängt über dem Kloster.");
     expect(r.costUsd).toBeGreaterThan(0);
+    expect(calls).toContain("voice:Charon");
+    const c = new AudioMaker({ store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls), geminiTtsModel: "chirp" });
+    await c.speak("Nebel hängt über dem Kloster.");
     expect(calls).toContain("voice:de-DE-Chirp3-HD-Charon");
   });
 

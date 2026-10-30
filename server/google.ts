@@ -24,6 +24,8 @@ export interface GoogleEnv {
    * Startguthaben meist NICHT abdeckt – es würde echt abgerechnet. Bilder und Stimme laufen auch ohne über Google.
    */
   GOOGLE_CLAUDE?: string;
+  /** Stimme in der Testphase: Gemini-TTS-Modell (Standard gemini-2.5-pro-tts) oder „chirp“. */
+  GOOGLE_TTS_MODEL?: string;
   /** Region für Claude (Standard: global). */
   GOOGLE_REGION?: string;
   /** Region für Imagen (Standard: us-central1). */

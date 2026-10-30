@@ -29,6 +29,15 @@ export function chirpVoice(voice: string): string {
   const name = voice === NARRATOR ? "Charon" : m >= 0 ? C_MALE[m % C_MALE.length] : f >= 0 ? C_FEMALE[f % C_FEMALE.length] : "Zephyr";
   return `de-DE-Chirp3-HD-${name}`;
 }
+/**
+ * Gemini-TTS (beste Google-Stimmen, mit Regieanweisung). Dieselben Stimmnamen wie Chirp. Richtwert: etwa 0,04 $ je
+ * 1000 Zeichen (Audio-Token), aus dem Testguthaben bezahlt.
+ */
+const GEMINI_TTS_USD_PER_1000 = 0.04;
+const GEMINI_TTS_DIRECTION: Record<"narrator" | "figure", string> = {
+  narrator: "Lies wie ein erfahrener deutscher Hörbuchsprecher ein mittelalterliches Abenteuer vor: warm, ruhig und bildhaft, mit Spannung, natürlichen Pausen und lebendiger Betonung – nie monoton.",
+  figure: "Sprich als Figur in einem mittelalterlichen Abenteuer: lebendig, natürlich und mit passender Emotion, wie ein guter Synchronsprecher.",
+};
 /** Chirp 3 HD (Richtwert, aus dem Testguthaben bezahlt): 30 $ je Million Zeichen. */
 const CHIRP_USD_PER_1000 = 0.03;
 const ttsMonthKey = (d = new Date()) => `tts-chars-${d.toISOString().slice(0, 7)}`;
@@ -60,7 +69,7 @@ export type Mood = keyof typeof MOODS;
 export const isMood = (m: unknown): m is Mood => typeof m === "string" && m in MOODS;
 
 export class AudioMaker {
-  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null }) {}
+  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (Standard gemini-2.5-pro-tts), „chirp“ = nur Chirp */ geminiTtsModel?: string }) {}
 
   get ready() { return !!this.o.key || !!this.o.googleKey || !!this.o.google?.active(); }
 
@@ -123,6 +132,10 @@ export class AudioMaker {
     // Testphase: Chirp-Stimmen über das Dienstkonto
     const g = this.o.google;
     if (g?.active()) {
+      if (this.o.geminiTtsModel !== "chirp") {
+        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel || "gemini-2.5-pro-tts"); }
+        catch (e) { console.error("[Ton] Gemini-Stimme fehlgeschlagen, lese mit Chirp:", (e as Error).message); }
+      }
       try { return await this.speakChirp(g, clean, voice); }
       catch (e) {
         const status = e instanceof GoogleError ? e.status : undefined;
@@ -148,6 +161,26 @@ export class AudioMaker {
     if (!url) throw new Error("fal.ai hat keinen Ton geliefert.");
     await this.o.store.put(id, await this.download(url, "audio/mpeg"));
     return { url: `/api/images/${id}`, costUsd: (clean.length / 1000) * TTS_USD_PER_1000 };
+  }
+
+  /** Gemini-TTS: dieselbe Stimme wie bei Chirp, dazu eine Regieanweisung für Ton und Tempo. */
+  private async speakGemini(g: GoogleCloud, clean: string, voice: string, model: string): Promise<{ url: string; costUsd: number }> {
+    const name = chirpVoice(voice).replace("de-DE-Chirp3-HD-", "");
+    const id = `tts-${createHash("sha256").update(`g|${model}|${name}|${clean}`).digest("hex").slice(0, 32)}`;
+    if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
+    const res = await (this.o.fetch ?? fetch)(GOOGLE_TTS_URL, {
+      method: "POST",
+      headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
+      body: JSON.stringify({ input: { text: clean, prompt: GEMINI_TTS_DIRECTION[voice === NARRATOR ? "narrator" : "figure"] }, voice: { languageCode: "de-DE", name, modelName: model }, audioConfig: { audioEncoding: "MP3" } }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) throw new GoogleError(`Gemini-TTS ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
+    const out = (await res.json()) as { audioContent?: string };
+    if (!out.audioContent) throw new GoogleError("Google hat keinen Ton geliefert", 200);
+    await this.o.store.put(id, { type: "audio/mpeg", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
+    const usd = (clean.length / 1000) * GEMINI_TTS_USD_PER_1000;
+    await g.addSpend(usd);
+    return { url: `/api/images/${id}`, costUsd: usd };
   }
 
   /** Chirp-3-HD-Stimme (Testphase, aus dem Guthaben bezahlt – zählt nicht zum Gratis-Kontingent). */
