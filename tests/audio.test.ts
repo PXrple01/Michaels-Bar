@@ -135,3 +135,16 @@ describe("Vorlesen in WAV-Qualität", () => {
     expect(joinAudio([{ type: "audio/mpeg", bytes: new Uint8Array([1]) }, { type: "audio/mpeg", bytes: new Uint8Array([2]) }]).bytes).toEqual(new Uint8Array([1, 2]));
   });
 });
+
+describe("Vorlesen vorbereiten", () => {
+  it("nur in der Google-Testphase – sonst übersprungen, ohne Kosten", async () => {
+    const path = await import("node:path");
+    const { createClaude } = await import("../server/gm/setup");
+    const { loadGameData } = await import("../server/rules/loader");
+    const { RollLog } = await import("../server/dice/log");
+    const { MemoryCounterStore } = await import("../server/gm/usage");
+    const data = await loadGameData(path.resolve(__dirname, "../data"));
+    const claude = createClaude({}, () => data, new RollLog(), new MemoryCounterStore(), "s".repeat(20));
+    expect(await claude.speak("Nebel über dem Kloster.", "t", undefined, true)).toEqual({ skipped: true });
+  });
+});

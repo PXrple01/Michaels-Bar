@@ -2,7 +2,7 @@ import { letterStore, offerLetters } from "../lib/letters";
 import { exportSave, importSaveFile } from "../lib/saveTransfer";
 import type { ItemAction } from "../../../shared/inventory";
 import { setMusic } from "../lib/music";
-import { readButton, setVoiceCast } from "../lib/voice";
+import { prepareRead, readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
 import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
@@ -538,6 +538,7 @@ export function playPage(): Page {
           save!.imageUsd = (save!.imageUsd ?? 0) + (ev.turnImageUsd ?? 0);
           persist();
           renderWorld();
+          prepareRead(storyEl); // Vorlesen schon vorbereiten – ▶ spielt dann sofort
           void offerLetters(save!.id, character.name, worldBefore, ev.state.world, async (chapter) => {
             let got: { title: string; text: string } | null = null;
             await streamGm("letter", { character, state: save!.state, chapter }, (e) => { if (e.type === "letter") got = { title: e.title, text: e.text }; });

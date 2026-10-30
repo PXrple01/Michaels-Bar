@@ -1,6 +1,6 @@
 import { offerLetters } from "../lib/letters";
 import { setMusic } from "../lib/music";
-import { readButton, setVoiceCast } from "../lib/voice";
+import { prepareRead, readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
 import { noteLegacy } from "../lib/legacy";
 import { sceneFigure } from "../lib/sceneImage";
@@ -532,6 +532,8 @@ export function partyPage(): Page {
         busyLocal = false;
         try { apply(await partyApi.state(me)); } catch { /* nächster Poll */ }
         renderBelow();
+        // Wer den Zug ausgelöst hat, bereitet das Vorlesen vor (gespeichert für alle – die anderen spielen dann sofort ab)
+        prepareRead(storyEl);
       }
 
       async function doRoll() {

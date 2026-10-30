@@ -45,7 +45,8 @@ export interface Claude {
   /** Figurenporträt: Claude schreibt die Bildbeschreibung, fal.ai malt (prüft die Figur, bucht die Kosten). */
   portrait(raw: unknown, who: string): Promise<{ url: string; costUsd: number; claudeUsd: number }>;
   /** Vorlesen und Stimmungsmusik (prüfen Budget und buchen die Kosten). */
-  speak(text: unknown, who: string, segments?: unknown): Promise<{ url: string; costUsd: number }>;
+  /** prefetch: im Hintergrund vorbereiten (nur in der Google-Testphase – sonst { skipped: true }, ohne Kosten). */
+  speak(text: unknown, who: string, segments?: unknown, prefetch?: boolean): Promise<{ url: string; costUsd: number } | { skipped: true }>;
   music(mood: unknown, who: string): Promise<{ url: string; costUsd: number }>;
   /** Googles Budget-Meldung (echter Verbrauch) für den Ausgabe-Regler. */
   googleBudget(token: unknown, body: unknown): Promise<{ status: number; body: unknown }>;
@@ -71,7 +72,9 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
     gm,
     images,
     audio,
-    async speak(text, who, segments) {
+    async speak(text, who, segments, prefetch) {
+      // Vorab-Vorlesen nur, solange das Guthaben zahlt – danach nicht das Gratis-Kontingent für Ungehörtes verbrauchen
+      if (prefetch && !google?.active()) return { skipped: true as const };
       const segs = Array.isArray(segments) ? segments.filter((s): s is Segment => !!s && typeof (s as Segment).text === "string") : null;
       if (!segs?.length && (typeof text !== "string" || !text.trim())) throw new Error("Kein Text zum Vorlesen.");
       await guard.check(who);
