@@ -109,7 +109,7 @@ export type Mood = keyof typeof MOODS;
 export const isMood = (m: unknown): m is Mood => typeof m === "string" && m in MOODS;
 
 export class AudioMaker {
-  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (Standard gemini-2.5-flash-tts), „chirp“ = nur Chirp */ geminiTtsModel?: string }) {}
+  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (z. B. gemini-2.5-flash-tts); ohne = Chirp 3 HD */ geminiTtsModel?: string }) {}
 
   get ready() { return !!this.o.key || !!this.o.googleKey || !!this.o.google?.active(); }
 
@@ -175,8 +175,9 @@ export class AudioMaker {
     // Testphase: Chirp-Stimmen über das Dienstkonto
     const g = this.o.google;
     if (g?.active()) {
-      if (this.o.geminiTtsModel !== "chirp") {
-        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel || "gemini-2.5-flash-tts"); }
+      // Standard Chirp 3 HD; Gemini-TTS nur, wenn GOOGLE_TTS_MODEL ein Gemini-Modell nennt
+      if (this.o.geminiTtsModel?.startsWith("gemini")) {
+        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel); }
         catch (e) { console.error("[Ton] Gemini-Stimme fehlgeschlagen, lese mit Chirp:", (e as Error).message); }
       }
       try { return await this.speakChirp(g, clean, voice); }
