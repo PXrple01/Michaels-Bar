@@ -41,6 +41,7 @@ export interface GmOptions {
   images?: ImageMaker;
   moreImages?: () => Promise<boolean>;
   allEnemyPortraits?: () => boolean;
+  wallMs?: number;
 }
 
 interface Saved { messages: MessageParam[]; world: WorldState; held: ToolResult[] }

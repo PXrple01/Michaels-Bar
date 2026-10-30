@@ -122,8 +122,8 @@ export class ImageMaker {
       method: "POST",
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
       body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: IMAGEN_RATIO[shape] } } }),
-      // Höchstens 40 s – sonst malt fal.ai (schnell), damit der Zug nicht zu lange dauert
-      signal: AbortSignal.timeout(40_000),
+      // Höchstens 30 s – sonst malt fal.ai (schnell), damit der Zug nicht zu lange dauert
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) throw new GoogleError(`Nano Banana ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[] };

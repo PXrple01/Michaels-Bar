@@ -285,3 +285,17 @@ describe("Bilder im Hintergrund", () => {
     expect(done(evs).turnImageUsd).toBeGreaterThanOrEqual(0.134);
   });
 });
+
+describe("Gesamtzeit eines Zugs", () => {
+  it("zu langsame Bilder werden übersprungen – der Zug endet trotzdem rechtzeitig", async () => {
+    const llm = new FakeLlm([tools("Die Burg.\n» Vorschläge: Eintreten | Umkehren", { id: "toolu_b2", name: "bild", input: { motiv: "A castle", titel: "Burg" } })]);
+    const images = { ready: true, make: async () => { await new Promise((r) => setTimeout(r, 3000)); return { url: "/api/images/y", costUsd: 0.134 }; } };
+    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET, images: images as never, wallMs: 300 });
+    const evs: GmEvent[] = [];
+    const t0 = Date.now();
+    await gm.run("start", { character, previousOpenings: [] }, "t", (e) => evs.push(e));
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(done(evs)).toBeTruthy();
+    expect(evs.some((e) => e.type === "image")).toBe(false);
+  });
+});

@@ -160,6 +160,8 @@ export interface NarratorOptions {
   moreImages?: () => Promise<boolean>;
   /** Jeder Gegner bekommt ein Porträt, nicht nur besondere (in der Google-Testphase – das Guthaben zahlt). */
   allEnemyPortraits?: () => boolean;
+  /** Gesamtzeit eines Zugs inklusive Bilder (Standard WALL_MS). */
+  wallMs?: number;
 }
 
 /** Alles, was ein Zug über die Szene wissen muss. `world` wird von den Werkzeugen verändert. */
@@ -170,6 +172,19 @@ export interface Scene {
   onRoll: (record: RollRecord) => void;
   /** Ein Szenenbild ist fertig (Werkzeug bild). */
   onImage?: (img: SceneImage) => void;
+  /** Bis wann der ganze Zug fertig sein muss (Netlify beendet nach rund einer Minute) – Bilder warten höchstens bis dahin. */
+  wallEnd?: number;
+}
+
+/** Gesamtzeit eines Zugs inklusive Bilder: darüber beendet Netlify die Verbindung. */
+export const WALL_MS = 54_000;
+/** Auf Hintergrund-Arbeit höchstens bis `end` warten – was dann noch läuft, wird übersprungen. */
+async function until(end: number, work: Promise<unknown>[]): Promise<void> {
+  const left = end - Date.now();
+  if (left <= 0) return;
+  let t: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([Promise.all(work), new Promise((r) => { t = setTimeout(r, left); })]);
+  clearTimeout(t);
 }
 
 export type ToolResult = Anthropic.Beta.BetaToolResultBlockParam;
@@ -212,11 +227,18 @@ export class Narrator {
     // Luxus-Stufe: spätestens jeder dritte Zug bekommt ein Bild
     const stale = (world.sinceImage ?? 0) >= 2 && !!(await this.o.moreImages?.().catch(() => false));
     const due = !o.painted && !world.arc?.finished && o.narration.trim().length >= 40 && (newChapter || fightOver || moved || stale);
-    const [scene, map, faces] = await Promise.all([
-      due ? this.autoScene(o) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 }),
-      this.mapBackground(world),
-      this.npcPortraits(world),
+    // Höchstens bis zum Ende der Gesamtzeit warten; was dann nicht fertig ist, kommt beim nächsten Zug (bzw. entfällt)
+    const end = o.scene.wallEnd ?? Date.now() + 40_000;
+    if (end - Date.now() < 3_000) return { imageUsd: 0, claudeUsd: 0 };
+    let scene = { imageUsd: 0, claudeUsd: 0 }, map = 0, faces = 0;
+    const late: SceneImage[] = [];
+    const inTime = { ...o, scene: { ...o.scene, onImage: (img: SceneImage) => { late.push(img); } } };
+    await until(end, [
+      (due ? this.autoScene(inTime) : Promise.resolve({ imageUsd: 0, claudeUsd: 0 })).then((r) => { scene = r; }),
+      this.mapBackground(world).then((r) => { map = r; }),
+      this.npcPortraits(world).then((r) => { faces = r; }),
     ]);
+    for (const img of late) o.scene.onImage?.(img);
     world.sinceImage = o.painted || scene.imageUsd > 0 ? 0 : (world.sinceImage ?? 0) + 1;
     return { imageUsd: scene.imageUsd + map + faces, claudeUsd: scene.claudeUsd };
   }
@@ -261,6 +283,9 @@ export class Narrator {
    * Porträts für wichtige Personen, Begleiter und besondere Gegner, deren Aussehen Claude angegeben hat (höchstens 3 je Zug).
    * In der Google-Testphase bekommt jeder Gegner eines – gleiche Gegner („Räuber 1“, „Räuber 2“) teilen sich das Bild.
    */
+  /** Porträts, die gerade gemalt werden – damit dieselbe Person nicht doppelt gemalt (und bezahlt) wird. */
+  private painting = new WeakSet<object>();
+
   private async npcPortraits(world: WorldState): Promise<number> {
     type Holder = { name: string; look?: string; portrait?: string };
     const enemies = world.combat?.enemies ?? [];
@@ -281,7 +306,8 @@ export class Narrator {
       ...(world.companions ?? []).map((c) => ({ who: c as Holder, role: c.role })),
       ...(world.people ?? []).map((p) => ({ who: p as Holder, role: p.role })),
       ...(world.combat?.enemies ?? []).map((e) => ({ who: e as Holder, role: "" })),
-    ].filter((f) => f.who.look && !f.who.portrait).slice(0, 3);
+    ].filter((f) => f.who.look && !f.who.portrait && !this.painting.has(f.who)).slice(0, 3);
+    for (const f of faces) this.painting.add(f.who);
     const enemyIds = new Set((world.combat?.enemies ?? []).map((e) => e.name));
     const costs = await Promise.all(faces.map(async ({ who, role }) => {
       try {
@@ -296,6 +322,7 @@ export class Narrator {
         await this.o.guard.addUsd(usd);
         return usd;
       } catch (e) { console.error("[Bilder] Porträt", who.name, (e as Error).message); who.look = undefined; return 0; }
+      finally { this.painting.delete(who); }
     }));
     return costs.reduce((a, b) => a + b, 0);
   }
@@ -545,6 +572,7 @@ export class Narrator {
     const usage = { input: 0, output: 0 };
     const budget = this.o.turnBudgetMs ?? TURN_BUDGET_MS;
     const deadline = Date.now() + budget;
+    scene.wallEnd ??= Date.now() + (this.o.wallMs ?? WALL_MS);
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), budget);
     // Bilder und Porträts malen im Hintergrund, während Claude weitererzählt (Nano Banana Pro braucht bis zu einer Minute –
@@ -554,7 +582,7 @@ export class Narrator {
     const later = { ...scene, onImage: (img: SceneImage) => { shown.push(img); } };
     const finish = async <T extends { imageUsd: number }>(r: T): Promise<T> => {
       clearTimeout(timer);
-      await Promise.all(background);
+      await until(scene.wallEnd!, background); // nicht länger als die Gesamtzeit
       for (const img of shown) scene.onImage?.(img);
       return { ...r, imageUsd }; // inklusive der Bilder, die erst im Hintergrund fertig wurden
     };
