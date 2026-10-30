@@ -51,9 +51,15 @@ export function ensureInventory(w: WorldState, characters: Pick<Character, "id" 
     const items: InvItem[] = [];
     for (const id of c.equipment ?? []) {
       const it = rules.items.find((i) => i.id === id);
-      if (it) addItem({ items, money: 0 }, { name: it.name, qty: 1, kind: KIND_OF[it.type] ?? "gegenstand" });
+      if (!it) continue;
+      if (it.type === "consumable") {
+        // „Heilsalbe (3)“ mit „Heilt 1W4+1 …“ → 3× Heilsalbe, heilt 1W4+1 (per Knopf nutzbar)
+        const m = /^(.*?)\s*\((\d+)\)$/.exec(it.name);
+        const stats = cleanStats({ heilung: /heilt\s+(\S+)/i.exec(it.effect)?.[1] });
+        addItem({ items, money: 0 }, { name: m ? m[1] : it.name, qty: m ? Math.max(1, Number(m[2])) : 1, kind: "trank", note: it.effect, ...(stats ? { stats } : {}) });
+      } else addItem({ items, money: 0 }, { name: it.name, qty: 1, kind: KIND_OF[it.type] ?? "gegenstand" });
     }
-    fillSlots({ items, money: 0 });
+    for (const slot of SLOTS) fillSlot({ items, money: 0 }, slot);
     w.inventory[c.id] = { items, money: toPfennig(c.money ?? {}) };
   }
 }
@@ -64,32 +70,32 @@ export const findItem = (inv: Inventory, name: string) => inv.items.find((i) => 
 export function addItem(inv: Inventory, item: InvItem): string | null {
   const { equipped: _, ...clean } = item;
   const has = inv.items.find((i) => same(i.name, item.name));
-  if (has) { has.qty += item.qty; if (item.note) has.note = item.note; if (item.stats) has.stats = item.stats; fillSlots(inv, has); return null; }
+  if (has) { has.qty += item.qty; if (item.note) has.note = item.note; if (item.stats) has.stats = item.stats; fillSlot(inv, slotOf(has), has); return null; }
   if (inv.items.length >= MAX_ITEMS) return `Das Gepäck ist voll (höchstens ${MAX_ITEMS} verschiedene Dinge).`;
   const added = { ...clean };
   inv.items.push(added);
-  fillSlots(inv, added);
+  fillSlot(inv, slotOf(added), added);
   return null;
 }
 
 const statSum = (i: InvItem) => (i.stats?.angriff ?? 0) + (i.stats?.schaden ?? 0) + (i.stats?.ruestung ?? 0);
 
 /**
- * Leere Plätze automatisch belegen: mit dem neuen Stück bzw. dem besten übrigen. Ein neues Stück mit Werten ersetzt
- * außerdem ein angelegtes ohne Werte (z. B. das alte Schwert vom Start) – bewusst Gewechseltes bleibt sonst, wie es ist.
+ * Einen leeren Platz automatisch belegen: mit dem neuen Stück bzw. dem besten übrigen. Ein neues Stück mit Werten ersetzt
+ * außerdem ein angelegtes ohne Werte (z. B. das alte Schwert vom Start). Nur der Platz des neuen bzw. verlorenen Stücks –
+ * was ein Spieler selbst abgelegt hat, bleibt abgelegt.
  */
-function fillSlots(inv: Inventory, fresh?: InvItem) {
-  for (const slot of SLOTS) {
-    const worn = inv.items.find((i) => i.equipped && slotOf(i) === slot);
-    if (fresh && slotOf(fresh) === slot && fresh !== worn && (!worn || (!statSum(worn) && statSum(fresh)))) {
-      if (worn) worn.equipped = false;
-      fresh.equipped = true;
-      continue;
-    }
-    if (worn) continue;
-    const best = inv.items.filter((i) => slotOf(i) === slot).sort((a, b) => statSum(b) - statSum(a))[0];
-    if (best) best.equipped = true;
+function fillSlot(inv: Inventory, slot: Slot | null, fresh?: InvItem) {
+  if (!slot) return;
+  const worn = inv.items.find((i) => i.equipped && slotOf(i) === slot);
+  if (fresh && fresh !== worn && (!worn || (!statSum(worn) && statSum(fresh)))) {
+    if (worn) worn.equipped = false;
+    fresh.equipped = true;
+    return;
   }
+  if (worn || fresh) return;
+  const best = inv.items.filter((i) => slotOf(i) === slot).sort((a, b) => statSum(b) - statSum(a))[0];
+  if (best) best.equipped = true;
 }
 
 /** Anlegen oder ablegen (auch im Kampf). Fehlertext oder null. */
@@ -98,6 +104,7 @@ export function equipItem(inv: Inventory, name: string, on: boolean): string | n
   if (!item) return "Das ist nicht in deinem Gepäck.";
   const slot = slotOf(item);
   if (!slot) return `„${item.name}“ kann man nicht anlegen.`;
+  if (!!item.equipped === on) return `„${item.name}“ ist schon ${on ? "angelegt" : "abgelegt"}.`;
   if (on) inv.items.forEach((i) => { if (slotOf(i) === slot) i.equipped = false; });
   item.equipped = on;
   return null;
@@ -109,7 +116,7 @@ export function removeItem(inv: Inventory, name: string, qty: number): { item: I
   if (!has) return { error: `„${name}“ ist nicht im Gepäck. Vorhanden: ${inv.items.map((i) => (i.qty > 1 ? `${i.qty}× ${i.name}` : i.name)).join(", ") || "nichts"}.` };
   if (has.qty < qty) return { error: `Nur ${has.qty}× „${has.name}“ vorhanden.` };
   has.qty -= qty;
-  if (has.qty <= 0) { inv.items.splice(inv.items.indexOf(has), 1); if (has.equipped) fillSlots(inv); }
+  if (has.qty <= 0) { inv.items.splice(inv.items.indexOf(has), 1); if (has.equipped) fillSlot(inv, slotOf(has)); }
   return { item: has };
 }
 

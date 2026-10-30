@@ -161,7 +161,9 @@ function closeItemMenu() {
   itemMenu?.remove();
   itemMenu = null;
   removeEventListener("pointerdown", menuOutside);
+  removeEventListener("keydown", menuKey);
 }
+const menuKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeItemMenu(); };
 const menuOutside = (e: Event) => { if (itemMenu && !itemMenu.contains(e.target as Node) && !(e.target as HTMLElement).closest("[data-use-item]")) closeItemMenu(); };
 
 /** Kleines Menü direkt am Gegenstand: Trinken, Anlegen/Ablegen, Benutzen (als Text an den Spielleiter). */
@@ -182,7 +184,7 @@ function openItemMenu(anchor: HTMLElement, name: string, heal: string | undefine
   menu.style.left = `${Math.max(0, Math.min(anchor.offsetLeft, (menu.parentElement!.clientWidth || 240) - 200))}px`;
   itemMenu = menu;
   (menu.querySelector("button") as HTMLButtonElement).focus();
-  setTimeout(() => addEventListener("pointerdown", menuOutside));
+  setTimeout(() => { addEventListener("pointerdown", menuOutside); addEventListener("keydown", menuKey); });
 }
 
 /** Was ist neu im eigenen Gepäck? (für den kurzen Beute-Hinweis) */

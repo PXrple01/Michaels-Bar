@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { cleanStats, ensureInventory, fromPfennig, moneyText, rarityOf, toPfennig, useItem } from "../shared/inventory";
-import { bonusParts, bonusTotal } from "../shared/shop";
+import { bonusParts, bonusTotal, sellPrice } from "../shared/shop";
 import { initWorld } from "../shared/world";
 import { buildCharacter } from "../server/characters";
 import { RollLog } from "../server/dice/log";
@@ -35,6 +35,7 @@ describe("Inventar und Geld", () => {
     const names = w.inventory![hagen.id].items.map((i) => i.name);
     expect(names).toContain("Langschwert");
     expect(w.inventory![hagen.id].money).toBe(toPfennig(hagen.money));
+    expect(w.inventory![agnes.id].items.find((i) => i.name === "Heilsalbe")).toMatchObject({ qty: 3, kind: "trank", stats: { heilung: "1W4+1" } });
   });
 
   it("finden, verbrauchen (nur was da ist), weitergeben", async () => {
@@ -93,6 +94,11 @@ describe("Inventar und Geld", () => {
     expect(useItem(w, hagen, data.rules, "anlegen", "Langschwert", roll)).toBeNull();
     expect(bonusTotal(w, hagen.id, "angriff")).toBe(1);
     expect(useItem(w, hagen, data.rules, "anlegen", "Brot", roll)).toMatch(/nicht in deinem Gepäck/);
+    expect(useItem(w, hagen, data.rules, "anlegen", "Langschwert", roll)).toMatch(/schon angelegt/);
+    // Selbst abgelegt bleibt abgelegt – auch wenn danach etwas anderes ins Gepäck kommt
+    expect(useItem(w, hagen, data.rules, "ablegen", "Turmschild", roll)).toBeNull();
+    await run("gegenstand", { figur: "Hagen", aktion: "erhalten", name: "Fackel", art: "werkzeug" });
+    expect(inv.items.some((i) => i.kind === "schild" && i.equipped)).toBe(false);
     // Verliert man das angelegte Stück, rückt das beste übrige nach
     await run("gegenstand", { figur: "Hagen", aktion: "verlieren", name: "Langschwert" });
     expect(inv.items.find((i) => i.name === "Runenschwert")?.equipped).toBe(true);
@@ -113,6 +119,17 @@ describe("Inventar und Geld", () => {
     expect(useItem(w, agnes, data.rules, "trinken", "Langschwert", roll)).toBeTruthy();
     expect(turnSummary(w, [hagen, agnes], data.rules)).toContain("Agnes trinkt Heiltrank und heilt 5 TP");
     expect(w.itemLog).toEqual([]);
+    // Neuer Kampf: Runde 1 ist wieder frei, auch wenn im alten Kampf in Runde 1 getrunken wurde
+    w.combat.round = 1; w.drank = { [agnes.id]: 1 };
+    await run("kampf_beginnen", { gegner: [{ name: "Wolf", trefferpunkte: 6, ruestung: 11 }] });
+    w.hp[agnes.id] = 1;
+    expect(useItem(w, agnes, data.rules, "trinken", "Heiltrank", roll)).toBeNull();
+  });
+
+  it("Seltene Stücke bringen beim Händler mehr", () => {
+    const shop = { name: "Krämer", kind: "haendler" as const, wares: [], log: [] };
+    expect(sellPrice(shop, { name: "Glutklinge", kind: "waffe", stats: { angriff: 3, schaden: 2, seltenheit: "sagenhaft" } })).toBe(720);
+    expect(sellPrice(shop, { name: "Dolch", kind: "waffe" })).toBe(72);
   });
 
   it("Claude sieht das Inventar im Spielstand – danach nur bei Änderungen", async () => {

@@ -1,6 +1,6 @@
 // Händler und Schmiede: Claude öffnet einen Laden mit Waren und Preisen, gekauft und verkauft wird über die Oberfläche –
 // ohne Modellaufruf und ohne Mogeln (der Server prüft Geld, Bestand und Grenzen). Claude erfährt die Einkäufe im nächsten Zug.
-import { addItem, ensureInventory, findItem, itemBonuses, itemText, moneyText, removeItem, type ItemKind, type ItemStats } from "./inventory";
+import { addItem, ensureInventory, findItem, itemBonuses, itemText, moneyText, rarityOf, removeItem, type InvItem, type ItemKind, type ItemStats, type Rarity } from "./inventory";
 import type { Character, Rules } from "./schema";
 import type { WorldState } from "./world";
 
@@ -24,10 +24,12 @@ export function bonusParts(w: WorldState | null | undefined, id: string, target:
 }
 export const bonusTotal = (w: WorldState | null | undefined, id: string, target: BonusTarget) => bonusParts(w, id, target).reduce((n, p) => n + p.value, 0);
 
-/** Was ein Händler für einen Gegenstand zahlt: die Hälfte seines eigenen Preises, sonst ein fester Satz je Art. */
-export function sellPrice(shop: Shop, item: { name: string; kind: ItemKind }): number {
+const RARITY_PRICE: Record<Rarity, number> = { gewoehnlich: 1, ungewoehnlich: 2, selten: 4, sagenhaft: 10 };
+
+/** Was ein Händler für einen Gegenstand zahlt: die Hälfte seines eigenen Preises, sonst ein fester Satz je Art (seltenere Stücke mehr). */
+export function sellPrice(shop: Shop, item: Pick<InvItem, "name" | "kind" | "stats">): number {
   const ware = shop.wares.find((x) => x.name.toLowerCase() === item.name.toLowerCase());
-  return Math.max(1, Math.floor(ware ? ware.price / 2 : RESALE[item.kind] ?? 12));
+  return Math.max(1, Math.floor(ware ? ware.price / 2 : (RESALE[item.kind] ?? 12) * RARITY_PRICE[rarityOf(item)]));
 }
 
 /** Kaufen oder verkaufen. Gibt einen Fehlertext zurück – oder null, wenn es geklappt hat. */

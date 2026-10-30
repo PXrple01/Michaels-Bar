@@ -45,7 +45,7 @@ function sheetBody(c: Character, data: GameData, w: WorldState | null | undefine
       ${atk ? html`<div title="${atk.weapon}">${icon("sword")}<b>${formatModifier(atk.attackBonus + gear.angriff)}</b><small>Angriff</small></div>
         <div title="${atk.weapon}">${icon("zap")}<b>${atk.damage}${atk.damageBonus + gear.schaden ? formatModifier(atk.damageBonus + gear.schaden) : ""}</b><small>Schaden</small></div>` : ""}
     </div>
-    ${atk ? html`<small class="muted cs-weapon">Waffe: ${atk.weapon}${gear.angriff || gear.schaden || gear.ruestung ? ` · Boni: ${[...new Set([...parts.angriff, ...parts.schaden, ...parts.ruestung].map((p) => p.label))].join(", ")}` : ""}</small>` : ""}
+    ${atk ? html`<small class="muted cs-weapon">Waffe: ${w?.inventory?.[c.id]?.items.find((i) => i.equipped && i.kind === "waffe")?.name ?? atk.weapon}${gear.angriff || gear.schaden || gear.ruestung ? ` · Boni: ${[...new Set([...parts.angriff, ...parts.schaden, ...parts.ruestung].map((p) => p.label))].join(", ")}` : ""}</small>` : ""}
     <div class="cs-sec">${icon("star")} Attribute</div>
     <div class="cs-attrs">${rules.attributes.map((a) => html`<div class="${cls.primaryAttributes.includes(a.id) ? "primary" : ""}" title="${a.description}">
       <small>${a.short}</small><b>${formatModifier(modifier(c.attributes[a.id]))}</b><span>${c.attributes[a.id]}</span></div>`)}</div>

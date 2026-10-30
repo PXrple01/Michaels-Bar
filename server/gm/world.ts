@@ -230,6 +230,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       const seen: Record<string, number> = {};
       for (const e of enemies) if (total[e.name] > 1) { seen[e.name] = (seen[e.name] ?? 0) + 1; e.name = `${e.name} ${seen[e.name]}`; }
       w.combat = { round: 1, enemies };
+      w.drank = {}; // Trank-Knopf: neuer Kampf, neue Runden
       w.shop = null; // im Kampf wird nicht gehandelt
       resetUses(w, "kampf"); // neuer Kampf: „1× pro Kampf“ ist wieder frei
       return { content: `Kampf beginnt (Runde 1). Gegner: ${enemies.map((e) => `${e.name} (${e.hp} TP, Rüstung ${e.armor})`).join(", ")}. Die Figuren handeln zuerst; Angriffe der Figuren verlangst du mit probe_anfordern (art attack, ziel = Gegnername – den Schaden würfelt der Server bei einem Treffer gleich mit), Gegnerangriffe mit gegner_greift_an in derselben Antwort.` };
