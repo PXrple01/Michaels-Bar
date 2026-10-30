@@ -23,6 +23,12 @@ export const PERK_IDS = Object.keys(PERKS) as PerkId[];
 /* ── Narben ── */
 
 export const SCARS_MAX = 3;
+
+/* ── Erbstück-Truhe ── */
+
+/** Ab so vielen abgeschlossenen Abenteuern („Wiedergeburten“) fasst die Truhe zwei Gegenstände. */
+export const HEIRLOOM_TWO_AFTER = 3;
+export const heirloomSlots = (g: { earned: string[] }) => (g.earned.length >= HEIRLOOM_TWO_AFTER ? 2 : 1);
 export interface Scar { campaign: string; name: string; text: string }
 
 /* ── Meisterschaft ── */
@@ -45,14 +51,15 @@ export const growthSchema = z.object({
   earned: z.array(z.string().max(80)).max(500).default([]),
   perks: z.record(z.string(), z.number().int().min(0).max(5)).default({}) as unknown as z.ZodDefault<z.ZodType<Partial<Record<PerkId, number>>>>,
   scars: z.array(z.object({ campaign: z.string().max(80), name: z.string().max(60), text: z.string().max(160) })).max(SCARS_MAX).default([]),
-  heirloom: heirloomSchema.nullable().optional(),
+  /** Erbstück-Truhe: 1 Platz, ab HEIRLOOM_TWO_AFTER abgeschlossenen Abenteuern 2. */
+  heirlooms: z.array(heirloomSchema).max(2).default([]),
   /** Einsätze je Abenteuer und Fähigkeit (damit nichts doppelt zählt). */
   uses: z.record(z.string().max(80), z.record(z.string().max(60), z.number().int().min(0).max(999))).default({}),
-}).refine((g) => Object.keys(g.perks).every((p) => p in PERKS && (g.perks[p as PerkId] ?? 0) <= PERKS[p as PerkId].max), "Unbekannter oder zu oft gewählter Vorteil");
+}).refine((g) => g.heirlooms.length <= heirloomSlots(g), "Zu viele Erbstücke für die Truhe").refine((g) => Object.keys(g.perks).every((p) => p in PERKS && (g.perks[p as PerkId] ?? 0) <= PERKS[p as PerkId].max), "Unbekannter oder zu oft gewählter Vorteil");
 export type Growth = z.infer<typeof growthSchema>;
 
 type WithGrowth = { id: string; growth?: Growth | null };
-export const growthOf = (c: WithGrowth | null | undefined): Growth => c?.growth ?? { fame: 0, earned: [], perks: {}, scars: [], heirloom: null, uses: {} };
+export const growthOf = (c: WithGrowth | null | undefined): Growth => c?.growth ?? { fame: 0, earned: [], perks: {}, scars: [], heirlooms: [], uses: {} };
 export const perkCount = (c: WithGrowth | null | undefined, p: PerkId) => growthOf(c).perks[p] ?? 0;
 
 /** Vorteil einlösen (außerhalb eines Abenteuers). Fehlertext oder die neue Entwicklung. */
@@ -108,10 +115,16 @@ export function applyMastery<A extends { id: string; uses: string }>(abilities: 
 export const startHpBonus = (c: WithGrowth) => perkCount(c, "zaeh") * 2;
 export const startMoneyBonus = (c: WithGrowth) => perkCount(c, "erspart") * 240;
 
-/** Erbstück aus der Truhe als Gegenstand fürs Startgepäck. */
-export function heirloomItem(c: WithGrowth): InvItem | null {
-  const h = growthOf(c).heirloom;
-  return h ? { ...h, qty: 1, note: h.note ?? "Erbstück – reist von Abenteuer zu Abenteuer mit" } : null;
+/** Erbstücke aus der Truhe als Gegenstände fürs Startgepäck. */
+export function heirloomItems(c: WithGrowth): InvItem[] {
+  return growthOf(c).heirlooms.slice(0, heirloomSlots(growthOf(c))).map((h) => ({ ...h, qty: 1, note: h.note ?? "Erbstück – reist von Abenteuer zu Abenteuer mit" }));
+}
+
+/** Gegenstand in die Truhe legen oder wieder herausnehmen. Ist sie voll, ersetzt er das älteste Stück. */
+export function toggleHeirloom(g: Growth, item: Growth["heirlooms"][number]): Growth {
+  const has = g.heirlooms.some((h) => h.name === item.name);
+  const list = has ? g.heirlooms.filter((h) => h.name !== item.name) : [...g.heirlooms, { ...item, qty: 1 }].slice(-heirloomSlots(g));
+  return { ...g, heirlooms: list };
 }
 
 /* ── Nach jedem Zug (im Browser): Stand aus dem Spielstand an die Figur übernehmen ── */
@@ -139,8 +152,7 @@ export function growthSummary(c: WithGrowth & { name: string }): string {
   const g = growthOf(c);
   const parts: string[] = [];
   if (g.scars.length) parts.push(`Narben aus früheren Abenteuern: ${g.scars.map((s) => `${s.name} (${s.text})`).join("; ")} – greif sie gelegentlich erzählerisch auf`);
-  const h = g.heirloom;
-  if (h) parts.push(`Erbstück, das ${c.name} immer bei sich trägt: ${h.name}`);
+  if (g.heirlooms.length) parts.push(`${g.heirlooms.length > 1 ? "Erbstücke" : "Erbstück"}, das ${c.name} immer bei sich trägt: ${g.heirlooms.map((h) => h.name).join(", ")}`);
   if (g.earned.length) parts.push(`hat schon ${g.earned.length} ${g.earned.length === 1 ? "Abenteuer" : "Abenteuer"} bestanden`);
   return parts.join(". ");
 }

@@ -2,7 +2,7 @@
 // verbraucht oder ausgegeben wird; was nicht da ist, kann man nicht benutzen, was man nicht bezahlen kann, nicht kaufen.
 import type { Character, Money, Rules } from "./schema";
 import type { WorldState } from "./world";
-import { heirloomItem, perkCount, startMoneyBonus } from "./growth";
+import { heirloomItems, perkCount, startMoneyBonus } from "./growth";
 
 export const ITEM_KINDS = ["waffe", "ruestung", "schild", "trank", "werkzeug", "schatz", "gegenstand"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
@@ -74,8 +74,7 @@ export function ensureInventory(w: WorldState, characters: (Pick<Character, "id"
     if (potion) addItem({ items, money: 0 }, potion);
     // Ruhm-Vorteil „Vorrat“ und das Erbstück aus der Truhe
     if (perkCount(c, "vorrat")) addItem({ items, money: 0 }, { ...START_POTION });
-    const heir = heirloomItem(c);
-    if (heir) { const stats = cleanStats(heir.stats as Record<string, unknown> | undefined); addItem({ items, money: 0 }, { ...heir, ...(stats ? { stats } : { stats: undefined }) }); }
+    for (const heir of heirloomItems(c)) { const stats = cleanStats(heir.stats as Record<string, unknown> | undefined); addItem({ items, money: 0 }, { ...heir, ...(stats ? { stats } : { stats: undefined }) }); }
     for (const slot of SLOTS) fillSlot({ items, money: 0 }, slot);
     w.inventory[c.id] = { items, money: toPfennig(c.money ?? {}) + startMoneyBonus(c) };
   }

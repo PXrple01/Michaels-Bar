@@ -1,6 +1,6 @@
 // Entwicklung über Abenteuer hinweg in der Oberfläche: Fortschritt übernehmen, Meisterschafts-Leisten, Ruhm einlösen,
 // Erbstück wählen. Die Regeln selbst stehen in shared/growth.ts (der Server rechnet gleich).
-import { FAME_FOR, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, type Growth, type PerkId } from "../../../shared/growth";
+import { FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, type Growth, type PerkId } from "../../../shared/growth";
 import { rarityOf, statsText, type InvItem } from "../../../shared/inventory";
 import type { Character } from "../../../shared/schema";
 import type { WorldState } from "../../../shared/world";
@@ -55,7 +55,9 @@ export function growthSection(c: Character): Raw {
       </div>`;
     })}</div>
     <div class="growth-cols">
-      <div><h3 class="small-head">${icon("star")} Erbstück-Truhe</h3>${g.heirloom ? html`<p class="heirloom r-${rarityOf(g.heirloom as InvItem)}"><b>${g.heirloom.name}</b>${g.heirloom.stats ? html` <small>${statsText(g.heirloom.stats as InvItem["stats"])}</small>` : ""}<br><small class="muted">Reist in jedes neue Abenteuer mit.</small></p>` : html`<p class="muted small">Leer. Am Ende eines Abenteuers kannst du einen Gegenstand hineinlegen.</p>`}</div>
+      <div><h3 class="small-head">${icon("star")} Erbstück-Truhe <small class="muted">${g.heirlooms.length}/${heirloomSlots(g)}</small></h3>
+        ${g.heirlooms.length ? html`<ul class="heirlooms">${g.heirlooms.map((h) => html`<li class="heirloom r-${rarityOf(h as InvItem)}"><b>${h.name}</b>${h.stats ? html` <small>${statsText(h.stats as InvItem["stats"])}</small>` : ""}</li>`)}</ul><small class="muted">Reist in jedes neue Abenteuer mit.</small>` : html`<p class="muted small">Leer. Am Ende eines Abenteuers kannst du einen Gegenstand hineinlegen.</p>`}
+        <p class="muted small">${heirloomSlots(g) > 1 ? "Zwei Plätze – freigeschaltet durch drei bestandene Abenteuer." : `Ab ${HEIRLOOM_TWO_AFTER} bestandenen Abenteuern fasst die Truhe zwei Gegenstände (bisher ${g.earned.length}).`}</p></div>
       <div><h3 class="small-head">${icon("fist")} Narben <small class="muted">${g.scars.length}/${SCARS_MAX}</small></h3>${g.scars.length ? html`<ul class="scars">${g.scars.map((s) => html`<li><b>${s.name}</b><small>${s.text}</small></li>`)}</ul>` : html`<p class="muted small">Noch keine. Wer im Kampf zu Boden geht und überlebt, trägt eine Narbe davon (+1 auf Einschüchtern).</p>`}</div>
     </div>
   </section>`;
@@ -75,11 +77,13 @@ export function redeemPerk(c: Character, p: PerkId): Character | null {
 export function heirloomPicker(w: WorldState, c: { id: string; name: string }): Raw {
   const items = (w.inventory?.[c.id]?.items ?? []).filter((i) => i.kind !== "trank");
   if (!items.length) return html``;
-  const current = growthOf(characterStore.get(c.id)).heirloom?.name;
+  const g = growthOf(characterStore.get(c.id));
+  const inChest = new Set(g.heirlooms.map((h) => h.name));
+  const slots = heirloomSlots(g);
   return html`<div class="heirloom-pick">
-    <div class="eyebrow">${icon("star")} Erbstück-Truhe</div>
-    <p class="small">Wähle einen Gegenstand, den ${c.name} in jedes künftige Abenteuer mitnimmt${current ? html` (bisher: <b>${current}</b>)` : ""}.</p>
-    <div class="heirloom-list">${items.map((i) => html`<button class="inv-item r-${rarityOf(i)} ${i.name === current ? "worn" : ""}" data-heirloom="${JSON.stringify({ name: i.name, kind: i.kind, ...(i.note ? { note: i.note } : {}), ...(i.stats ? { stats: i.stats } : {}) })}" data-char="${c.id}">${i.name}${i.stats && statsText(i.stats) ? html`<small class="inv-stat">${statsText(i.stats)}</small>` : ""}</button>`)}</div>
+    <div class="eyebrow">${icon("star")} Erbstück-Truhe · ${slots} ${slots === 1 ? "Platz" : "Plätze"}</div>
+    <p class="small">Wähle ${slots === 1 ? "einen Gegenstand" : "bis zu zwei Gegenstände"}, die ${c.name} in jedes künftige Abenteuer mitnimmt. Antippen legt hinein oder nimmt wieder heraus${g.heirlooms.length ? html` (in der Truhe: <b>${g.heirlooms.map((h) => h.name).join(", ")}</b>)` : ""}.${slots === 1 ? ` Ab ${HEIRLOOM_TWO_AFTER} bestandenen Abenteuern passen zwei hinein.` : ""}</p>
+    <div class="heirloom-list">${items.map((i) => html`<button class="inv-item r-${rarityOf(i)} ${inChest.has(i.name) ? "worn" : ""}" data-heirloom="${JSON.stringify({ name: i.name, kind: i.kind, ...(i.note ? { note: i.note } : {}), ...(i.stats ? { stats: i.stats } : {}) })}" data-char="${c.id}">${i.name}${i.stats && statsText(i.stats) ? html`<small class="inv-stat">${statsText(i.stats)}</small>` : ""}</button>`)}</div>
   </div>`;
 }
 
@@ -91,8 +95,11 @@ document.addEventListener("click", (e) => {
   let item: Pick<InvItem, "name" | "kind" | "note" | "stats"> | null = null;
   try { item = JSON.parse(b.dataset.heirloom ?? ""); } catch { /* kaputt */ }
   if (!c || !item?.name) return;
-  characterStore.save({ ...c, growth: { ...growthOf(c), heirloom: { ...item, qty: 1 } as Growth["heirloom"] }, updatedAt: new Date().toISOString() });
-  b.parentElement?.querySelectorAll(".worn").forEach((x) => x.classList.remove("worn"));
-  b.classList.add("worn");
-  toast(`„${item.name}“ liegt jetzt in der Erbstück-Truhe von ${c.name}.`, "success");
+  const before = growthOf(c);
+  const next = toggleHeirloom(before, { ...item, qty: 1 } as Growth["heirlooms"][number]);
+  characterStore.save({ ...c, growth: next, updatedAt: new Date().toISOString() });
+  const names = new Set(next.heirlooms.map((h) => h.name));
+  b.parentElement?.querySelectorAll<HTMLElement>("[data-heirloom]").forEach((x) => { try { x.classList.toggle("worn", names.has(JSON.parse(x.dataset.heirloom ?? "{}").name)); } catch { /* egal */ } });
+  const out = before.heirlooms.find((h) => !names.has(h.name) && h.name !== item!.name);
+  toast(names.has(item.name) ? `„${item.name}“ liegt jetzt in der Erbstück-Truhe${out ? ` (dafür ist „${out.name}“ herausgenommen)` : ""}.` : `„${item.name}“ ist wieder aus der Truhe genommen.`, "success");
 });

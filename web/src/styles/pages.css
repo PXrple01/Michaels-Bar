@@ -1601,3 +1601,4 @@ body.fal-on .read-btn { display: inline-flex; }
 .heirloom-pick p { margin: 6px 0 10px; }
 .heirloom-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .heirloom-list .inv-item { cursor: pointer; }
+.heirlooms { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 4px; }

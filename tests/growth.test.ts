@@ -20,7 +20,7 @@ describe("Ruhm", () => {
     const r = buyPerk(g({ fame: 9 }), "erprobt") as Growth;
     expect(r).toMatchObject({ fame: 5, perks: { erprobt: 1 } });
     expect(buyPerk(r, "erprobt")).toMatch(/so oft wie möglich/);
-    const c = { ...base, growth: g({ perks: { zaeh: 2, erspart: 1, vorrat: 1, erprobt: 1 }, heirloom: { name: "Morgenrot", qty: 1, kind: "waffe", stats: { angriff: 3, schaden: 2, seltenheit: "sagenhaft" } } }) };
+    const c = { ...base, growth: g({ perks: { zaeh: 2, erspart: 1, vorrat: 1, erprobt: 1 }, heirlooms: [{ name: "Morgenrot", qty: 1, kind: "waffe", stats: { angriff: 3, schaden: 2, seltenheit: "sagenhaft" } }] }) };
     const w = initWorld([c]);
     expect(w.maxHp[c.id]).toBe(base.hp.max + 4);
     expect(bonusParts(w, c.id, "angriff")).toContainEqual({ label: "Kampferprobt", value: 1 });
@@ -92,5 +92,26 @@ describe("Gemeistert: 2× pro Kampf", () => {
     expect(useAbility(w, c, data.classes, a.name).error).toBeUndefined();
     expect(useAbility(w, c, data.classes, a.name).text).toContain("zweites Mal");
     expect(useAbility(w, c, data.classes, a.name).error).toBe(true);
+  });
+});
+
+describe("Erbstück-Truhe", () => {
+  const sword = { name: "Morgenrot", qty: 1, kind: "waffe" as const, stats: { angriff: 3, seltenheit: "sagenhaft" as const } };
+  const shield = { name: "Elfenschild", qty: 1, kind: "schild" as const, stats: { ruestung: 2 } };
+  it("1 Platz, ab 3 bestandenen Abenteuern 2 – antippen legt hinein oder nimmt heraus", async () => {
+    const { toggleHeirloom, heirloomSlots } = await import("../shared/growth");
+    const one = toggleHeirloom(toggleHeirloom(g({}), sword), shield);
+    expect(one.heirlooms.map((h) => h.name)).toEqual(["Elfenschild"]); // voll: ersetzt das ältere
+    const vet = g({ earned: ["a", "b", "c"] });
+    expect(heirloomSlots(vet)).toBe(2);
+    const two = toggleHeirloom(toggleHeirloom(vet, sword), shield);
+    expect(two.heirlooms.map((h) => h.name)).toEqual(["Morgenrot", "Elfenschild"]);
+    expect(toggleHeirloom(two, sword).heirlooms.map((h) => h.name)).toEqual(["Elfenschild"]);
+    // Beide reisen mit, der Server lässt aber nicht mehr zu, als Plätze da sind
+    const c = { ...base, growth: two };
+    const w = initWorld([c]);
+    ensureInventory(w, [c], data.rules, data.classes);
+    expect(w.inventory![c.id].items.filter((i) => ["Morgenrot", "Elfenschild"].includes(i.name))).toHaveLength(2);
+    expect(() => resolveCharacter({ ...base, growth: { ...g({}), heirlooms: [sword, shield] } }, data)).toThrow();
   });
 });
