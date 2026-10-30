@@ -1,4 +1,5 @@
 import { offerLetters } from "../lib/letters";
+import { heirloomPicker, syncCharacterGrowth } from "../lib/growthUi";
 import { setMusic } from "../lib/music";
 import { prepareRead, readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
@@ -323,7 +324,7 @@ export function partyPage(): Page {
           const again = v.pendings.find((c) => c.playerId === me.playerId);
           content = html`${v.failed ? html`<div class="card failed-card"><h3>${icon("info")} Das hat nicht geklappt</h3><p>${v.failed}</p><small class="muted">${again ? "Würfle einfach noch einmal – das Ergebnis bleibt dasselbe." : `${v.pendings.map((c) => c.characterName).join(", ")} würfelt noch einmal – das Ergebnis bleibt dasselbe.`}</small></div>` : ""}${pendingCard()}`;
         } else if (v.world?.arc?.finished) {
-          content = endCard(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), { href: "#/gruppe", label: "Neue Gruppe gründen" }, `#/chronik/gruppe/${v.code}`);
+          content = html`${endCard(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), { href: "#/gruppe", label: "Neue Gruppe gründen" }, `#/chronik/gruppe/${v.code}`)}${myChar ? heirloomPicker(v.world, myChar) : ""}`;
         } else {
           const last = [...v.story].reverse().find((e) => e.type === "gm");
           const suggestions = last?.type === "gm" ? splitSuggestions(last.text).suggestions : [];
@@ -416,10 +417,10 @@ export function partyPage(): Page {
         const mine = view?.players.find((p) => p.id === me.playerId);
         if (!mine) return;
         const used = view?.world?.used?.[mine.characterId] ?? {};
-        const key = JSON.stringify([mine.abilities.map((a) => a.name), used]);
+        const key = JSON.stringify([mine.abilities.map((a) => a.name), used, view?.world?.abilityUses?.[mine.characterId] ?? {}]);
         if (el.dataset.key === key) return; // nur neu zeichnen, wenn sich etwas geändert hat (Verbesserung, Einsatz, Rast)
         el.dataset.key = key;
-        el.innerHTML = abilityList(mine.name, mine.abilities, view?.world, mine.characterId).value;
+        el.innerHTML = abilityList(mine.name, mine.abilities, view?.world, mine.characterId, myChar && myChar.id === mine.characterId ? myChar : undefined).value;
       }
 
       const abilityType = (id: string) => (myChar ? dataFor(data, myChar).classes.find((x) => x.id === myChar.classId)?.abilities.find((a) => a.id === id)?.type : undefined) ?? "unterstuetzung";
@@ -473,6 +474,7 @@ export function partyPage(): Page {
         const invBefore = myChar ? view?.world?.inventory?.[myChar.id] : undefined;
         const worldBefore = view?.world;
         view = v;
+        if (myChar) syncCharacterGrowth(myChar.id, v.world);
         if (myChar && worldBefore) void offerLetters(`gruppe-${code}`, myChar.name, worldBefore, v.world, (chapter) => partyApi.letter(me, chapter));
         if (myChar) { const loot = lootText(invBefore, v.world?.inventory?.[myChar.id]); if (loot) toast(loot, "success", 5000); }
         if (myChar && levelBefore !== undefined) announceLevel(levelBefore, v.world?.levels?.[myChar.id]?.level ?? levelBefore, data.rules);

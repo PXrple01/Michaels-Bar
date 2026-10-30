@@ -14,6 +14,8 @@ import { openVote } from "../../shared/vote";
 import { ATTITUDE_NAME, ATTITUDES, upsertPerson } from "../../shared/people";
 import { PLACE_KINDS, PLACE_NAME, visitPlace } from "../../shared/map";
 import { addItem, cleanStats, ensureInventory, ITEM_KINDS, RARITIES, itemText, kindOf, moneyText, removeItem, statsText, toPfennig } from "../../shared/inventory";
+import { growthOf, SCARS_MAX } from "../../shared/growth";
+import { newWorldId } from "../../shared/world";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
@@ -215,6 +217,18 @@ function checkCombatEnd(ctx: ToolContext): string {
   return "";
 }
 
+/** Narbe, wenn eine Figur zu Boden geht: höchstens eine je Abenteuer und drei insgesamt. Name der Narbe oder null. */
+function addScar(w: WorldState, c: Character, enemyName: string): string | null {
+  if (w.scars?.[c.id]?.length) return null;
+  const before = growthOf(c).scars.filter((s) => s.campaign !== w.id).length;
+  if (before >= SCARS_MAX) return null;
+  const foe = enemyName.replace(/\s+\d+$/, "").trim();
+  const scar = { name: `Narbe von ${foe}`.slice(0, 60), text: `Erinnerung an den Kampf gegen ${foe}: +1 auf Einschüchtern`.slice(0, 160) };
+  w.id ??= newWorldId();
+  w.scars = { ...w.scars, [c.id]: [scar] };
+  return scar.name;
+}
+
 /** Führt ein automatisches Werkzeug aus und liefert den Text für Claude. Fehler kommen als is_error zurück. */
 export async function runAutoTool(block: { id: string; name: string; input: unknown }, ctx: ToolContext): Promise<{ content: string; is_error?: boolean }> {
   const w = ctx.world;
@@ -267,7 +281,8 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       ctx.onRoll(dmg);
       const amount = Math.max(1, dmg.total);
       w.hp[target.id] = Math.max(0, w.hp[target.id] - amount);
-      return { content: `${enemy.name} trifft ${target.name}${atk.critical === "hit" ? " kritisch (doppelte Schadenswürfel)" : ""}: ${atk.total} gegen Rüstung ${ac}, Schaden ${dmgExpr} = ${amount}. ${hpLine(ctx, target)}${allDown(w, ctx.characters) ? ` ${DEFEAT_WARNING}` : ""}` };
+      const scar = w.hp[target.id] === 0 ? addScar(w, target, enemy.name) : null;
+      return { content: `${enemy.name} trifft ${target.name}${atk.critical === "hit" ? " kritisch (doppelte Schadenswürfel)" : ""}: ${atk.total} gegen Rüstung ${ac}, Schaden ${dmgExpr} = ${amount}. ${hpLine(ctx, target)}${scar ? ` Dieser Treffer hinterlässt eine bleibende Narbe („${scar}“) – erwähne sie kurz.` : ""}${allDown(w, ctx.characters) ? ` ${DEFEAT_WARNING}` : ""}` };
     }
     case "heilen": {
       const target = findCharacter(ctx, input.ziel);

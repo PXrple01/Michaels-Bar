@@ -1,5 +1,6 @@
 // Systemprompt und Kampagnenstart für Claude als Spielleiter.
 // Der Systemprompt hängt nur von campaign.json ab und bleibt für alle Spieler gleich (gut für den Prompt-Cache).
+import { growthSummary } from "../../shared/growth";
 import type { Opening } from "../../shared/campaign";
 import { armorValue, attackInfo, findItem, modifier, skillBonusForLevel, trainedSkills } from "../../shared/character";
 import { formatModifier } from "../../shared/dice";
@@ -101,6 +102,7 @@ export function characterSheetText(c: Character, data: GameData): string {
     `Geld: ${c.money.gulden} Gulden, ${c.money.groschen} Groschen, ${c.money.pfennig} Pfennig`,
     p.trait || p.ideal || p.bond || p.flaw ? `Persönlichkeit: ${[p.trait && `Eigenart: ${p.trait}`, p.ideal && `Glaube: ${p.ideal}`, p.bond && `Bindung: ${p.bond}`, p.flaw && `Schwäche: ${p.flaw}`].filter(Boolean).join("; ")}` : "",
     c.appearance ? `Aussehen: ${c.appearance}` : "",
+    growthSummary(c) ? `Aus früheren Abenteuern: ${growthSummary(c)}` : "",
   ].filter(Boolean).join("\n");
 }
 

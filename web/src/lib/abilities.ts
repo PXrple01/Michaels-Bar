@@ -2,14 +2,18 @@
 import type { Ability } from "../../../shared/schema";
 import type { WorldState } from "../../../shared/world";
 import { isActive, isLimited, recoverText } from "../../../shared/abilityUses";
+import type { Growth } from "../../../shared/growth";
 import { html, type Raw } from "./dom";
+import { masteryBar, usesWithMastery } from "./growthUi";
 import { icon } from "./icons";
 
 export type AbilityInfo = Pick<Ability, "id" | "name" | "type" | "uses" | "text" | "beginnerText"> & { upgraded?: unknown };
 
 /** Zustand einer Fähigkeit in dieser Kampagne – für Rand, Ausgrauen und Hinweis. */
 function state(a: AbilityInfo, w: WorldState | null | undefined, characterId: string) {
-  const used = w?.used?.[characterId]?.[a.id];
+  const entry = w?.used?.[characterId]?.[a.id];
+  // Gemeistert (2× pro Kampf): nach dem ersten Einsatz noch nicht gesperrt
+  const used = entry && !(entry.uses === "zweimal_pro_kampf" && (entry.count ?? 1) < 2) ? entry : undefined;
   const active = isActive(a.uses);
   return {
     active, used: !!used,
@@ -29,11 +33,11 @@ const TYPES: Record<string, string> = {
 export const abilityIcon = (type: string) => icon(ICONS[type] ?? "sparkles");
 
 export function usesLabel(u: string): string {
-  return ({ passiv: "immer aktiv", einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag", beliebig: "beliebig oft" } as Record<string, string>)[u] ?? u;
+  return ({ passiv: "immer aktiv", zweimal_pro_kampf: "2× pro Kampf", einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag", beliebig: "beliebig oft" } as Record<string, string>)[u] ?? u;
 }
 
 /** Ausführliche Liste für die eigene Figur. */
-export function abilityList(name: string, abilities: AbilityInfo[], w?: WorldState | null, characterId = ""): Raw {
+export function abilityList(name: string, abilities: AbilityInfo[], w?: WorldState | null, characterId = "", who?: { id: string; growth?: Growth | null }): Raw {
   if (!abilities.length) return html``;
   return html`<section class="abilities card" aria-label="Fähigkeiten von ${name}">
     <div class="ab-head">
@@ -41,15 +45,15 @@ export function abilityList(name: string, abilities: AbilityInfo[], w?: WorldSta
       <p class="muted small">So setzt du sie ein: Schreib einfach in deine Handlung, dass du sie nutzt – z. B. „Ich setze ${abilities.find((a) => a.uses !== "passiv")?.name ?? abilities[0].name} ein“. Passive Fähigkeiten wirken von selbst.</p>
     </div>
     <div class="ab-grid">
-      ${abilities.map((a, i) => { const st = state(a, w, characterId); return html`<div class="ab ${a.upgraded ? "upgraded" : ""} ${st.active ? "active" : ""} ${st.used ? "used" : ""}" style="--i:${i}">
+      ${abilities.map((a, i) => { const st = state(a, w, characterId); const uses = who ? usesWithMastery(a.uses, who, w, a.id) : a.uses; return html`<div class="ab ${a.upgraded ? "upgraded" : ""} ${st.active ? "active" : ""} ${st.used ? "used" : ""}" style="--i:${i}" data-ab-card>
         <div class="ab-top">
           <span class="ab-icon t-${a.type}">${abilityIcon(a.type)}</span>
           <span class="ab-title"><b>${a.name}${a.upgraded ? html` <span class="chip gold ab-up">${icon("star")} verbessert</span>` : ""}</b><small>${TYPES[a.type] ?? a.type}</small></span>
-          <span class="chip ab-uses">${usesLabel(a.uses)}</span>
+          <span class="chip ab-uses ${uses !== a.uses ? "gold" : ""}" title="${uses !== a.uses ? "Durch Meisterschaft häufiger einsetzbar" : ""}">${usesLabel(uses)}</span>
         </div>
         ${st.used ? html`<span class="ab-state">${icon("lock")} ${st.text}</span>` : ""}
         <p class="ab-easy">${a.beginnerText}</p>
-        <details class="ab-more"><summary>Genaue Regel</summary><p>${a.text}</p></details>
+        <details class="ab-more"><summary>${who ? "Regel & Meisterschaft" : "Genaue Regel"}</summary><p>${a.text}</p>${who ? masteryBar(a.uses, who, w, a.id) : ""}</details>
       </div>`; })}
     </div>
   </section>`;
@@ -120,3 +124,12 @@ function hide() {
   if (pop) pop.hidden = true;
   current = null;
 }
+
+// Fähigkeit antippen: Regel und Meisterschafts-Leiste auf- und zuklappen
+document.addEventListener("click", (e) => {
+  const t = e.target as HTMLElement;
+  if (t.closest("summary, a, button")) return;
+  const card = t.closest<HTMLElement>("[data-ab-card]");
+  const d = card?.querySelector<HTMLDetailsElement>("details.ab-more");
+  if (d) d.open = !d.open;
+});

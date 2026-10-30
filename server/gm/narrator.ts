@@ -15,6 +15,7 @@ import { costUsd, LimitError, PRICES, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
 import { bonusParts } from "../../shared/shop";
+import { growthOf } from "../../shared/growth";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -516,6 +517,11 @@ export class Narrator {
     const spec = characterRoll(c, data.rules, data.classes, art, id);
     // Verbesserungen vom Schmied und Boni aus dem Gepäck zählen mit
     if (art === "attack" || art === "damage") spec.parts = [...spec.parts, ...bonusParts(world, c.id, art === "attack" ? "angriff" : "schaden")];
+    // Narben: +1 auf Einschüchtern je Narbe (höchstens +2)
+    if (art === "skill" && id === "einschuechtern") {
+      const scars = growthOf(c).scars.filter((s) => s.campaign !== world?.id).length + (world?.scars?.[c.id]?.length ?? 0);
+      if (scars) spec.parts = [...spec.parts, { label: "Narben", value: Math.min(2, scars) }];
+    }
     let notation = spec.notation;
     if (art === "damage" && crit) {
       const p = parseNotation(notation);

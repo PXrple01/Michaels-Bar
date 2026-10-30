@@ -1,4 +1,6 @@
 import { legacyOf } from "../lib/legacy";
+import type { PerkId } from "../../../shared/growth";
+import { growthSection, masteryBar, redeemPerk, usesWithMastery } from "../lib/growthUi";
 import { costText } from "../../../shared/campaign";
 import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
 import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusForLevel, trainedSkills, type CharacterRollType } from "../../../shared/character";
@@ -20,7 +22,7 @@ function moneyText(m: Money) {
   return parts.length ? parts.join(", ") : "keinen Pfennig";
 }
 
-const USES: Record<string, string> = { passiv: "immer aktiv", einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag", beliebig: "beliebig oft" };
+const USES: Record<string, string> = { passiv: "immer aktiv", zweimal_pro_kampf: "2× pro Kampf", einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag", beliebig: "beliebig oft" };
 
 export function sheetPage(): Page {
   let mode: RollMode = "normal";
@@ -151,18 +153,20 @@ export function sheetPage(): Page {
           <section class="sheet-section" data-reveal>
             <h2 class="sec-title">${icon("sparkles")} Fähigkeiten</h2>
             <div class="ability-cards">
-              ${cls.abilities.map((ab, i) => html`
-                <article class="card ability-card tilt" style="--i:${i}">
-                  <div class="ab-head"><h3>${ab.name}</h3><span class="chip">${USES[ab.uses] ?? ab.uses}</span></div>
+              ${cls.abilities.map((ab, i) => { const uses = usesWithMastery(ab.uses, c, null, ab.id); return html`
+                <article class="card ability-card tilt" style="--i:${i}" data-ab-card>
+                  <div class="ab-head"><h3>${ab.name}</h3><span class="chip ${uses !== ab.uses ? "gold" : ""}">${USES[uses] ?? uses}</span></div>
                   <p>${ab.beginnerText}</p>
-                  <details><summary>Genaue Regel</summary><p class="rule-text">${ab.text}</p></details>
-                </article>`)}
+                  <details class="ab-more"><summary>Regel &amp; Meisterschaft</summary><p class="rule-text">${ab.text}</p>${masteryBar(ab.uses, c, null, ab.id)}</details>
+                </article>`; })}
               <article class="card ability-card tilt">
                 <div class="ab-head"><h3>${stand.name}</h3><span class="chip">Herkunft</span></div>
                 <p>${stand.feature}</p>
               </article>
             </div>
           </section>
+
+          <div id="growth-box" data-reveal>${growthSection(c)}</div>
 
           <div class="sheet-cols">
             <section class="sheet-section card" data-reveal>
@@ -229,6 +233,16 @@ export function sheetPage(): Page {
         if (!on) return;
         paintBtn.hidden = false;
         if (isNew && !portraitOf(c.id)) void paint();
+      });
+
+      // Ruhm einlösen
+      $("#growth-box", root).addEventListener("click", (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-perk]");
+        if (!b || b.disabled) return;
+        const next = redeemPerk(c, b.dataset.perk as PerkId);
+        if (!next) return;
+        c = next;
+        $("#growth-box", root).innerHTML = growthSection(c).value;
       });
 
       $("#copy-char", root).addEventListener("click", async () => {

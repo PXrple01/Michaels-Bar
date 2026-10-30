@@ -1,4 +1,5 @@
 import { letterStore, offerLetters } from "../lib/letters";
+import { heirloomPicker, syncCharacterGrowth } from "../lib/growthUi";
 import { exportSave, importSaveFile } from "../lib/saveTransfer";
 import type { ItemAction } from "../../../shared/inventory";
 import { setMusic } from "../lib/music";
@@ -336,7 +337,7 @@ export function playPage(): Page {
         else if (busy) content = html`<div class="thinking">${icon("feather")} Der Spielleiter erzählt …</div>`;
         else if (!save!.opening) content = html``;
         else if (save!.pending) content = pendingCard(save!.pending);
-        else if (save!.state.world?.arc?.finished) content = endCard(save!.state.world, [character], { href: "#/abenteuer#neues-abenteuer", label: "Neue Kampagne beginnen" }, `#/chronik/${save!.id}`);
+        else if (save!.state.world?.arc?.finished) content = html`${endCard(save!.state.world, [character], { href: "#/abenteuer#neues-abenteuer", label: "Neue Kampagne beginnen" }, `#/chronik/${save!.id}`)}${heirloomPicker(save!.state.world, character)}`;
         else content = html`
           ${suggestions.length ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
           <form class="composer card" id="composer">
@@ -393,7 +394,7 @@ export function playPage(): Page {
       const abilityType = (id: string) => myClassDef()?.abilities.find((a) => a.id === id)?.type ?? "unterstuetzung";
       function renderAbilities() {
         const abilities = effectiveAbilities(myClassDef()?.abilities ?? [], save!.state.world?.progress?.[character.id]);
-        $("#my-abilities", root).innerHTML = abilityList(character.name, abilities, save!.state.world, character.id).value;
+        $("#my-abilities", root).innerHTML = abilityList(character.name, abilities, save!.state.world, character.id, character).value;
       }
 
       /** Ohne Auswahl: Verbesserungen erstellen lassen (Claude). Mit Auswahl: eine davon übernehmen (ohne Claude). */
@@ -537,7 +538,10 @@ export function playPage(): Page {
           save!.costUsd = (save!.costUsd ?? 0) + (ev.turnCostUsd ?? 0);
           save!.imageUsd = (save!.imageUsd ?? 0) + (ev.turnImageUsd ?? 0);
           persist();
+          // Entwicklung über Abenteuer hinweg (Meisterschaft, Narben, Ruhm am Ende) an die Figur übernehmen
+          character = syncCharacterGrowth(character.id, ev.state.world) ?? character;
           renderWorld();
+          renderAbilities();
           prepareRead(storyEl); // Vorlesen schon vorbereiten – ▶ spielt dann sofort
           void offerLetters(save!.id, character.name, worldBefore, ev.state.world, async (chapter) => {
             let got: { title: string; text: string } | null = null;

@@ -9,6 +9,10 @@ import type { Inventory } from "./inventory";
 import { gearSummary, type Gear, type Shop } from "./shop";
 import type { Gamble } from "./gamble";
 import type { Vote } from "./vote";
+import { perkCount, startHpBonus } from "./growth";
+
+/** Zufällige Kennung (ohne Node-Abhängigkeit – läuft auch im Browser). */
+export const newWorldId = () => `w-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 import type { Person } from "./people";
 import type { TravelMap } from "./map";
 
@@ -69,6 +73,14 @@ export interface WorldState {
   companions?: Companion[];
   /** Gerüchte, die die Figuren aufgeschnappt haben. */
   rumors?: Rumor[];
+  /** Kennung dieses Abenteuers (für die Entwicklung über Abenteuer hinweg). */
+  id?: string;
+  /** Einsätze begrenzter Fähigkeiten je Figur in diesem Abenteuer (für die Meisterschaft). */
+  abilityUses?: Record<string, Record<string, number>>;
+  /** Narben aus diesem Abenteuer je Figur. */
+  scars?: Record<string, { name: string; text: string }[]>;
+  /** Dauerhafte Boni aus Ruhm je Figur (zu Beginn festgelegt). */
+  fameBonus?: Record<string, { angriff: number }>;
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */
@@ -131,10 +143,13 @@ export function allDown(w: WorldState, characters: Pick<Character, "id">[]): boo
 export const MAX_MEMORY = 30;
 export const MAX_QUESTS = 20;
 
-export function initWorld(characters: Pick<Character, "id" | "hp">[]): WorldState {
+export function initWorld(characters: (Pick<Character, "id" | "hp"> & { growth?: Character["growth"] })[]): WorldState {
+  const fame = characters.filter((c) => perkCount(c, "erprobt"));
   return {
-    hp: Object.fromEntries(characters.map((c) => [c.id, c.hp.max])),
-    maxHp: Object.fromEntries(characters.map((c) => [c.id, c.hp.max])),
+    id: newWorldId(),
+    hp: Object.fromEntries(characters.map((c) => [c.id, c.hp.max + startHpBonus(c)])),
+    maxHp: Object.fromEntries(characters.map((c) => [c.id, c.hp.max + startHpBonus(c)])),
+    ...(fame.length ? { fameBonus: Object.fromEntries(fame.map((c) => [c.id, { angriff: perkCount(c, "erprobt") }])) } : {}),
     xp: Object.fromEntries(characters.map((c) => [c.id, 0])),
     combat: null,
     quests: [],

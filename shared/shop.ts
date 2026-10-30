@@ -20,7 +20,8 @@ export const gearOf = (w: WorldState | null | undefined, id: string): Gear => w?
 /** Alle Ausrüstungs-Boni auf einen Wert: Schmied plus die angelegten Stücke (für Würfe und Anzeige). */
 export function bonusParts(w: WorldState | null | undefined, id: string, target: BonusTarget): { label: string; value: number }[] {
   const smith = gearOf(w, id)[target];
-  return [...(smith ? [{ label: "Schmied", value: smith }] : []), ...itemBonuses(w?.inventory?.[id], target).map((i) => ({ label: i.name, value: i.value }))];
+  const fame = target === "angriff" ? w?.fameBonus?.[id]?.angriff ?? 0 : 0;
+  return [...(smith ? [{ label: "Schmied", value: smith }] : []), ...(fame ? [{ label: "Kampferprobt", value: fame }] : []), ...itemBonuses(w?.inventory?.[id], target).map((i) => ({ label: i.name, value: i.value }))];
 }
 export const bonusTotal = (w: WorldState | null | undefined, id: string, target: BonusTarget) => bonusParts(w, id, target).reduce((n, p) => n + p.value, 0);
 

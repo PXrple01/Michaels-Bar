@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { growthSchema } from "./growth";
 
 const id = z.string().regex(/^[a-z0-9_]+$/, "nur Kleinbuchstaben, Ziffern und _");
 const diceExpr = z.string().regex(/^\d+W\d+([+-]\d+)?$/, "Würfelausdruck wie 1W8 oder 2W6+1");
@@ -146,6 +147,8 @@ export const characterSchema = characterInputSchema.extend({
   money,
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Entwicklung über Abenteuer hinweg (Ruhm, Erbstück, Narben, Meisterschaft). */
+  growth: growthSchema.optional(),
 });
 
 const table = z.array(z.string().min(1)).min(3);

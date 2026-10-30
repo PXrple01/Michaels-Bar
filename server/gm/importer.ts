@@ -5,7 +5,8 @@ import type { StoryEntry } from "../../shared/campaign";
 import { addItem, cleanStats, ensureInventory, kindOf, MAX_ITEMS, type InvItem } from "../../shared/inventory";
 import type { Character } from "../../shared/schema";
 import { GEAR_MAX } from "../../shared/shop";
-import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
+import { initArc, initWorld, isArc, newWorldId, type WorldState } from "../../shared/world";
+import { perkCount } from "../../shared/growth";
 import type { GameData } from "../rules/loader";
 import type { MessageParam } from "./narrator";
 import { turnSummary } from "./summary";
@@ -64,6 +65,14 @@ export function sanitizeWorld(raw: unknown, c: Character, data: GameData): World
   const g = obj(obj(w.gear)[src]);
   const gear = { angriff: clamp(g.angriff, 0, GEAR_MAX, 0), schaden: clamp(g.schaden, 0, GEAR_MAX, 0), ruestung: clamp(g.ruestung, 0, GEAR_MAX, 0) };
   if (gear.angriff || gear.schaden || gear.ruestung) w.gear = { [c.id]: gear }; else delete w.gear;
+  // Entwicklung: neue Abenteuer-Kennung, Einsätze und Narben nur für diese Figur (begrenzt), Ruhm-Boni aus der Figur selbst
+  w.id = newWorldId();
+  const used = obj(obj(w.abilityUses)[src]);
+  w.abilityUses = { [c.id]: Object.fromEntries(Object.entries(used).slice(0, 20).map(([k, v]) => [String(k).slice(0, 60), clamp(v, 0, 999, 0)])) };
+  const scar = (Array.isArray(obj(w.scars)[src]) ? (obj(w.scars)[src] as unknown[]) : []).map(obj).find((x) => typeof x.name === "string");
+  w.scars = scar ? { [c.id]: [{ name: str(scar.name, 60), text: str(scar.text, 160) }] } : {};
+  const erprobt = perkCount(c, "erprobt");
+  if (erprobt) w.fameBonus = { [c.id]: { angriff: erprobt } }; else delete w.fameBonus;
   // Offene Läden, Spiele, Abstimmungen und Protokolle gehören zur alten Sitzung
   w.shop = null; w.gamble = null; w.vote = null; delete w.itemLog; delete w.drank; delete w.sent; w.sinceImage = 0;
   try { turnSummary(structuredClone(w), [c], data.rules); } catch { throw new ImportError("Die Spielwelt in der Datei ist beschädigt."); }
