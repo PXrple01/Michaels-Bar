@@ -50,6 +50,8 @@ const SIZE: Record<ImageShape, string | { width: number; height: number }> = { l
 
 /** Imagen (Google, Testphase): Preis je Bild (Richtwert für imagen-4.0-generate-001). */
 const IMAGEN_USD = 0.04, IMAGEN_ULTRA_USD = 0.06;
+/** Nano Banana Pro (Gemini 3 Pro Image) etwa 0,134 $ je Bild, Nano Banana (Flash) etwa 0,039 $. */
+const geminiImageUsd = (model: string) => (/pro/.test(model) ? 0.134 : 0.039);
 const IMAGEN_RATIO: Record<ImageShape, string> = { landscape_4_3: "4:3", portrait_4_3: "3:4", square: "1:1" };
 
 export class ImageMaker {
@@ -64,14 +66,17 @@ export class ImageMaker {
    * Klappt es mit Referenzen nicht, wird ohne gemalt.
    */
   async make(motif: string, shape: ImageShape, id?: string, opts: { style?: boolean; refs?: { characterId: string; label: string }[] } = {}): Promise<{ url: string; costUsd: number }> {
-    // Testphase: Imagen malt (Porträt-Vorlagen gibt es dort nicht). Klappt es nicht, malt wie bisher fal.ai.
+    // Testphase: Google malt (Nano Banana mit Porträts als Vorlage, oder Imagen). Klappt es nicht, malt wie bisher fal.ai.
     const g = this.o.google;
     if (g?.active()) {
-      try { return await this.paintImagen(g, motif, shape, id, opts.style); }
+      try {
+        const model = (await g.luxury()) ? g.cfg.luxuryImageModel : g.cfg.imageModel;
+        return model.startsWith("gemini") ? await this.paintGemini(g, model, motif, shape, id, opts.style, await this.references(opts.refs ?? [])) : await this.paintImagen(g, motif, shape, id, opts.style);
+      }
       catch (e) {
         const status = e instanceof GoogleError ? e.status : undefined;
         if (isProviderFailure(status)) g.markBroken("Imagen", (e as Error).message);
-        else console.error("[Bilder] Imagen fehlgeschlagen, male mit fal.ai:", (e as Error).message);
+        else console.error("[Bilder] Google-Bild fehlgeschlagen, male mit fal.ai:", (e as Error).message);
         if (!this.o.key) throw e;
       }
     }
@@ -102,6 +107,30 @@ export class ImageMaker {
     const finalId = id ?? `img-${randomBytes(9).toString("hex")}`;
     await this.o.store.put(finalId, { type: img.mimeType ?? "image/jpeg", bytes: new Uint8Array(Buffer.from(img.bytesBase64Encoded, "base64")) });
     const usd = luxury ? IMAGEN_ULTRA_USD : IMAGEN_USD;
+    await g.addSpend(usd);
+    return { url: `/api/images/${finalId}?v=${Date.now().toString(36)}`, costUsd: usd };
+  }
+
+  /** Nano Banana (Gemini-Bildmodelle): Text und Porträts als Vorlage hinein, ein Bild heraus. */
+  private async paintGemini(g: GoogleCloud, model: string, motif: string, shape: ImageShape, id: string | undefined, style: boolean | undefined, refs: { label: string; uri: string }[]): Promise<{ url: string; costUsd: number }> {
+    const base = style === false ? motif.trim().slice(0, 1600) : `${motif.trim().slice(0, 1200)}\n\n${STYLE}`;
+    const text = refs.length
+      ? `${refs.map((r, i) => `The person in reference image ${i + 1} is ${r.label}.`).join(" ")} Show them in this scene with the same face, hair, build and clothing, as part of a new painting (not a copy of the portrait).\n\n${base}`
+      : base;
+    const parts = [...refs.map((r) => { const [, mime, data] = /^data:([^;]+);base64,(.*)$/.exec(r.uri) ?? []; return { inlineData: { mimeType: mime, data } }; }).filter((p) => p.inlineData.data), { text }];
+    const res = await (this.o.fetch ?? fetch)(`https://aiplatform.googleapis.com/v1/projects/${g.cfg.projectId}/locations/global/publishers/google/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
+      body: JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: IMAGEN_RATIO[shape] } } }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (!res.ok) throw new GoogleError(`Nano Banana ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
+    const out = (await res.json()) as { candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[] };
+    const img = out.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData;
+    if (!img?.data) throw new GoogleError("Nano Banana hat kein Bild geliefert (vermutlich vom Sicherheitsfilter aussortiert)", 200);
+    const finalId = id ?? `img-${randomBytes(9).toString("hex")}`;
+    await this.o.store.put(finalId, { type: img.mimeType ?? "image/png", bytes: new Uint8Array(Buffer.from(img.data, "base64")) });
+    const usd = geminiImageUsd(model);
     await g.addSpend(usd);
     return { url: `/api/images/${finalId}?v=${Date.now().toString(36)}`, costUsd: usd };
   }

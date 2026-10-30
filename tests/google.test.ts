@@ -17,6 +17,7 @@ function fakeGoogle(calls: string[], fail?: number) {
     calls.push(url);
     if (url.includes("oauth2.googleapis.com")) return Response.json({ access_token: "tok", expires_in: 3600 });
     if (fail) return new Response("nein", { status: fail });
+    if (url.includes(":generateContent")) { calls.push(`body:${String(init?.body)}`); return Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: Buffer.from([1, 2]).toString("base64") } }] } }] }); }
     if (url.includes(":predict")) return Response.json({ predictions: [{ bytesBase64Encoded: Buffer.from([1, 2]).toString("base64"), mimeType: "image/jpeg" }] });
     if (url.includes("texttospeech")) { calls.push(`voice:${JSON.parse(String(init?.body)).voice.name}`); return Response.json({ audioContent: Buffer.from([1]).toString("base64") }); }
     return new Response("?", { status: 404 });
@@ -43,14 +44,18 @@ describe("Google-Testphase", () => {
     expect((msg.content[0] as { text: string }).text).toBe("Anthropic");
   });
 
-  it("Bilder: im Zeitfenster Imagen; lehnt Google ab (Guthaben weg), malt wieder fal.ai – und Google bleibt eine Weile aus", async () => {
+  it("Bilder: im Zeitfenster Nano Banana Pro (oder Imagen); lehnt Google ab (Guthaben weg), malt wieder fal.ai – und Google bleibt eine Weile aus", async () => {
     const calls: string[] = [];
     const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle(calls));
     const maker = new ImageMaker({ key: undefined, store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls) });
     const r = await maker.make("A misty monastery", "landscape_4_3");
-    // Noch nichts ausgegeben: Luxus-Stufe – Imagen 4 Ultra
-    expect(r.costUsd).toBe(0.06);
-    expect(calls.some((c) => c.includes("imagen-4.0-ultra-generate-001:predict"))).toBe(true);
+    expect(r.costUsd).toBe(0.134);
+    expect(calls.some((c) => c.includes("locations/global/publishers/google/models/gemini-3-pro-image-preview:generateContent"))).toBe(true);
+    expect(calls.find((c) => c.startsWith("body:"))).toContain('"aspectRatio":"4:3"');
+    // Imagen per Einstellung weiterhin möglich
+    const ig = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today, GOOGLE_IMAGE_MODEL: "imagen-4.0-generate-001" })!, fakeGoogle(calls));
+    expect((await new ImageMaker({ key: undefined, store: new MemoryImageStore(), google: ig, fetch: fakeGoogle(calls) }).make("x", "square")).costUsd).toBeGreaterThan(0);
+    expect(calls.some((c) => c.includes("imagen-4.0-generate-001:predict"))).toBe(true);
     const broke = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle([], 403));
     const falCalls: string[] = [];
     const fal = (async (url: string) => { falCalls.push(url); if (url.includes("fal.run")) return Response.json({ images: [{ url: "data:image/webp;base64,AQI=", width: 1024, height: 768 }] }); return fakeGoogle([], 403)(url); }) as unknown as typeof fetch;
