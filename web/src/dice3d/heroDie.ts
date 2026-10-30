@@ -1,11 +1,27 @@
 // Schwebender W20 auf der Startseite. Rendert nur, solange er sichtbar ist.
+// `roll(value)` lässt ihn taumeln und mit genau dieser Zahl zum Betrachter zur Ruhe kommen (Probewurf der Startseite).
 import * as THREE from "three";
+import { getDieModel } from "./geometry";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { prefersReducedMotion } from "../lib/dom";
 import { settings } from "../lib/settings";
 import { createDieMesh } from "./textures";
 
-export function mountHeroDie(host: HTMLElement): () => void {
+export interface HeroDie { dispose(): void; roll(value: number): Promise<void> }
+
+/** Drehung, bei der die Fläche mit diesem Wert aufrecht zur Kamera zeigt – leicht geneigt, damit er räumlich wirkt. */
+function faceTowardCamera(value: number): THREE.Quaternion {
+  const model = getDieModel("d20");
+  const vi = model.values.findIndex((v) => v.value === value);
+  const face = model.faces[model.faceValue.indexOf(vi)];
+  const toCam = new THREE.Quaternion().setFromUnitVectors(face.normal.clone().normalize(), new THREE.Vector3(0, 0, 1));
+  const up = face.up.clone().applyQuaternion(toCam);
+  const upright = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(up.x, up.y));
+  const tilt = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.16, 0.24, 0));
+  return tilt.multiply(upright).multiply(toCam);
+}
+
+export function mountHeroDie(host: HTMLElement): HeroDie {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setClearColor(0, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -49,27 +65,46 @@ export function mountHeroDie(host: HTMLElement): () => void {
   const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; });
   io.observe(host);
 
-  let px = 0, py = 0, spin = 0, t = 0, last = performance.now();
+  let px = 0, py = 0, t = 0, last = performance.now();
   const onMove = (e: PointerEvent) => {
     const r = host.getBoundingClientRect();
     px = ((e.clientX - r.left) / r.width - 0.5) * 2;
     py = ((e.clientY - r.top) / r.height - 0.5) * 2;
   };
   addEventListener("pointermove", onMove, { passive: true });
-  const onClick = () => { spin = 14; };
-  host.addEventListener("click", onClick);
-
   const still = prefersReducedMotion();
   die.rotation.set(0.5, 0.6, 0.1);
   renderer.render(scene, camera);
+  // Wurf: erst taumeln (tumbleMs), dann sanft auf die Zielfläche drehen (settleMs), danach liegen lassen
+  let throwState: { start: number; from: THREE.Quaternion | null; target: THREE.Quaternion; done: () => void } | null = null;
+  let resting = false;
+  const tumbleMs = still ? 0 : 950, settleMs = still ? 0 : 750;
+  const axis = new THREE.Vector3(1, 0.6, 0.3).normalize();
   renderer.setAnimationLoop((now) => {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    if (!visible || document.hidden || still) return;
+    // Ein laufender Wurf wird auch außerhalb des Bildes zu Ende gerechnet (sonst wartet die Seite ewig auf ihn)
+    if ((!visible && !throwState) || document.hidden) return;
+    const moved = !!throwState;
+    if (throwState) {
+      const el = now - throwState.start;
+      if (el < tumbleMs) {
+        const speed = 18 * (1 - el / tumbleMs) + 4;
+        die.rotateOnWorldAxis(axis, dt * speed);
+        die.rotation.z += dt * speed * 0.3;
+      } else {
+        throwState.from ??= die.quaternion.clone();
+        const k = Math.min(1, (el - tumbleMs) / Math.max(1, settleMs));
+        const ease = 1 - Math.pow(1 - k, 3);
+        die.quaternion.copy(throwState.from).slerp(throwState.target, ease);
+        if (k >= 1) { const d = throwState.done; throwState = null; resting = true; d(); }
+      }
+    } else if (!resting && !still) {
+      die.rotation.y += dt * 0.35;
+      die.rotation.x += dt * 0.18;
+    }
+    if (still) { if (moved) renderer.render(scene, camera); return; }
     t += dt;
-    spin *= 0.96;
-    die.rotation.y += dt * (0.35 + spin);
-    die.rotation.x += dt * (0.18 + spin * 0.4);
     die.position.y = Math.sin(t * 1.3) * 0.12;
     camera.position.x += (px * 0.8 - camera.position.x) * 0.05;
     camera.position.y += (-py * 0.6 - camera.position.y) * 0.05;
@@ -77,13 +112,23 @@ export function mountHeroDie(host: HTMLElement): () => void {
     renderer.render(scene, camera);
   });
 
-  return () => {
-    renderer.setAnimationLoop(null);
-    ro.disconnect();
-    io.disconnect();
-    removeEventListener("pointermove", onMove);
-    (die.material as THREE.Material).dispose();
-    renderer.dispose();
-    renderer.domElement.remove();
+  return {
+    roll(value) {
+      return new Promise<void>((done) => {
+        throwState?.done();
+        resting = false;
+        throwState = { start: performance.now(), from: null, target: faceTowardCamera(value), done };
+      });
+    },
+    dispose() {
+      throwState?.done();
+      renderer.setAnimationLoop(null);
+      ro.disconnect();
+      io.disconnect();
+      removeEventListener("pointermove", onMove);
+      (die.material as THREE.Material).dispose();
+      renderer.dispose();
+      renderer.domElement.remove();
+    },
   };
 }

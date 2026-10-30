@@ -8,6 +8,7 @@ import "@fontsource/inter/700.css";
 import "./styles/base.css";
 import "./styles/components.css";
 import "./styles/pages.css";
+import "./styles/home.css";
 
 import { boot } from "./lib/account";
 
