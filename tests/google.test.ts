@@ -64,7 +64,7 @@ describe("Google-Testphase", () => {
     expect(broke.active()).toBe(false);
   });
 
-  it("Vorlesen: im Zeitfenster Gemini-TTS Pro (Erzähler Charon), auf Wunsch nur Chirp 3 HD", async () => {
+  it("Vorlesen: im Zeitfenster Gemini-TTS (Erzähler Charon), auf Wunsch nur Chirp 3 HD", async () => {
     const calls: string[] = [];
     const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle(calls));
     const a = new AudioMaker({ store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls) });

@@ -78,6 +78,30 @@ export function joinAudio(files: StoredImage[]): StoredImage {
   return { type: "audio/wav", bytes: out };
 }
 
+/** Höchstlänge eines Stücks beim Vorlesen mit Google (Zeichen). */
+const CHUNK_CHARS = 320;
+/** Text an Satzgrenzen in Stücke teilen (ein überlanger Satz wird an Kommas bzw. Leerzeichen geteilt). */
+export function chunkText(text: string, max: number): string[] {
+  const sentences = text.match(/[^.!?…]+[.!?…]+["“”»«']*\s*|[^.!?…]+$/g) ?? [text];
+  const out: string[] = [];
+  let cur = "";
+  const push = (piece: string) => {
+    if ((cur + piece).length <= max) { cur += piece; return; }
+    if (cur.trim()) out.push(cur.trim());
+    cur = "";
+    while (piece.length > max) {
+      const cut = Math.max(piece.lastIndexOf(", ", max), piece.lastIndexOf(" ", max));
+      const at = cut > max / 3 ? cut + 1 : max;
+      out.push(piece.slice(0, at).trim());
+      piece = piece.slice(at);
+    }
+    cur = piece;
+  };
+  for (const s of sentences) push(s);
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter(Boolean);
+}
+
 /** Chirp 3 HD (Richtwert, aus dem Testguthaben bezahlt): 30 $ je Million Zeichen. */
 const CHIRP_USD_PER_1000 = 0.03;
 const ttsMonthKey = (d = new Date()) => `tts-chars-${d.toISOString().slice(0, 7)}`;
@@ -109,7 +133,7 @@ export type Mood = keyof typeof MOODS;
 export const isMood = (m: unknown): m is Mood => typeof m === "string" && m in MOODS;
 
 export class AudioMaker {
-  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (Standard gemini-2.5-pro-tts), „chirp“ = nur Chirp 3 HD */ geminiTtsModel?: string }) {}
+  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (Standard gemini-2.5-flash-tts), „chirp“ = nur Chirp 3 HD */ geminiTtsModel?: string }) {}
 
   get ready() { return !!this.o.key || !!this.o.googleKey || !!this.o.google?.active(); }
 
@@ -145,14 +169,16 @@ export class AudioMaker {
       .filter((s) => s.text.length >= 1).slice(0, MAX_SEGMENTS);
     let budget = MAX_TTS_CHARS;
     for (const s of segs) { s.text = s.text.slice(0, Math.max(0, budget)); budget -= s.text.length; }
-    const parts = segs.filter((s) => s.text.length);
+    // Mit Google: lange Abschnitte in Satzgruppen teilen – kurze Stücke sind schnell fertig und laufen gleichzeitig
+    const google = !!this.o.google?.active();
+    const parts = segs.filter((s) => s.text.length).flatMap((s) => (google ? chunkText(s.text, CHUNK_CHARS).map((text) => ({ text, voice: s.voice })) : [s]));
     if (!parts.length) throw new Error("Kein Text zum Vorlesen.");
     if (parts.length === 1) return this.speak(parts[0].text, parts[0].voice);
-    const id = `tts-${createHash("sha256").update(`v3|${JSON.stringify(parts)}`).digest("hex").slice(0, 32)}`;
+    const id = `tts-${createHash("sha256").update(`v4|${JSON.stringify(parts)}`).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     let cost = 0;
     // Mit Google gleichzeitig (höchstens 4 auf einmal – sonst dauert langer Text zu lange), mit fal.ai nacheinander
-    const at = this.o.google?.active() ? 4 : 1;
+    const at = google ? 6 : 1;
     const results: { url: string; costUsd: number }[] = new Array(parts.length);
     for (let i = 0; i < parts.length; i += at) {
       const batch = await Promise.all(parts.slice(i, i + at).map((p) => this.speak(p.text, p.voice)));
@@ -172,12 +198,14 @@ export class AudioMaker {
   async speak(text: string, voice: string = NARRATOR_VOICE): Promise<{ url: string; costUsd: number }> {
     const clean = text.replace(/\s+/g, " ").trim().slice(0, MAX_TTS_CHARS);
     if (clean.length < 1) throw new Error("Kein Text zum Vorlesen.");
+    // Langer Text mit Google: in Stücken (schneller, keine Zeitüberschreitung)
+    if (clean.length > CHUNK_CHARS && this.o.google?.active()) return this.speakSegments([{ text: clean, voice }]);
     // Testphase: Chirp-Stimmen über das Dienstkonto
     const g = this.o.google;
     if (g?.active()) {
-      // Standard Gemini-TTS Pro (beste Qualität); GOOGLE_TTS_MODEL=chirp → nur Chirp 3 HD
+      // Standard Gemini-TTS Flash; GOOGLE_TTS_MODEL=gemini-2.5-pro-tts für Pro, =chirp für nur Chirp 3 HD
       if (this.o.geminiTtsModel !== "chirp") {
-        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel || "gemini-2.5-pro-tts"); }
+        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel || "gemini-2.5-flash-tts"); }
         catch (e) { console.error("[Ton] Gemini-Stimme fehlgeschlagen, lese mit Chirp:", (e as Error).message); }
       }
       try { return await this.speakChirp(g, clean, voice); }
@@ -217,8 +245,8 @@ export class AudioMaker {
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
       // Ohne Regieanweisung: Manche Modelle lesen sie sonst mit vor
       body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name, modelName: model }, audioConfig: WAV_CONFIG }),
-      // Pro ist langsam – aber Netlify bricht nach rund 26 s ab: nach 19 s lieber noch rechtzeitig Chirp
-      signal: AbortSignal.timeout(19_000),
+      // Netlify bricht nach rund 26 s ab: nach 14 s lieber noch rechtzeitig Chirp (Stücke sind kurz)
+      signal: AbortSignal.timeout(14_000),
     });
     if (!res.ok) throw new GoogleError(`Gemini-TTS ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { audioContent?: string };
@@ -238,7 +266,7 @@ export class AudioMaker {
       method: "POST",
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
       body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: cv }, audioConfig: WAV_CONFIG }),
-      signal: AbortSignal.timeout(6_000),
+      signal: AbortSignal.timeout(9_000),
     });
     if (!res.ok) throw new GoogleError(`Chirp ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { audioContent?: string };
@@ -252,14 +280,14 @@ export class AudioMaker {
   /** Google-Stimme (kostenlos im Kontingent). null = Kontingent aufgebraucht. Gespeicherte Texte zählen nicht erneut. */
   private async speakGoogle(clean: string, voice: string): Promise<{ url: string; costUsd: number } | null> {
     const gv = googleVoice(voice);
-    const id = `tts-${createHash("sha256").update(`g|${gv}|${clean}`).digest("hex").slice(0, 32)}`;
+    const id = `tts-${createHash("sha256").update(`g2|${gv}|${clean}`).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     const limit = this.o.freeChars ?? GOOGLE_FREE_CHARS;
     if (this.o.counters && (await this.o.counters.get(ttsMonthKey())) + clean.length > limit) return null;
     const res = await (this.o.fetch ?? fetch)(`${GOOGLE_TTS_URL}?key=${encodeURIComponent(this.o.googleKey!)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: gv }, audioConfig: { audioEncoding: "MP3", speakingRate: 0.95 } }),
+      body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: gv }, audioConfig: { ...WAV_CONFIG, speakingRate: 0.95 } }),
       signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) {
@@ -269,7 +297,7 @@ export class AudioMaker {
     const out = (await res.json()) as { audioContent?: string };
     if (!out.audioContent) throw new Error("Google hat keinen Ton geliefert.");
     await this.o.counters?.add(ttsMonthKey(), clean.length);
-    await this.o.store.put(id, { type: "audio/mpeg", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
+    await this.o.store.put(id, { type: "audio/wav", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
     return { url: `/api/images/${id}`, costUsd: 0 };
   }
 

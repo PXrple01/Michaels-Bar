@@ -148,3 +148,14 @@ describe("Vorlesen vorbereiten", () => {
     expect(await claude.speak("Nebel über dem Kloster.", "t", undefined, true)).toEqual({ skipped: true });
   });
 });
+
+describe("Lange Texte in Stücken vorlesen", () => {
+  it("teilt an Satzgrenzen, kein Stück zu lang, nichts geht verloren", async () => {
+    const { chunkText } = await import("../server/audio");
+    const text = "Der Wagen rollt heran. Auf dem Bock sitzt ein Fuhrmann! Sie sehen die gefesselten Männer? „Halt! Da stimmt was nicht.“ Noch haben sie euch nicht bemerkt. " + "Sehr lang ".repeat(60);
+    const parts = chunkText(text, 120);
+    expect(parts.every((p) => p.length <= 120)).toBe(true);
+    expect(parts.join(" ").replace(/\s+/g, " ").trim()).toBe(text.replace(/\s+/g, " ").trim());
+    expect(chunkText("Kurz.", 320)).toEqual(["Kurz."]);
+  });
+});
