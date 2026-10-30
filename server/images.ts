@@ -4,6 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { GoogleError, isProviderFailure, type GoogleCloud } from "./google";
 
 export interface StoredImage { bytes: Uint8Array; type: string }
 export interface ImageStore {
@@ -47,10 +48,14 @@ export type ImageShape = "landscape_4_3" | "portrait_4_3" | "square";
 /** Quadratisch mit knapp 1 Megapixel – kostet so viel wie ein Querformat-Bild. */
 const SIZE: Record<ImageShape, string | { width: number; height: number }> = { landscape_4_3: "landscape_4_3", portrait_4_3: "portrait_4_3", square: { width: 992, height: 992 } };
 
-export class ImageMaker {
-  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch }) {}
+/** Imagen (Google, Testphase): Preis je Bild (Richtwert für imagen-4.0-generate-001). */
+const IMAGEN_USD = 0.04;
+const IMAGEN_RATIO: Record<ImageShape, string> = { landscape_4_3: "4:3", portrait_4_3: "3:4", square: "1:1" };
 
-  get ready() { return !!this.o.key; }
+export class ImageMaker {
+  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; google?: GoogleCloud | null }) {}
+
+  get ready() { return !!this.o.key || !!this.o.google?.active(); }
   get store() { return this.o.store; }
 
   /**
@@ -59,6 +64,17 @@ export class ImageMaker {
    * Klappt es mit Referenzen nicht, wird ohne gemalt.
    */
   async make(motif: string, shape: ImageShape, id?: string, opts: { style?: boolean; refs?: { characterId: string; label: string }[] } = {}): Promise<{ url: string; costUsd: number }> {
+    // Testphase: Imagen malt (Porträt-Vorlagen gibt es dort nicht). Klappt es nicht, malt wie bisher fal.ai.
+    const g = this.o.google;
+    if (g?.active()) {
+      try { return await this.paintImagen(g, motif, shape, id, opts.style); }
+      catch (e) {
+        const status = e instanceof GoogleError ? e.status : undefined;
+        if (isProviderFailure(status)) g.markBroken("Imagen", (e as Error).message);
+        else console.error("[Bilder] Imagen fehlgeschlagen, male mit fal.ai:", (e as Error).message);
+        if (!this.o.key) throw e;
+      }
+    }
     if (!this.o.key) throw new Error("Bilder sind nicht eingerichtet (FAL_KEY fehlt).");
     const refs = await this.references(opts.refs ?? []);
     if (refs.length) {
@@ -66,6 +82,24 @@ export class ImageMaker {
       catch (e) { console.error("[Bilder] Mit Porträt-Referenz fehlgeschlagen, male ohne:", (e as Error).message); }
     }
     return this.paint(motif, shape, id, opts.style, []);
+  }
+
+  private async paintImagen(g: GoogleCloud, motif: string, shape: ImageShape, id: string | undefined, style: boolean | undefined): Promise<{ url: string; costUsd: number }> {
+    const prompt = style === false ? motif.trim().slice(0, 1600) : `${motif.trim().slice(0, 1200)}\n\n${STYLE}`;
+    const { projectId, imageRegion, imageModel } = g.cfg;
+    const res = await (this.o.fetch ?? fetch)(`https://${imageRegion}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${imageRegion}/publishers/google/models/${imageModel}:predict`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
+      body: JSON.stringify({ instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: IMAGEN_RATIO[shape], personGeneration: "allow_adult", outputOptions: { mimeType: "image/jpeg" } } }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (!res.ok) throw new GoogleError(`Imagen ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
+    const out = (await res.json()) as { predictions?: { bytesBase64Encoded?: string; mimeType?: string }[] };
+    const img = out.predictions?.[0];
+    if (!img?.bytesBase64Encoded) throw new GoogleError("Imagen hat kein Bild geliefert (vermutlich vom Sicherheitsfilter aussortiert)", 200);
+    const finalId = id ?? `img-${randomBytes(9).toString("hex")}`;
+    await this.o.store.put(finalId, { type: img.mimeType ?? "image/jpeg", bytes: new Uint8Array(Buffer.from(img.bytesBase64Encoded, "base64")) });
+    return { url: `/api/images/${finalId}?v=${Date.now().toString(36)}`, costUsd: IMAGEN_USD };
   }
 
   /** Porträts der Figuren als data-URI (höchstens 4). */

@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import type { ImageStore, StoredImage } from "./images";
 import { FEMALE, MALE, NARRATOR, UNKNOWN } from "../shared/voices";
 import type { CounterStore } from "./gm/usage";
+import { GoogleError, isProviderFailure, type GoogleCloud } from "./google";
 
 /**
  * Google Cloud Text-to-Speech (WaveNet, Deutsch): 1 Mio. Zeichen pro Monat kostenlos. Ein Zähler hält uns knapp darunter;
@@ -21,6 +22,15 @@ export function googleVoice(voice: string): string {
   if (f >= 0) return G_FEMALE[f % G_FEMALE.length];
   return voice === UNKNOWN ? "de-DE-Wavenet-E" : "de-DE-Wavenet-B";
 }
+/** Chirp-3-HD-Stimmen (Testphase, sehr natürlich) – gleiche Rollen wie oben. */
+const C_MALE = ["Fenrir", "Puck", "Orus"], C_FEMALE = ["Aoede", "Kore", "Leda"];
+export function chirpVoice(voice: string): string {
+  const m = MALE.indexOf(voice), f = FEMALE.indexOf(voice);
+  const name = voice === NARRATOR ? "Charon" : m >= 0 ? C_MALE[m % C_MALE.length] : f >= 0 ? C_FEMALE[f % C_FEMALE.length] : "Zephyr";
+  return `de-DE-Chirp3-HD-${name}`;
+}
+/** Chirp 3 HD (Richtwert, aus dem Testguthaben bezahlt): 30 $ je Million Zeichen. */
+const CHIRP_USD_PER_1000 = 0.03;
 const ttsMonthKey = (d = new Date()) => `tts-chars-${d.toISOString().slice(0, 7)}`;
 
 export const TTS_MODEL = "fal-ai/elevenlabs/tts/turbo-v2.5";
@@ -50,9 +60,9 @@ export type Mood = keyof typeof MOODS;
 export const isMood = (m: unknown): m is Mood => typeof m === "string" && m in MOODS;
 
 export class AudioMaker {
-  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean }) {}
+  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null }) {}
 
-  get ready() { return !!this.o.key || !!this.o.googleKey; }
+  get ready() { return !!this.o.key || !!this.o.googleKey || !!this.o.google?.active(); }
 
   private async run(model: string, input: unknown, timeoutMs: number): Promise<Record<string, unknown>> {
     if (!this.o.key) throw new Error("Ton ist nicht eingerichtet (FAL_KEY fehlt).");
@@ -110,10 +120,26 @@ export class AudioMaker {
   async speak(text: string, voice: string = NARRATOR_VOICE): Promise<{ url: string; costUsd: number }> {
     const clean = text.replace(/\s+/g, " ").trim().slice(0, MAX_TTS_CHARS);
     if (clean.length < 1) throw new Error("Kein Text zum Vorlesen.");
+    // Testphase: Chirp-Stimmen über das Dienstkonto
+    const g = this.o.google;
+    if (g?.active()) {
+      try { return await this.speakChirp(g, clean, voice); }
+      catch (e) {
+        const status = e instanceof GoogleError ? e.status : undefined;
+        if (isProviderFailure(status)) g.markBroken("Chirp-Stimmen", (e as Error).message);
+        else console.error("[Ton] Chirp fehlgeschlagen, lese wie bisher:", (e as Error).message);
+      }
+    }
     if (this.o.googleKey) {
-      const r = await this.speakGoogle(clean, voice);
-      if (r) return r;
-      if (!this.o.paidFallback || !this.o.key) throw new Error("Das kostenlose Vorlese-Kontingent für diesen Monat ist aufgebraucht. Ab dem nächsten Monat geht es weiter.");
+      try {
+        const r = await this.speakGoogle(clean, voice);
+        if (r) return r;
+        if (!this.o.paidFallback || !this.o.key) throw new Error("Das kostenlose Vorlese-Kontingent für diesen Monat ist aufgebraucht. Ab dem nächsten Monat geht es weiter.");
+      } catch (e) {
+        // Google-Schlüssel abgelehnt (z. B. Konto nach der Testphase pausiert): wie bisher mit ElevenLabs lesen
+        if (!(e instanceof GoogleError) || !isProviderFailure(e.status) || !this.o.key) throw e;
+        console.warn(`[Ton] Google-Vorlesen abgelehnt (${e.message}) – lese mit ElevenLabs.`);
+      }
     }
     const id = `tts-${createHash("sha256").update(`${voice}|${clean}`).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
@@ -122,6 +148,24 @@ export class AudioMaker {
     if (!url) throw new Error("fal.ai hat keinen Ton geliefert.");
     await this.o.store.put(id, await this.download(url, "audio/mpeg"));
     return { url: `/api/images/${id}`, costUsd: (clean.length / 1000) * TTS_USD_PER_1000 };
+  }
+
+  /** Chirp-3-HD-Stimme (Testphase, aus dem Guthaben bezahlt – zählt nicht zum Gratis-Kontingent). */
+  private async speakChirp(g: GoogleCloud, clean: string, voice: string): Promise<{ url: string; costUsd: number }> {
+    const cv = chirpVoice(voice);
+    const id = `tts-${createHash("sha256").update(`c|${cv}|${clean}`).digest("hex").slice(0, 32)}`;
+    if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
+    const res = await (this.o.fetch ?? fetch)(GOOGLE_TTS_URL, {
+      method: "POST",
+      headers: { authorization: `Bearer ${await g.token()}`, "x-goog-user-project": g.cfg.projectId, "content-type": "application/json" },
+      body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: cv }, audioConfig: { audioEncoding: "MP3" } }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) throw new GoogleError(`Chirp ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
+    const out = (await res.json()) as { audioContent?: string };
+    if (!out.audioContent) throw new GoogleError("Google hat keinen Ton geliefert", 200);
+    await this.o.store.put(id, { type: "audio/mpeg", bytes: new Uint8Array(Buffer.from(out.audioContent, "base64")) });
+    return { url: `/api/images/${id}`, costUsd: (clean.length / 1000) * CHIRP_USD_PER_1000 };
   }
 
   /** Google-Stimme (kostenlos im Kontingent). null = Kontingent aufgebraucht. Gespeicherte Texte zählen nicht erneut. */
@@ -139,7 +183,7 @@ export class AudioMaker {
     });
     if (!res.ok) {
       console.error(`[Ton] Google TTS ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`);
-      throw new Error(res.status === 400 || res.status === 403 ? "Der Google-Schlüssel fürs Vorlesen wurde abgelehnt (Text-to-Speech-API aktiviert?)." : `Google hat abgelehnt (${res.status}).`);
+      throw new GoogleError(res.status === 400 || res.status === 403 ? "Der Google-Schlüssel fürs Vorlesen wurde abgelehnt (Text-to-Speech-API aktiviert?)." : `Google hat abgelehnt (${res.status}).`, res.status);
     }
     const out = (await res.json()) as { audioContent?: string };
     if (!out.audioContent) throw new Error("Google hat keinen Ton geliefert.");

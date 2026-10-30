@@ -1,0 +1,90 @@
+// Google Cloud für die Testphase (300 $ Guthaben, 90 Tage): Claude über Vertex AI, Bilder mit Imagen, Chirp-Stimmen.
+// Google wird nur in einem festen Zeitfenster benutzt – ab GOOGLE_TRIAL_START für TRIAL_DAYS Tage. Danach (oder ohne
+// Startdatum) laufen automatisch wieder die bisherigen Anbieter (Anthropic, fal.ai, ElevenLabs bzw. WaveNet).
+// Lehnt Google vorher ab (Guthaben weg, Zugang falsch), wird für eine Weile ebenfalls auf die bisherigen umgeschaltet.
+import { createSign } from "node:crypto";
+
+/** 90 Tage Testphase, zwei Tage Puffer – damit nie eine echte Abrechnung beginnt. */
+export const TRIAL_DAYS = 88;
+/** So lange bleibt Google nach einer Ablehnung (Guthaben, Rechte, Kontingent) abgeschaltet, bevor es neu versucht wird. */
+const BROKEN_MS = 15 * 60_000;
+
+export interface GoogleEnv {
+  /** Inhalt der JSON-Schlüsseldatei des Dienstkontos (client_email, private_key, project_id). */
+  GOOGLE_SERVICE_ACCOUNT?: string;
+  /** Erster Tag der Testphase, JJJJ-MM-TT. Ohne Datum wird Google nie benutzt. */
+  GOOGLE_TRIAL_START?: string;
+  /** Region für Claude (Standard: global). */
+  GOOGLE_REGION?: string;
+  /** Region für Imagen (Standard: us-central1). */
+  GOOGLE_IMAGE_REGION?: string;
+  /** Imagen-Modell (Standard: imagen-4.0-generate-001). */
+  GOOGLE_IMAGE_MODEL?: string;
+}
+
+export interface GoogleConfig { email: string; privateKey: string; projectId: string; region: string; imageRegion: string; imageModel: string; until: Date }
+
+/** Liest die Einstellungen. null = Google ist nicht (vollständig) eingerichtet. */
+export function googleConfig(env: GoogleEnv): GoogleConfig | null {
+  const start = env.GOOGLE_TRIAL_START?.trim();
+  if (!env.GOOGLE_SERVICE_ACCOUNT?.trim() || !start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) return null;
+  try {
+    const sa = JSON.parse(env.GOOGLE_SERVICE_ACCOUNT) as { client_email?: string; private_key?: string; project_id?: string };
+    if (!sa.client_email || !sa.private_key || !sa.project_id) return null;
+    const until = new Date(`${start}T00:00:00Z`);
+    until.setUTCDate(until.getUTCDate() + TRIAL_DAYS);
+    return {
+      email: sa.client_email, privateKey: sa.private_key.replace(/\\n/g, "\n"), projectId: sa.project_id,
+      region: env.GOOGLE_REGION?.trim() || "global", imageRegion: env.GOOGLE_IMAGE_REGION?.trim() || "us-central1",
+      imageModel: env.GOOGLE_IMAGE_MODEL?.trim() || "imagen-4.0-generate-001", until,
+    };
+  } catch {
+    console.error("[Google] GOOGLE_SERVICE_ACCOUNT ist kein gültiges JSON.");
+    return null;
+  }
+}
+
+const b64url = (s: string | Buffer) => Buffer.from(s).toString("base64url");
+
+export class GoogleCloud {
+  private cached: { token: string; exp: number } | null = null;
+  private brokenUntil = 0;
+
+  constructor(readonly cfg: GoogleConfig, private f: typeof fetch = fetch) {}
+
+  /** Wird Google gerade benutzt? Nur im Zeitfenster und wenn es nicht kürzlich abgelehnt hat. */
+  active(now = Date.now()): boolean { return now < this.cfg.until.getTime() && now >= this.brokenUntil; }
+
+  /** Nach einer Ablehnung eine Weile auf die bisherigen Anbieter umschalten. */
+  markBroken(what: string, reason: string) {
+    this.brokenUntil = Date.now() + BROKEN_MS;
+    console.warn(`[Google] ${what} abgelehnt (${reason}) – für 15 Minuten wieder die bisherigen Anbieter.`);
+  }
+
+  /** Zugangsschlüssel (OAuth) aus dem Dienstkonto – eine Stunde gültig, wird zwischengespeichert. */
+  async token(): Promise<string> {
+    if (this.cached && this.cached.exp > Date.now() + 60_000) return this.cached.token;
+    const iat = Math.floor(Date.now() / 1000);
+    const head = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+    const claims = b64url(JSON.stringify({ iss: this.cfg.email, scope: "https://www.googleapis.com/auth/cloud-platform", aud: "https://oauth2.googleapis.com/token", iat, exp: iat + 3600 }));
+    const sig = createSign("RSA-SHA256").update(`${head}.${claims}`).sign(this.cfg.privateKey).toString("base64url");
+    const res = await this.f("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: `${head}.${claims}.${sig}` }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new GoogleError(`Anmeldung bei Google fehlgeschlagen (${res.status})`, res.status);
+    const out = (await res.json()) as { access_token?: string; expires_in?: number };
+    if (!out.access_token) throw new GoogleError("Google hat keinen Zugangsschlüssel geliefert", 401);
+    this.cached = { token: out.access_token, exp: Date.now() + (out.expires_in ?? 3600) * 1000 };
+    return out.access_token;
+  }
+}
+
+export class GoogleError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
+/** Fehler, nach denen Google eine Weile gemieden wird: Zugang, Guthaben/Abrechnung, Kontingent. (404 – einzelnes Modell fehlt – nur für den einen Aufruf.) */
+export const isProviderFailure = (status: number | undefined) => status === 401 || status === 402 || status === 403 || status === 429;

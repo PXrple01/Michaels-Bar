@@ -11,8 +11,10 @@ import { ImageMaker, MemoryImageStore, type ImageStore } from "../images";
 import { portraitPrompt } from "./portrait";
 import { AudioMaker, isMood, type Segment } from "../audio";
 import { resolveCharacter } from "../characters";
+import { GoogleCloud, googleConfig, type GoogleEnv } from "../google";
+import { SwitchingLlm } from "./googleLlm";
 
-export interface GmEnv {
+export interface GmEnv extends GoogleEnv {
   ANTHROPIC_API_KEY?: string;
   GAME_SECRET?: string;
   ACCESS_CODE?: string;
@@ -49,13 +51,18 @@ export interface Claude {
 
 export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, counters: CounterStore, secret: string, parties: PartyStore = new MemoryPartyStore(), imageStore: ImageStore = new MemoryImageStore()): Claude {
   const effort = env.GM_EFFORT === "medium" || env.GM_EFFORT === "high" ? env.GM_EFFORT : "low";
-  const llm = env.ANTHROPIC_API_KEY ? new AnthropicLlm(env.ANTHROPIC_API_KEY) : null;
+  const anthropic = env.ANTHROPIC_API_KEY ? new AnthropicLlm(env.ANTHROPIC_API_KEY) : null;
+  // Google-Testphase: im Zeitfenster Claude über Vertex, Imagen und Chirp – danach automatisch wieder wie bisher
+  const gcfg = googleConfig(env);
+  const google = gcfg ? new GoogleCloud(gcfg) : null;
+  if (google) console.log(`[Google] Testphase eingerichtet bis ${gcfg!.until.toISOString().slice(0, 10)}${google.active() ? "" : " (vorbei – bisherige Anbieter)"}.`);
+  const llm = google ? new SwitchingLlm(google, anthropic) : anthropic;
   // Monatsbudget nur, wenn MONTHLY_BUDGET_USD gesetzt ist (0 oder leer = ohne Grenze)
   const guard = new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD) || 0, Number(env.TURNS_PER_HOUR ?? 60) || 60);
   const model = pickModel(env.GM_MODEL, "claude-opus-5-5");
-  const images = new ImageMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore });
+  const images = new ImageMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, google });
   const gm = new GameMaster({ data, llm, rolls, guard, secret, effort, model, images });
-  const audio = new AudioMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, googleKey: env.GOOGLE_TTS_KEY?.trim() || undefined, counters, paidFallback: env.TTS_PAID_FALLBACK === "1" });
+  const audio = new AudioMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, googleKey: env.GOOGLE_TTS_KEY?.trim() || undefined, counters, paidFallback: env.TTS_PAID_FALLBACK === "1", google });
   return {
     gm,
     images,
