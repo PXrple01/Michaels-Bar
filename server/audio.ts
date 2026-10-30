@@ -109,7 +109,7 @@ export type Mood = keyof typeof MOODS;
 export const isMood = (m: unknown): m is Mood => typeof m === "string" && m in MOODS;
 
 export class AudioMaker {
-  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (z. B. gemini-2.5-flash-tts); ohne = Chirp 3 HD */ geminiTtsModel?: string }) {}
+  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (Standard gemini-2.5-pro-tts), „chirp“ = nur Chirp 3 HD */ geminiTtsModel?: string }) {}
 
   get ready() { return !!this.o.key || !!this.o.googleKey || !!this.o.google?.active(); }
 
@@ -175,9 +175,9 @@ export class AudioMaker {
     // Testphase: Chirp-Stimmen über das Dienstkonto
     const g = this.o.google;
     if (g?.active()) {
-      // Standard Chirp 3 HD; Gemini-TTS nur, wenn GOOGLE_TTS_MODEL ein Gemini-Modell nennt
-      if (this.o.geminiTtsModel?.startsWith("gemini")) {
-        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel); }
+      // Standard Gemini-TTS Pro (beste Qualität); GOOGLE_TTS_MODEL=chirp → nur Chirp 3 HD
+      if (this.o.geminiTtsModel !== "chirp") {
+        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel || "gemini-2.5-pro-tts"); }
         catch (e) { console.error("[Ton] Gemini-Stimme fehlgeschlagen, lese mit Chirp:", (e as Error).message); }
       }
       try { return await this.speakChirp(g, clean, voice); }
@@ -217,8 +217,8 @@ export class AudioMaker {
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
       // Ohne Regieanweisung: Manche Modelle lesen sie sonst mit vor
       body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name, modelName: model }, audioConfig: WAV_CONFIG }),
-      // Knapp halten: Netlify bricht nach rund 26 s ab – dann lieber rechtzeitig Chirp
-      signal: AbortSignal.timeout(14_000),
+      // Pro ist langsam – aber Netlify bricht nach rund 26 s ab: nach 19 s lieber noch rechtzeitig Chirp
+      signal: AbortSignal.timeout(19_000),
     });
     if (!res.ok) throw new GoogleError(`Gemini-TTS ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { audioContent?: string };
@@ -238,7 +238,7 @@ export class AudioMaker {
       method: "POST",
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
       body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: cv }, audioConfig: WAV_CONFIG }),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(6_000),
     });
     if (!res.ok) throw new GoogleError(`Chirp ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { audioContent?: string };

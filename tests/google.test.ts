@@ -64,17 +64,17 @@ describe("Google-Testphase", () => {
     expect(broke.active()).toBe(false);
   });
 
-  it("Vorlesen: im Zeitfenster Chirp 3 HD (Erzähler Charon), Gemini-TTS nur auf Wunsch", async () => {
+  it("Vorlesen: im Zeitfenster Gemini-TTS Pro (Erzähler Charon), auf Wunsch nur Chirp 3 HD", async () => {
     const calls: string[] = [];
     const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle(calls));
     const a = new AudioMaker({ store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls) });
     const r = await a.speak("Nebel hängt über dem Kloster.");
     expect(r.costUsd).toBeGreaterThan(0);
-    expect(calls).toContain("voice:de-DE-Chirp3-HD-Charon");
-    expect(calls).not.toContain("voice:Charon");
-    const gem = new AudioMaker({ store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls), geminiTtsModel: "gemini-2.5-flash-tts" });
-    await gem.speak("Nebel hängt über dem Kloster.");
     expect(calls).toContain("voice:Charon");
+    expect(calls).not.toContain("voice:de-DE-Chirp3-HD-Charon");
+    const c = new AudioMaker({ store: new MemoryImageStore(), google: g, fetch: fakeGoogle(calls), geminiTtsModel: "chirp" });
+    await c.speak("Nebel hängt über dem Kloster.");
+    expect(calls).toContain("voice:de-DE-Chirp3-HD-Charon");
   });
 
   it("Ausgabe-Regler: unter dem Tempo Luxus (Opus, Imagen Ultra), darüber normal – einmal pro Tag festgelegt", async () => {
