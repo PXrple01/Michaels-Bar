@@ -69,7 +69,7 @@ export type Mood = keyof typeof MOODS;
 export const isMood = (m: unknown): m is Mood => typeof m === "string" && m in MOODS;
 
 export class AudioMaker {
-  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (Standard gemini-2.5-pro-tts), „chirp“ = nur Chirp */ geminiTtsModel?: string }) {}
+  constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; googleKey?: string; counters?: CounterStore; freeChars?: number; paidFallback?: boolean; google?: GoogleCloud | null; /** Gemini-TTS-Modell (Standard gemini-2.5-flash-tts), „chirp“ = nur Chirp */ geminiTtsModel?: string }) {}
 
   get ready() { return !!this.o.key || !!this.o.googleKey || !!this.o.google?.active(); }
 
@@ -111,9 +111,15 @@ export class AudioMaker {
     const id = `tts-${createHash("sha256").update(JSON.stringify(parts)).digest("hex").slice(0, 32)}`;
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     let cost = 0;
+    // Mit Google gleichzeitig (höchstens 4 auf einmal – sonst dauert langer Text zu lange), mit fal.ai nacheinander
+    const at = this.o.google?.active() ? 4 : 1;
+    const results: { url: string; costUsd: number }[] = new Array(parts.length);
+    for (let i = 0; i < parts.length; i += at) {
+      const batch = await Promise.all(parts.slice(i, i + at).map((p) => this.speak(p.text, p.voice)));
+      batch.forEach((r, j) => { results[i + j] = r; });
+    }
     const files: Uint8Array[] = [];
-    for (const p of parts) { // nacheinander: fal.ai-Grenzen schonen, Reihenfolge bleibt
-      const r = await this.speak(p.text, p.voice);
+    for (const r of results) { // Reihenfolge bleibt
       cost += r.costUsd;
       const f = await this.o.store.get(r.url.split("/").pop()!);
       if (f) files.push(f.bytes);
@@ -133,7 +139,7 @@ export class AudioMaker {
     const g = this.o.google;
     if (g?.active()) {
       if (this.o.geminiTtsModel !== "chirp") {
-        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel || "gemini-2.5-pro-tts"); }
+        try { return await this.speakGemini(g, clean, voice, this.o.geminiTtsModel || "gemini-2.5-flash-tts"); }
         catch (e) { console.error("[Ton] Gemini-Stimme fehlgeschlagen, lese mit Chirp:", (e as Error).message); }
       }
       try { return await this.speakChirp(g, clean, voice); }
@@ -172,7 +178,8 @@ export class AudioMaker {
       method: "POST",
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
       body: JSON.stringify({ input: { text: clean, prompt: GEMINI_TTS_DIRECTION[voice === NARRATOR ? "narrator" : "figure"] }, voice: { languageCode: "de-DE", name, modelName: model }, audioConfig: { audioEncoding: "MP3" } }),
-      signal: AbortSignal.timeout(60_000),
+      // Knapp halten: Netlify bricht nach rund 26 s ab – dann lieber rechtzeitig Chirp
+      signal: AbortSignal.timeout(14_000),
     });
     if (!res.ok) throw new GoogleError(`Gemini-TTS ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { audioContent?: string };
@@ -192,7 +199,7 @@ export class AudioMaker {
       method: "POST",
       headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
       body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: cv }, audioConfig: { audioEncoding: "MP3" } }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) throw new GoogleError(`Chirp ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`, res.status);
     const out = (await res.json()) as { audioContent?: string };
