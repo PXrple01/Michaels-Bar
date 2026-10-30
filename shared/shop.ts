@@ -1,11 +1,11 @@
 // Händler und Schmiede: Claude öffnet einen Laden mit Waren und Preisen, gekauft und verkauft wird über die Oberfläche –
 // ohne Modellaufruf und ohne Mogeln (der Server prüft Geld, Bestand und Grenzen). Claude erfährt die Einkäufe im nächsten Zug.
-import { addItem, ensureInventory, findItem, itemText, moneyText, removeItem, type ItemKind } from "./inventory";
+import { addItem, ensureInventory, findItem, itemBonus, itemText, moneyText, removeItem, type ItemKind, type ItemStats } from "./inventory";
 import type { Character, Rules } from "./schema";
 import type { WorldState } from "./world";
 
 export type BonusTarget = "angriff" | "schaden" | "ruestung";
-export interface Ware { id: string; name: string; kind: ItemKind | "verbesserung"; price: number; note?: string; stock?: number; bonus?: { target: BonusTarget; value: number } }
+export interface Ware { id: string; name: string; kind: ItemKind | "verbesserung"; price: number; note?: string; stock?: number; bonus?: { target: BonusTarget; value: number }; stats?: ItemStats }
 export interface Shop { name: string; kind: "haendler" | "schmied"; wares: Ware[]; log: string[] }
 /** Dauerhafte Verbesserungen durch den Schmied (je Figur, je Wert höchstens +2). */
 export interface Gear { angriff: number; schaden: number; ruestung: number }
@@ -16,6 +16,13 @@ export const BONUS_NAME: Record<BonusTarget, string> = { angriff: "Angriff", sch
 const RESALE: Record<ItemKind, number> = { waffe: 72, ruestung: 120, trank: 36, werkzeug: 24, schatz: 240, gegenstand: 12 };
 
 export const gearOf = (w: WorldState | null | undefined, id: string): Gear => w?.gear?.[id] ?? { angriff: 0, schaden: 0, ruestung: 0 };
+
+/** Alle Ausrüstungs-Boni auf einen Wert: Schmied plus das beste Stück im Gepäck (für Würfe und Anzeige). */
+export function bonusParts(w: WorldState | null | undefined, id: string, target: BonusTarget): { label: string; value: number }[] {
+  const smith = gearOf(w, id)[target], item = itemBonus(w?.inventory?.[id], target);
+  return [...(smith ? [{ label: "Schmied", value: smith }] : []), ...(item ? [{ label: item.name, value: item.value }] : [])];
+}
+export const bonusTotal = (w: WorldState | null | undefined, id: string, target: BonusTarget) => bonusParts(w, id, target).reduce((n, p) => n + p.value, 0);
 
 /** Was ein Händler für einen Gegenstand zahlt: die Hälfte seines eigenen Preises, sonst ein fester Satz je Art. */
 export function sellPrice(shop: Shop, item: { name: string; kind: ItemKind }): number {
@@ -41,7 +48,7 @@ export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipme
       gear[ware.bonus.target] += ware.bonus.value;
       w.gear = { ...w.gear, [c.id]: gear };
     } else {
-      const e = addItem(inv, { name: ware.name, qty: 1, kind: ware.kind, ...(ware.note ? { note: ware.note } : {}) });
+      const e = addItem(inv, { name: ware.name, qty: 1, kind: ware.kind, ...(ware.note ? { note: ware.note } : {}), ...(ware.stats ? { stats: ware.stats } : {}) });
       if (e) return e;
     }
     inv.money -= ware.price;

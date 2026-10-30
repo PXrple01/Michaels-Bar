@@ -1,11 +1,11 @@
 import { avatar } from "./portraits";
 // Figurenblatt im Abenteuer: Name in der Seitenleiste antippen → Werte der Figur auf einen Blick
-// (mit Stufenaufstiegen, Schmied-Verbesserungen und aufgewerteten Fähigkeiten dieser Kampagne).
+// (mit Stufenaufstiegen, Schmied-Verbesserungen, Boni aus dem Gepäck und aufgewerteten Fähigkeiten dieser Kampagne).
 import { armorValue, attackInfo, modifier, skillBonusForLevel, trainedSkills } from "../../../shared/character";
 import { formatModifier } from "../../../shared/dice";
 import { levelTitle, xpProgress } from "../../../shared/levels";
 import type { Character } from "../../../shared/schema";
-import { gearOf } from "../../../shared/shop";
+import { bonusParts } from "../../../shared/shop";
 import { effectiveAbilities } from "../../../shared/upgrades";
 import type { WorldState } from "../../../shared/world";
 import { abilityIcon, usesLabel } from "./abilities";
@@ -19,7 +19,9 @@ function sheetBody(c: Character, data: GameData, w: WorldState | null | undefine
   const cls = classes.find((x) => x.id === c.classId);
   if (!cls) return html`<p class="muted">Die Klasse dieser Figur ist unbekannt.</p>`;
   const stand = rules.stands.find((s) => s.id === c.stand);
-  const gear = gearOf(w, c.id);
+  const parts = { angriff: bonusParts(w, c.id, "angriff"), schaden: bonusParts(w, c.id, "schaden"), ruestung: bonusParts(w, c.id, "ruestung") };
+  const sum = (k: keyof typeof parts) => parts[k].reduce((n, p) => n + p.value, 0);
+  const gear = { angriff: sum("angriff"), schaden: sum("schaden"), ruestung: sum("ruestung") };
   const armor = armorValue(c, rules, cls), atk = attackInfo(c, rules, cls);
   const trained = trainedSkills(c, rules, classes), sb = skillBonusForLevel(c.level, rules);
   const hp = w?.hp[c.id] ?? c.hp.current, maxHp = w?.maxHp[c.id] ?? c.hp.max;
@@ -39,11 +41,11 @@ function sheetBody(c: Character, data: GameData, w: WorldState | null | undefine
     </div>
     <div class="cs-vitals">
       <div title="Trefferpunkte – bei 0 ist die Figur bewusstlos">${icon("heart")}<b>${hp}/${maxHp}</b><small>Trefferpunkte</small></div>
-      <div title="${[...armor.parts.map((p) => `${p.label} ${formatModifier(p.value)}`), ...(gear.ruestung ? [`Schmied +${gear.ruestung}`] : [])].join(", ")}">${icon("shield")}<b>${armor.total + gear.ruestung}</b><small>Rüstung</small></div>
+      <div title="${[...armor.parts.map((p) => `${p.label} ${formatModifier(p.value)}`), ...parts.ruestung.map((p) => `${p.label} +${p.value}`)].join(", ")}">${icon("shield")}<b>${armor.total + gear.ruestung}</b><small>Rüstung</small></div>
       ${atk ? html`<div title="${atk.weapon}">${icon("sword")}<b>${formatModifier(atk.attackBonus + gear.angriff)}</b><small>Angriff</small></div>
         <div title="${atk.weapon}">${icon("zap")}<b>${atk.damage}${atk.damageBonus + gear.schaden ? formatModifier(atk.damageBonus + gear.schaden) : ""}</b><small>Schaden</small></div>` : ""}
     </div>
-    ${atk ? html`<small class="muted cs-weapon">Waffe: ${atk.weapon}${gear.angriff || gear.schaden || gear.ruestung ? " · vom Schmied verbessert" : ""}</small>` : ""}
+    ${atk ? html`<small class="muted cs-weapon">Waffe: ${atk.weapon}${gear.angriff || gear.schaden || gear.ruestung ? ` · Boni: ${[...new Set([...parts.angriff, ...parts.schaden, ...parts.ruestung].map((p) => p.label))].join(", ")}` : ""}</small>` : ""}
     <div class="cs-sec">${icon("star")} Attribute</div>
     <div class="cs-attrs">${rules.attributes.map((a) => html`<div class="${cls.primaryAttributes.includes(a.id) ? "primary" : ""}" title="${a.description}">
       <small>${a.short}</small><b>${formatModifier(modifier(c.attributes[a.id]))}</b><span>${c.attributes[a.id]}</span></div>`)}</div>

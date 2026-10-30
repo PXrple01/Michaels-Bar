@@ -8,11 +8,11 @@ import { formatModifier, parseNotation, type RollRecord } from "../../shared/dic
 import type { Character } from "../../shared/schema";
 import { resetUses, useAbility } from "../../shared/abilityUses";
 import { advanceTime, ensureTime, timeLine, type TimeStep } from "../../shared/time";
-import { BONUS_NAME, gearOf, type Ware } from "../../shared/shop";
+import { BONUS_NAME, bonusTotal, type Ware } from "../../shared/shop";
 import { GAMBLE_MAX } from "../../shared/gamble";
 import { ATTITUDE_NAME, ATTITUDES, upsertPerson } from "../../shared/people";
 import { PLACE_KINDS, PLACE_NAME, visitPlace } from "../../shared/map";
-import { addItem, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, removeItem, toPfennig } from "../../shared/inventory";
+import { addItem, cleanStats, ensureInventory, ITEM_KINDS, itemText, kindOf, moneyText, removeItem, statsText, toPfennig } from "../../shared/inventory";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
@@ -40,6 +40,12 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
   const party = characters.length > 1;
   const chapterList = { type: "array", items: { type: "object", properties: { titel: { type: "string" }, ziel: { type: "string" } }, required: ["titel", "ziel"] } };
   const dice = (d: string) => ({ type: "string", description: d });
+  const statProps = {
+    angriff: { type: "integer", description: "Optional, Waffen: Bonus 1–3" },
+    schaden: { type: "integer", description: "Optional, Waffen: Bonus 1–3" },
+    ruestung: { type: "integer", description: "Optional, Rüstung/Schild: Bonus 1–3" },
+    heilung: dice("Optional, Tränke/Kräuter: Heilwürfel, z. B. 2W4+2 (höchstens 2W8+5)"),
+  };
   const tool = (name: string, description: string, properties: Record<string, object>, required: string[]): Anthropic.Beta.BetaTool => ({
     name, description, eager_input_streaming: true, input_schema: { type: "object", properties, required },
   });
@@ -69,14 +75,15 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       vergeht: { type: "string", enum: ["kurz", "stunden", "bis_abend", "bis_nacht", "bis_morgen"] },
       wetter: { type: "string", description: "Optional: neues Wetter in wenigen Worten, z. B. „Nieselregen“, „klirrender Frost“" },
     }, ["vergeht"]),
-    tool("gegenstand", "Führt das Gepäck einer Figur (wird den Spielern angezeigt): erhalten (Beute, Geschenk, Fund), verbrauchen (Trank getrunken, Fackel abgebrannt), verlieren (gestohlen, zerbrochen), weitergeben (an eine andere Figur). Was nicht im Gepäck ist, kann nicht verbraucht werden.", {
+    tool("gegenstand", "Führt das Gepäck einer Figur (wird den Spielern angezeigt): erhalten (Beute, Geschenk, Fund), verbrauchen (Trank getrunken, Fackel abgebrannt), verlieren (gestohlen, zerbrochen), weitergeben (an eine andere Figur). Was nicht im Gepäck ist, kann nicht verbraucht werden. Gib Waffen, Rüstungen und Tränken beim Erhalten Werte: Boni (angriff, schaden, ruestung je 1–3; je Wert zählt das beste Stück im Gepäck automatisch bei den Würfen) und heilung (z. B. 2W4+2). Wird ein Stück mit heilung verbraucht, würfelt der Server die Heilung selbst – dann kein extra heilen." + " Gewöhnliches +1, gutes +2, sagenhaftes +3.", {
       ...(party ? { figur: nameProp(characters, "Wessen Gepäck") } : {}),
       aktion: { type: "string", enum: ["erhalten", "verbrauchen", "verlieren", "weitergeben"] },
       name: { type: "string", description: "Kurzer Name, z. B. „Heiltrank“, „Silberner Dolch“" },
       anzahl: { type: "integer", description: "Standard 1" },
       art: { type: "string", enum: [...ITEM_KINDS] },
-      notiz: { type: "string", description: "Optional, ein kurzer Satz (z. B. Wirkung: „heilt 1W8+2“)" },
-      ...(party ? { an: nameProp(characters, "Nur bei weitergeben: wer es bekommt") } : {}),
+      notiz: { type: "string", description: "Optional, ein kurzer Satz zur Herkunft oder Besonderheit" },
+      ...statProps,
+      ...(party ? { an: nameProp(characters, "Bei weitergeben: wer es bekommt. Bei verbrauchen eines Heiltranks: wer geheilt wird (Standard: die Figur selbst)") } : {}),
     }, [...(party ? ["figur"] : []), "aktion", "name"]),
     tool("geld", "Geld erhalten oder ausgeben (1 Gulden = 20 Groschen = 240 Pfennig). Beim Ausgeben prüft der Server, ob es reicht – sonst klappt der Kauf nicht." + (party ? " Beim Erhalten mit figur „alle“ wird gerecht geteilt." : ""), {
       ...(party ? { figur: { type: "string", enum: [...characters.map((c) => c.name), "alle"], description: "Wer bekommt bzw. bezahlt" } } : {}),
@@ -91,8 +98,9 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       waren: { type: "array", items: { type: "object", properties: {
         name: { type: "string" }, art: { type: "string", enum: [...ITEM_KINDS, "verbesserung"] },
         gulden: { type: "integer" }, groschen: { type: "integer" }, pfennig: { type: "integer" },
-        notiz: { type: "string", description: "Kurz, z. B. Wirkung" }, vorrat: { type: "integer" },
+        notiz: { type: "string", description: "Kurz, z. B. Herkunft" }, vorrat: { type: "integer" },
         bonus: { type: "string", enum: ["angriff", "schaden", "ruestung"], description: "Nur bei art verbesserung" },
+        ...statProps,
       }, required: ["name", "art"] } },
     }, ["aktion"]),
     tool("gluecksspiel", "Stellt in einer Taverne, auf dem Jahrmarkt oder im Lager einen Würfeltisch auf: Die Spieler würfeln selbst über die Oberfläche gegen eine Person (beide 2W6, der höhere Wurf gewinnt den Einsatz). Der Server würfelt und verbucht das Geld; wie die Spiele ausgingen, steht im nächsten <spielstand>. Biete es an, wenn die Figuren in geselliger Runde sind. schliessen, sobald sie weitergehen.", {
@@ -240,7 +248,7 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       if (!target) return err("Unbekanntes Ziel.");
       if (w.hp[target.id] <= 0) return err(`${target.name} ist bereits kampfunfähig.`);
       const cls = ctx.data.classes.find((c) => c.id === target.classId)!;
-      const ac = armorValue(target, ctx.data.rules, cls).total + gearOf(w, target.id).ruestung;
+      const ac = armorValue(target, ctx.data.rules, cls).total + bonusTotal(w, target.id, "ruestung");
       const bonus = Math.max(0, Math.min(LIMITS.attackBonus, Math.round(Number(input.angriffsbonus) || 0)));
       const mode = input.modus === "advantage" || input.modus === "disadvantage" ? input.modus : "normal";
       const atk = await ctx.rolls.roll({ requestId: rid(block.id, "a"), kind: "check", label: `${enemy.name} greift ${target.name} an`, notation: "1W20", mode, modifierParts: bonus ? [{ label: "Angriff", value: bonus }] : [], dc: ac });
@@ -318,11 +326,12 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
         const price = Math.max(1, Math.min(240 * 100, toPfennig({ gulden: Number(r.gulden) || 0, groschen: Number(r.groschen) || 0, pfennig: Number(r.pfennig) || 0 })));
         const bonus = kind === "verbesserung" && ["angriff", "schaden", "ruestung"].includes(String(r.bonus)) ? { target: r.bonus as "angriff", value: 1 } : undefined;
         if (kind === "verbesserung" && !bonus) return;
-        wares.push({ id: `w${i}`, name, kind, price, ...(text(r.notiz, 100) ? { note: text(r.notiz, 100) } : {}), ...(Number(r.vorrat) > 0 ? { stock: Math.min(20, Math.round(Number(r.vorrat))) } : {}), ...(bonus ? { bonus } : {}) });
+        const stats = kind === "verbesserung" ? undefined : cleanStats(r);
+        wares.push({ id: `w${i}`, name, kind, price, ...(text(r.notiz, 100) ? { note: text(r.notiz, 100) } : {}), ...(Number(r.vorrat) > 0 ? { stock: Math.min(20, Math.round(Number(r.vorrat))) } : {}), ...(bonus ? { bonus } : {}), ...(stats ? { stats } : {}) });
       });
       if (!wares.length) return err("waren fehlt (Name, Art und Preis je Ware).");
       w.shop = { name: text(input.name, 60) || "Händler", kind: input.art === "schmied" ? "schmied" : "haendler", wares, log: [] };
-      return { content: `Laden „${w.shop.name}“ geöffnet: ${wares.map((x) => `${x.name} (${moneyText(x.price, true)}${x.bonus ? `, ${BONUS_NAME[x.bonus.target]} +1` : ""})`).join(", ")}. Die Spieler kaufen über die Oberfläche.` };
+      return { content: `Laden „${w.shop.name}“ geöffnet: ${wares.map((x) => `${x.name} (${moneyText(x.price, true)}${x.bonus ? `, ${BONUS_NAME[x.bonus.target]} +1` : ""}${x.stats ? `, ${statsText(x.stats)}` : ""})`).join(", ")}. Die Spieler kaufen über die Oberfläche.` };
     }
     case "gluecksspiel": {
       if (input.aktion === "schliessen") { w.gamble = null; return { content: "Der Würfeltisch ist abgeräumt." }; }
@@ -341,11 +350,27 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       const qty = Math.max(1, Math.min(99, Math.round(Number(input.anzahl) || 1)));
       if (!name) return err("name fehlt.");
       if (input.aktion === "erhalten") {
-        const e = addItem(inv, { name, qty, kind: kindOf(input.art), ...(text(input.notiz, 120) ? { note: text(input.notiz, 120) } : {}) });
-        return e ? err(e) : { content: `${c.name} erhält ${qty > 1 ? `${qty}× ` : ""}${name}.` };
+        const stats = cleanStats(input);
+        const e = addItem(inv, { name, qty, kind: kindOf(input.art), ...(text(input.notiz, 120) ? { note: text(input.notiz, 120) } : {}), ...(stats ? { stats } : {}) });
+        return e ? err(e) : { content: `${c.name} erhält ${qty > 1 ? `${qty}× ` : ""}${name}${stats ? ` (${statsText(stats)})` : ""}.` };
       }
       const r = removeItem(inv, name, qty);
       if ("error" in r) return err(`${c.name}: ${r.error}`);
+      const heal = input.aktion === "verbrauchen" ? r.item.stats?.heilung : undefined;
+      if (heal) {
+        // Trank getrunken: Der Server würfelt die Heilung je Stück (bei weitergeben an jemand anderen nicht)
+        const target = (input.an !== undefined && findCharacter(ctx, input.an)) || c;
+        const before = w.hp[target.id];
+        const fixed = /^\d$/.test(heal);
+        let total = fixed ? Number(heal) * qty : 0;
+        for (let n = 0; !fixed && n < qty; n++) {
+          const roll = await ctx.rolls.roll({ requestId: rid(block.id, `h${n}`), kind: "check", label: `${r.item.name}: Heilung für ${target.name}`, notation: clampDice(heal, LIMITS.healDieMax) });
+          ctx.onRoll(roll);
+          total += Math.max(1, roll.total);
+        }
+        w.hp[target.id] = Math.min(w.maxHp[target.id], before + total);
+        return { content: `${c.name}: ${itemText({ ...r.item, qty })} verbraucht. Heilung ${heal} = ${total}, ${target.name} heilt ${w.hp[target.id] - before} TP. ${hpLine(ctx, target)}` };
+      }
       if (input.aktion === "weitergeben") {
         const to = findCharacter(ctx, input.an);
         if (!to || to.id === c.id) { addItem(inv, { ...r.item, qty }); return err("Unbekannter Empfänger."); }

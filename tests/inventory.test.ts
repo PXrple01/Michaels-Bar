@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { ensureInventory, fromPfennig, moneyText, toPfennig } from "../shared/inventory";
+import { cleanStats, ensureInventory, fromPfennig, moneyText, toPfennig } from "../shared/inventory";
+import { bonusParts, bonusTotal } from "../shared/shop";
 import { initWorld } from "../shared/world";
 import { buildCharacter } from "../server/characters";
 import { RollLog } from "../server/dice/log";
@@ -55,6 +56,25 @@ describe("Inventar und Geld", () => {
     expect(poor.is_error).toBe(true);
     expect(poor.content).toMatch(/reichen nicht/);
     expect((await run("geld", { figur: "Agnes", aktion: "ausgeben", pfennig: 4, grund: "Herberge" })).is_error).toBeUndefined();
+  });
+
+  it("Werte: begrenzt, bestes Stück zählt, Heiltrank heilt beim Verbrauchen", async () => {
+    const { w, run } = setup();
+    expect(cleanStats({ angriff: 9, schaden: "1", ruestung: -2, heilung: "5W12+20" })).toEqual({ angriff: 3, schaden: 1 });
+    expect(cleanStats({ heilung: "2w4 + 2" })).toEqual({ heilung: "2W4+2" });
+    expect(cleanStats({ heilung: "3" })).toEqual({ heilung: "3" });
+    expect(cleanStats({ notiz: "x" })).toBeUndefined();
+    await run("gegenstand", { figur: "Hagen", aktion: "erhalten", name: "Streitkolben", art: "waffe", angriff: 1 });
+    await run("gegenstand", { figur: "Hagen", aktion: "erhalten", name: "Runenschwert", art: "waffe", angriff: 2, schaden: 1 });
+    expect(bonusParts(w, hagen.id, "angriff")).toEqual([{ label: "Runenschwert", value: 2 }]);
+    w.gear = { [hagen.id]: { angriff: 1, schaden: 0, ruestung: 0 } };
+    expect(bonusTotal(w, hagen.id, "angriff")).toBe(3);
+    expect(turnSummary(w, [hagen, agnes], data.rules)).toContain("Runenschwert [+2 Angriff, +1 Schaden]");
+    await run("gegenstand", { figur: "Agnes", aktion: "erhalten", name: "Heiltrank", art: "trank", heilung: "3" });
+    w.hp[agnes.id] = 1;
+    const r = await run("gegenstand", { figur: "Agnes", aktion: "verbrauchen", name: "Heiltrank" });
+    expect(r.content).toContain("heilt 3 TP");
+    expect(w.hp[agnes.id]).toBe(4);
   });
 
   it("Claude sieht das Inventar im Spielstand – danach nur bei Änderungen", async () => {

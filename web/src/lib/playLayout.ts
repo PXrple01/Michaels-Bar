@@ -7,7 +7,7 @@ import { avatar } from "./portraits";
 // in der Mitte die Erzählung. Auf schmalen Bildschirmen werden beide Seiten zu einklappbaren Leisten oben.
 import { currentChapter, isArc, type Arc, type WorldState } from "../../../shared/world";
 import { PHASE_NAME } from "../../../shared/time";
-import { itemText, moneyText, type Inventory, type ItemKind } from "../../../shared/inventory";
+import { itemText, moneyText, statsText, type Inventory, type ItemKind } from "../../../shared/inventory";
 import { ATTITUDE_NAME } from "../../../shared/people";
 import { mapBlock, openMap } from "./mapUi";
 import type { Rules } from "../../../shared/schema";
@@ -139,7 +139,7 @@ function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
       const inv = w.inventory![m.id];
       return html`<div class="inv ${m.me ? "me" : ""}">
         ${members.length > 1 ? html`<div class="inv-who">${m.me ? "Du" : m.name}</div>` : ""}
-        <div class="inv-items">${inv.items.length ? inv.items.map((i) => html`<${m.me ? "button" : "span"} class="inv-item k-${i.kind}" ${m.me ? html`type="button" data-use-item="${i.name}"` : ""} title="${i.note ?? ""}${m.me ? `${i.note ? " – " : ""}Antippen: benutzen` : ""}">${icon(KIND_ICON[i.kind])}<span>${itemText(i)}</span></${m.me ? "button" : "span"}>`) : html`<small class="muted">nichts</small>`}</div>
+        <div class="inv-items">${inv.items.length ? inv.items.map((i) => html`<${m.me ? "button" : "span"} class="inv-item k-${i.kind}" ${m.me ? html`type="button" data-use-item="${i.name}"` : ""} title="${[statsText(i.stats), i.note, m.me ? "Antippen: benutzen" : ""].filter(Boolean).join(" – ")}">${icon(KIND_ICON[i.kind])}<span>${itemText(i)}</span>${i.stats ? html`<small class="inv-stat">${statsText(i.stats)}</small>` : ""}</${m.me ? "button" : "span"}>`) : html`<small class="muted">nichts</small>`}</div>
         <div class="inv-money">${icon("coins")} ${moneyText(inv.money)}</div>
         ${w.gear?.[m.id] ? html`<div class="inv-gear">${icon("fist")} Vom Schmied: ${(["angriff", "schaden", "ruestung"] as const).filter((k) => w.gear![m.id][k]).map((k) => `${({ angriff: "Angriff", schaden: "Schaden", ruestung: "Rüstung" })[k]} +${w.gear![m.id][k]}`).join(", ")}</div>` : ""}
       </div>`;

@@ -5,7 +5,9 @@ import type { WorldState } from "./world";
 
 export const ITEM_KINDS = ["waffe", "ruestung", "trank", "werkzeug", "schatz", "gegenstand"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
-export interface InvItem { name: string; qty: number; kind: ItemKind; note?: string }
+/** Werte eines Gegenstands: Boni zählen bei den Würfen mit (je Wert gilt das beste Stück), Heilung würfelt der Server beim Verbrauchen. */
+export interface ItemStats { angriff?: number; schaden?: number; ruestung?: number; heilung?: string }
+export interface InvItem { name: string; qty: number; kind: ItemKind; note?: string; stats?: ItemStats }
 /** Geld in Pfennig (1 Gulden = 20 Groschen = 240 Pfennig, 1 Groschen = 12 Pfennig). */
 export interface Inventory { items: InvItem[]; money: number }
 
@@ -48,7 +50,7 @@ export const findItem = (inv: Inventory, name: string) => inv.items.find((i) => 
 
 export function addItem(inv: Inventory, item: InvItem): string | null {
   const has = inv.items.find((i) => same(i.name, item.name));
-  if (has) { has.qty += item.qty; if (item.note) has.note = item.note; return null; }
+  if (has) { has.qty += item.qty; if (item.note) has.note = item.note; if (item.stats) has.stats = item.stats; return null; }
   if (inv.items.length >= MAX_ITEMS) return `Das Gepäck ist voll (höchstens ${MAX_ITEMS} verschiedene Dinge).`;
   inv.items.push({ ...item });
   return null;
@@ -66,12 +68,50 @@ export function removeItem(inv: Inventory, name: string, qty: number): { item: I
 
 export const itemText = (i: InvItem) => (i.qty > 1 ? `${i.qty}× ${i.name}` : i.name);
 
+export const ITEM_STAT_MAX = 3;
+export type StatTarget = "angriff" | "schaden" | "ruestung";
+export const STAT_TARGETS: readonly StatTarget[] = ["angriff", "schaden", "ruestung"];
+const STAT_NAME: Record<StatTarget, string> = { angriff: "Angriff", schaden: "Schaden", ruestung: "Rüstung" };
+const HEAL_RE = /^(\d)\s*[wWdD]\s*(4|6|8)\s*([+-]\s*\d)?$|^([1-9])$/;
+
+/** Werte von Claude prüfen und begrenzen (Boni 1–3, Heilung höchstens 2W8+5 oder eine feste Zahl bis 9). */
+export function cleanStats(raw: Record<string, unknown> | null | undefined): ItemStats | undefined {
+  if (!raw) return undefined;
+  const s: ItemStats = {};
+  for (const k of STAT_TARGETS) {
+    const v = Math.round(Number(raw[k]) || 0);
+    if (v > 0) s[k] = Math.min(ITEM_STAT_MAX, v);
+  }
+  const h = String(raw.heilung ?? "").trim().replace(/\s+/g, "");
+  const m = HEAL_RE.exec(h);
+  if (m) s.heilung = m[4] ?? `${Math.min(2, Math.max(1, Number(m[1])))}W${m[2]}${m[3] ? (Number(m[3]) > 0 ? `+${Math.min(5, Number(m[3]))}` : String(Math.max(-5, Number(m[3])))) : ""}`;
+  return Object.keys(s).length ? s : undefined;
+}
+
+/** „+1 Angriff, heilt 2W4+2“ */
+export function statsText(s: ItemStats | undefined): string {
+  if (!s) return "";
+  return [...STAT_TARGETS.filter((k) => s[k]).map((k) => `+${s[k]} ${STAT_NAME[k]}`), ...(s.heilung ? [`heilt ${s.heilung}`] : [])].join(", ");
+}
+
+/** Bester Bonus je Wert aus dem Gepäck (mehrere Schwerter zählen nicht doppelt) – mit dem Namen des Stücks. */
+export function itemBonus(inv: Inventory | undefined, target: StatTarget): { value: number; name: string } | null {
+  let best: { value: number; name: string } | null = null;
+  for (const i of inv?.items ?? []) {
+    const v = i.stats?.[target] ?? 0;
+    if (v > (best?.value ?? 0)) best = { value: v, name: i.name };
+  }
+  return best;
+}
+
+const itemWithStats = (i: InvItem) => (i.stats ? `${itemText(i)} [${statsText(i.stats)}]` : itemText(i));
+
 /** Für Claude: wer trägt was (kompakt). */
 export function inventorySummary(w: WorldState, characters: Pick<Character, "id" | "name">[]): string {
   if (!w.inventory) return "";
   const parts = characters.filter((c) => w.inventory![c.id]).map((c) => {
     const inv = w.inventory![c.id];
-    return `${c.name}: ${inv.items.map(itemText).join(", ") || "nichts"}; ${moneyText(inv.money, true)}`;
+    return `${c.name}: ${inv.items.map(itemWithStats).join(", ") || "nichts"}; ${moneyText(inv.money, true)}`;
   });
-  return parts.length ? `Inventar – ${parts.join(" | ")}` : "";
+  return parts.length ? `Inventar – ${parts.join(" | ")}${/ \[/.test(parts.join("")) ? " (Werte in [] zählen bei den Würfen schon mit – je Wert das beste Stück)" : ""}` : "";
 }

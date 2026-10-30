@@ -1,5 +1,5 @@
 // Laden-Karte: Waren mit Preis und „Kaufen“, darunter eigenes Gepäck zum Verkaufen. Ohne Claude, sofort.
-import { moneyText } from "../../../shared/inventory";
+import { moneyText, statsText } from "../../../shared/inventory";
 import { BONUS_NAME, gearOf, GEAR_MAX, sellPrice } from "../../../shared/shop";
 import type { WorldState } from "../../../shared/world";
 import { html, type Raw } from "./dom";
@@ -25,7 +25,7 @@ export function shopCard(w: WorldState | null | undefined, characterId: string):
       const tooPoor = money < x.price;
       return html`<div class="ware k-${x.kind}">
         <span class="ware-icon">${icon(KIND_ICON[x.kind] ?? "star")}</span>
-        <span class="ware-text"><b>${x.name}</b><small>${x.bonus ? `${BONUS_NAME[x.bonus.target]} +${x.bonus.value} – dauerhaft` : x.note ?? ""}${x.stock !== undefined ? ` · noch ${x.stock}` : ""}</small></span>
+        <span class="ware-text"><b>${x.name}</b><small>${x.bonus ? `${BONUS_NAME[x.bonus.target]} +${x.bonus.value} – dauerhaft` : [statsText(x.stats), x.note].filter(Boolean).join(" · ")}${x.stock !== undefined ? ` · noch ${x.stock}` : ""}</small></span>
         <span class="ware-price">${moneyText(x.price, true)}</span>
         <button class="btn btn-sm" data-buy="${x.id}" ${tooPoor || soldOut || maxed ? "disabled" : ""} title="${soldOut ? "ausverkauft" : maxed ? `höchstens +${GEAR_MAX}` : tooPoor ? "zu teuer" : ""}">${soldOut ? "aus" : maxed ? "max." : "Kaufen"}</button>
       </div>`;

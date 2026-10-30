@@ -14,7 +14,7 @@ import { systemPrompt } from "./prompt";
 import { costUsd, LimitError, PRICES, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
-import { gearOf } from "../../shared/shop";
+import { bonusParts } from "../../shared/shop";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -79,7 +79,7 @@ export const CACHE_1H = { type: "ephemeral" as const, ttl: "1h" as const };
 
 export const TOOL_NAME = "probe_anfordern";
 /** Werkzeugstand: 2 = Kampf, Aufträge, Gedächtnis; 3 = Kampagne in Akten und Kapiteln; 4 = Stufen; 5 = Niederlage; 6 = sichtbarer Kernauftrag; 7 = Fähigkeiten zählen; 8 = Schaden automatisch, Gegnerzug nach den Würfen; 9 = wieder eine Probe gleichzeitig; 10 = Gegnerzug vorab nur noch im Solo; 11 = Tageszeit und Wetter; 12 = Inventar und Geld; 13 = Händler und Schmied; 14 = Personenverzeichnis; 15 = Karte. Ältere Verläufe werden einmalig umgestellt. */
-export const TOOLSET = 20;
+export const TOOLSET = 21;
 const MAX_LOOPS = 5;
 /**
  * Zeitbudget eines Zugs. Netlify bricht Funktionen nach 60 Sekunden hart ab – dann bliebe die Gruppe „gesperrt“.
@@ -442,10 +442,8 @@ export class Narrator {
 
   private rollCheck(c: Character, data: GameData, art: PendingCheck["art"], id: string, requestId: string, mode: PendingCheck["modus"], dc: number | null, crit: boolean, world?: WorldState) {
     const spec = characterRoll(c, data.rules, data.classes, art, id);
-    // Verbesserungen vom Schmied zählen mit
-    const g = gearOf(world, c.id);
-    const extra = art === "attack" ? g.angriff : art === "damage" ? g.schaden : 0;
-    if (extra) spec.parts = [...spec.parts, { label: "Schmied", value: extra }];
+    // Verbesserungen vom Schmied und Boni aus dem Gepäck zählen mit
+    if (art === "attack" || art === "damage") spec.parts = [...spec.parts, ...bonusParts(world, c.id, art === "attack" ? "angriff" : "schaden")];
     let notation = spec.notation;
     if (art === "damage" && crit) {
       const p = parseNotation(notation);

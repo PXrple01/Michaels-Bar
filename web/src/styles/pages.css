@@ -1513,3 +1513,4 @@ body.fal-on .read-btn { display: inline-flex; }
 .rumors ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
 .rumors li { font-size: 0.84rem; font-style: italic; color: var(--text-2); }
 .person.has-face { grid-template-columns: 34px 1fr; }
+.inv-stat { margin-left: 2px; padding: 0 5px; border-radius: 999px; background: rgba(var(--c-s08), 0.9); color: var(--gold); font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
