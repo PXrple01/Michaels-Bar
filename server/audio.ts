@@ -157,7 +157,7 @@ export class AudioMaker {
     if (await this.o.store.get(id)) return { url: `/api/images/${id}`, costUsd: 0 };
     const res = await (this.o.fetch ?? fetch)(GOOGLE_TTS_URL, {
       method: "POST",
-      headers: { authorization: `Bearer ${await g.token()}`, "x-goog-user-project": g.cfg.projectId, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${await g.token()}`, "content-type": "application/json" },
       body: JSON.stringify({ input: { text: clean }, voice: { languageCode: "de-DE", name: cv }, audioConfig: { audioEncoding: "MP3" } }),
       signal: AbortSignal.timeout(30_000),
     });
