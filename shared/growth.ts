@@ -224,7 +224,6 @@ export function toggleHeirloom(g: Growth, item: Growth["heirlooms"][number]): Gr
 export const CHALLENGES = {
   keine_traenke: { name: "Ohne Heiltränke", text: "Kein Heiltrank im Startgepäck, Händler verkaufen keine." },
   harte_gegner: { name: "Harte Gegner", text: "Gegner haben +2 Rüstung und ein Viertel mehr Trefferpunkte." },
-  ohne_limit: { name: "Ohne Limit-Angriff", text: "Der Limit-Angriff ist in diesem Abenteuer gesperrt." },
 } as const;
 export type ChallengeId = keyof typeof CHALLENGES;
 export const CHALLENGE_IDS = Object.keys(CHALLENGES) as ChallengeId[];
@@ -239,14 +238,13 @@ export function challengeSummary(w: WorldState): string {
 
 /** Bonus des Limit-Angriffs auf den Angriffswurf (garantierter Treffer) und auf den Schaden. */
 export const LIMIT_ATTACK = { hit: 20, damage: 5 } as const;
-export const canLimitAttack = (w: WorldState | null | undefined, c: WithGrowth) => !!w?.combat && limitTier(growthOf(c)) >= 1 && !w.limitUsed?.[c.id] && !hasChallenge(w, "ohne_limit");
+export const canLimitAttack = (w: WorldState | null | undefined, c: WithGrowth) => !!w?.combat && limitTier(growthOf(c)) >= 1 && !w.limitUsed?.[c.id];
 
 /** Limit-Angriff scharf machen: Der nächste Angriff dieser Figur trifft kritisch. Fehlertext oder null. */
 export function armLimitAttack(w: WorldState, c: WithGrowth & { name: string }): string | null {
   if (limitTier(growthOf(c)) < 1) return "Den Limit-Angriff gibt es erst nach dem Limit Break.";
   if (!w.combat) return "Den Limit-Angriff kann man nur im Kampf entfesseln.";
   if (w.limitUsed?.[c.id]) return "Der Limit-Angriff ist in diesem Abenteuer schon verbraucht.";
-  if (hasChallenge(w, "ohne_limit")) return "Herausforderung „Ohne Limit-Angriff“: in diesem Abenteuer gesperrt.";
   w.limitUsed = { ...w.limitUsed, [c.id]: true };
   w.limitArmed = { ...w.limitArmed, [c.id]: true };
   return null;

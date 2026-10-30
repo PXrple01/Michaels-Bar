@@ -87,7 +87,7 @@ export interface WorldState {
   limitUsed?: Record<string, boolean>;
   limitArmed?: Record<string, boolean>;
   /** Gewählte Herausforderungen (doppelter Ruhm). */
-  challenges?: ("keine_traenke" | "harte_gegner" | "ohne_limit")[];
+  challenges?: ("keine_traenke" | "harte_gegner")[];
   /** Besiegte Gegner je Figur in diesem Abenteuer. */
   kills?: Record<string, number>;
 }

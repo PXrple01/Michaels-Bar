@@ -283,20 +283,18 @@ describe("Legendäre Fähigkeiten im Abenteuer verbessern", () => {
 });
 
 describe("Herausforderungen", () => {
-  it("ohne Heiltränke, harte Gegner, ohne Limit-Angriff – und doppelter Ruhm", async () => {
-    const { armLimitAttack, cleanChallenges } = await import("../shared/growth");
+  it("ohne Heiltränke, harte Gegner – und doppelter Ruhm", async () => {
+    const { cleanChallenges } = await import("../shared/growth");
     const { trade } = await import("../shared/shop");
     expect(cleanChallenges(["keine_traenke", "quatsch", "keine_traenke"])).toEqual(["keine_traenke"]);
     const w = initWorld([base]);
-    w.challenges = ["keine_traenke", "harte_gegner", "ohne_limit"];
+    w.challenges = ["keine_traenke", "harte_gegner"];
     ensureInventory(w, [base], data.rules, data.classes);
     expect(w.inventory![base.id].items.some((i) => i.kind === "trank")).toBe(false);
     w.shop = { name: "Krämer", kind: "haendler", wares: [{ id: "w0", name: "Heiltrank", kind: "trank", price: 12 }], log: [] };
     expect(trade(w, base, data.rules, "kaufen", "w0")).toMatch(/Ohne Heiltränke/);
     await runAutoTool({ id: "toolu_k", name: "kampf_beginnen", input: { gegner: [{ name: "Wolf", trefferpunkte: 8, ruestung: 11 }] } }, { data, characters: [base], world: w, rolls: new RollLog(), onRoll: () => {} });
     expect(w.combat!.enemies[0]).toMatchObject({ hp: 10, armor: 13 });
-    const vet = { ...base, growth: g({ earned: ["a", "b", "c"] }) };
-    expect(armLimitAttack(w, vet)).toMatch(/gesperrt|Herausforderung/);
     w.arc = { ...w.arc!, finished: true, outcome: "sieg" };
     expect(growthOf(syncGrowth(base, w)).fame).toBe(6);
   });
