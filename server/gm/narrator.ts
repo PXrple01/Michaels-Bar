@@ -10,12 +10,12 @@ import type { Character } from "../../shared/schema";
 import { currentChapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
-import { systemPrompt } from "./prompt";
+import { characterSheetText, systemPrompt } from "./prompt";
 import { costUsd, LimitError, PRICES, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
 import { bonusParts } from "../../shared/shop";
-import { growthOf } from "../../shared/growth";
+import { ABILITY_TYPES, growthOf, legendSchema, LIMIT_AFTER, limitBroken, type Legend } from "../../shared/growth";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -395,6 +395,38 @@ export class Narrator {
     const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim().slice(0, 2000);
     if (!text) throw new GmError("Der Brief konnte nicht geschrieben werden – versuch es gleich noch einmal.", "api");
     return { title: ch.titel, text, costUsd: costUsd(msg.usage, LETTER_MODEL) };
+  }
+
+  /**
+   * Legendäre Fähigkeit nach dem Limit Break: Claude entwirft aus der Geschichte der Figur (Narben, Erbstücke, Titel)
+   * eine persönliche, starke, aber faire Fähigkeit. Ergebnis geprüft (legendSchema).
+   */
+  async forgeLegend(c: Character, data: GameData, titles: string[], who: string): Promise<{ legend: Legend; costUsd: number }> {
+    this.ensureReady();
+    if (!limitBroken(growthOf(c))) throw new GmError(`Eine legendäre Fähigkeit gibt es erst nach ${LIMIT_AFTER} bestandenen Abenteuern.`, "state");
+    if (growthOf(c).legend) throw new GmError("Diese Figur hat ihre legendäre Fähigkeit schon.", "state");
+    await this.o.guard.check(who);
+    const schema = { type: "object", additionalProperties: false, required: ["name", "type", "uses", "text", "beginnerText"], properties: {
+      name: { type: "string", description: "2–4 Wörter, deutsch, klangvoll (z. B. „Zorn des Ogertöters“)" },
+      type: { type: "string", enum: [...ABILITY_TYPES] },
+      uses: { type: "string", enum: ["einmal_pro_kampf", "einmal_pro_rast", "einmal_pro_tag"] },
+      text: { type: "string", description: "Genaue Regel in einem bis zwei Sätzen (Würfel, Boni, Dauer) – stark, aber nicht unbesiegbar" },
+      beginnerText: { type: "string", description: "Ein Satz für Einsteiger, was die Fähigkeit tut" },
+    } };
+    const msg = await this.o.llm!.stream({
+      ...requestBase(this.model, "low"),
+      output_config: { effort: "low", format: { type: "json_schema", schema } },
+      max_tokens: 1200,
+      system: [{ type: "text", text: "Du entwirfst für ein deutsches Mittelalter-Rollenspiel (nach DnD-Art, Heiliges Römisches Reich um 1400, wenig Magie) eine legendäre Fähigkeit für eine Figur, die schon mehrere Abenteuer bestanden und ihr Limit gebrochen hat. Sie soll sich aus ihrer Geschichte ergeben (Narben, Erbstücke, Titel, Klasse) und sich episch anfühlen: deutlich stärker als normale Klassenfähigkeiten (z. B. 3W8 Schaden, Vorteil für die ganze Gruppe, einen Gegner eine Runde ausschalten), aber begrenzt einsetzbar und ohne Unverwundbarkeit oder sofortigen Sieg. Antworte nur im verlangten Format." }],
+      messages: [{ role: "user", content: `<figur>\n${characterSheetText(c, data)}\n</figur>${titles.length ? `\nEhrentitel: ${titles.slice(0, 10).map((t) => t.slice(0, 80)).join(", ")}` : ""}` }],
+    }, () => {}, AbortSignal.timeout(40_000));
+    await this.o.guard.record(msg.usage, this.model);
+    const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+    let parsed: unknown = null;
+    try { parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { /* unten */ }
+    const ok = legendSchema.safeParse(parsed);
+    if (!ok.success) throw new GmError("Die legendäre Fähigkeit konnte nicht erschaffen werden – versuch es gleich noch einmal.", "api");
+    return { legend: ok.data, costUsd: costUsd(msg.usage, this.model) };
   }
 
   ensureReady() {

@@ -20,6 +20,25 @@ export const PERKS = {
 export type PerkId = keyof typeof PERKS;
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
 
+/* ── Limit Break ── */
+
+/** Nach so vielen abgeschlossenen Abenteuern bricht das Limit: Vorteile über die Obergrenze, legendäre Fähigkeit, Meisterschaft III. */
+export const LIMIT_AFTER = 3;
+export const limitBroken = (g: { earned: string[] }) => g.earned.length >= LIMIT_AFTER;
+/** Obergrenze eines Vorteils – nach dem Limit Break doppelt so hoch. */
+export const perkMax = (p: PerkId, g: { earned: string[] }) => PERKS[p].max * (limitBroken(g) ? 2 : 1);
+
+export const ABILITY_TYPES = ["angriff", "verteidigung", "heilung", "unterstuetzung", "kontrolle", "bewegung", "wissen", "sozial", "handwerk", "magie"] as const;
+const legendSchema = z.object({
+  name: z.string().min(2).max(50),
+  type: z.enum(ABILITY_TYPES),
+  uses: z.enum(["einmal_pro_kampf", "einmal_pro_rast", "einmal_pro_tag"]),
+  text: z.string().min(10).max(400),
+  beginnerText: z.string().min(5).max(200),
+});
+export type Legend = z.infer<typeof legendSchema>;
+export { legendSchema };
+
 /* ── Narben ── */
 
 export const SCARS_MAX = 3;
@@ -35,6 +54,9 @@ export interface Scar { campaign: string; name: string; text: string }
 
 /** Einsätze bis zur nächsten Stufe (über alle Abenteuer gezählt). */
 export const MASTERY_STEPS = [8, 20] as const;
+/** Meisterschaft III (erst nach dem Limit Break): verstärkte Wirkung. */
+export const MASTERY_BOOST = 50;
+export const BOOST_TEXT = "Meisterschaft III: verstärkte Wirkung – ein zusätzlicher Würfel bzw. +2 auf den Effekt";
 const FASTER: Record<string, string> = { einmal_pro_tag: "einmal_pro_rast", einmal_pro_rast: "einmal_pro_kampf", einmal_pro_kampf: "zweimal_pro_kampf" };
 const USES_TEXT: Record<string, string> = { zweimal_pro_kampf: "2× pro Kampf", einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag" };
 
@@ -49,13 +71,19 @@ export const growthSchema = z.object({
   fame: z.number().int().min(0).max(FAME_MAX).default(0),
   /** Abenteuer, für die schon Ruhm gutgeschrieben wurde. */
   earned: z.array(z.string().max(80)).max(500).default([]),
-  perks: z.record(z.string(), z.number().int().min(0).max(5)).default({}) as unknown as z.ZodDefault<z.ZodType<Partial<Record<PerkId, number>>>>,
+  perks: z.record(z.string(), z.number().int().min(0).max(10)).default({}) as unknown as z.ZodDefault<z.ZodType<Partial<Record<PerkId, number>>>>,
   scars: z.array(z.object({ campaign: z.string().max(80), name: z.string().max(60), text: z.string().max(160) })).max(SCARS_MAX).default([]),
   /** Erbstück-Truhe: 1 Platz, ab HEIRLOOM_TWO_AFTER abgeschlossenen Abenteuern 2. */
   heirlooms: z.array(heirloomSchema).max(2).default([]),
   /** Einsätze je Abenteuer und Fähigkeit (damit nichts doppelt zählt). */
   uses: z.record(z.string().max(80), z.record(z.string().max(60), z.number().int().min(0).max(999))).default({}),
-}).refine((g) => g.heirlooms.length <= heirloomSlots(g), "Zu viele Erbstücke für die Truhe").refine((g) => Object.keys(g.perks).every((p) => p in PERKS && (g.perks[p as PerkId] ?? 0) <= PERKS[p as PerkId].max), "Unbekannter oder zu oft gewählter Vorteil");
+  /** Die Limit-Break-Animation wurde gezeigt. */
+  limitSeen: z.boolean().optional(),
+  /** Legendäre Fähigkeit (nach dem Limit Break, aus der Geschichte der Figur). */
+  legend: legendSchema.nullable().optional(),
+}).refine((g) => g.heirlooms.length <= heirloomSlots(g), "Zu viele Erbstücke für die Truhe")
+  .refine((g) => Object.keys(g.perks).every((p) => p in PERKS && (g.perks[p as PerkId] ?? 0) <= perkMax(p as PerkId, g)), "Unbekannter oder zu oft gewählter Vorteil")
+  .refine((g) => !g.legend || limitBroken(g), "Eine legendäre Fähigkeit gibt es erst nach dem Limit Break");
 export type Growth = z.infer<typeof growthSchema>;
 
 type WithGrowth = { id: string; growth?: Growth | null };
@@ -67,7 +95,7 @@ export function buyPerk(g: Growth, p: PerkId): Growth | string {
   const perk = PERKS[p];
   if (!perk) return "Diesen Vorteil gibt es nicht.";
   const have = g.perks[p] ?? 0;
-  if (have >= perk.max) return `„${perk.name}“ hast du schon so oft wie möglich.`;
+  if (have >= perkMax(p, g)) return limitBroken(g) ? `„${perk.name}“ hast du schon so oft wie möglich.` : `„${perk.name}“ ist ausgereizt – nach dem Limit Break (${LIMIT_AFTER} bestandene Abenteuer) geht mehr.`;
   if (g.fame < perk.cost) return `Dafür fehlt Ruhm (${g.fame} von ${perk.cost}).`;
   return { ...g, fame: g.fame - perk.cost, perks: { ...g.perks, [p]: have + 1 } };
 }
@@ -82,6 +110,17 @@ export function masteryUses(c: WithGrowth, w: WorldState | null | undefined, abi
 }
 export const masteryLevel = (uses: number) => MASTERY_STEPS.filter((s) => uses >= s).length;
 
+export interface MasteryInfo {
+  /** Erreichte Stufe (Schneller-Stufen plus ggf. Meisterschaft III) und höchste erreichbare. */
+  level: number; max: number; uses: number;
+  /** Einsätze bis zur nächsten Stufe (null = voll gemeistert) und Beginn der jetzigen Stufe (für die Leiste). */
+  next: number | null; from: number;
+  now: string; then: string | null;
+  boost: boolean;
+  /** Meisterschaft III wäre die nächste Stufe, ist aber noch gesperrt (vor dem Limit Break). */
+  locked: boolean;
+}
+
 /** Häufigkeit nach Meisterschaft: jede Stufe eine Stufe schneller (Tag → Rast → Kampf). */
 export function masteredUses(uses: string, level: number): string {
   let u = uses;
@@ -90,23 +129,36 @@ export function masteredUses(uses: string, level: number): string {
 }
 
 /** Für die Anzeige: Fortschritt, nächste Stufe und was sie bringt. null = Fähigkeit kann nicht gemeistert werden. */
-export function masteryInfo(baseUses: string, uses: number): { level: number; max: number; uses: number; next: number | null; from: number; now: string; then: string | null } | null {
+export function masteryInfo(baseUses: string, uses: number, limit = false): MasteryInfo | null {
   if (!FASTER[baseUses]) return null; // passiv oder beliebig oft
-  // Erreichbare Stufen: so viele Schritte, wie es schneller geht (höchstens zwei)
-  let max = 0;
-  for (let u = baseUses; FASTER[u] && max < MASTERY_STEPS.length; u = FASTER[u]) max++;
-  const level = Math.min(max, masteryLevel(uses));
-  const now = masteredUses(baseUses, level);
-  const canImprove = !!FASTER[now] && level < MASTERY_STEPS.length;
-  return { level, max, uses, next: canImprove ? MASTERY_STEPS[level] : null, from: level ? MASTERY_STEPS[level - 1] : 0, now: USES_TEXT[now] ?? now, then: canImprove ? USES_TEXT[FASTER[now]] : null };
+  // Erreichbare Schneller-Stufen: so viele Schritte, wie es schneller geht (höchstens zwei)
+  let shifts = 0;
+  for (let u = baseUses; FASTER[u] && shifts < MASTERY_STEPS.length; u = FASTER[u]) shifts++;
+  const shift = Math.min(shifts, masteryLevel(uses));
+  const now = masteredUses(baseUses, shift);
+  const boost = limit && shift === shifts && uses >= MASTERY_BOOST;
+  const nowText = (USES_TEXT[now] ?? now) + (boost ? ", verstärkte Wirkung" : "");
+  if (shift < shifts) return { level: shift, max: shifts + (limit ? 1 : 0), uses, next: MASTERY_STEPS[shift], from: shift ? MASTERY_STEPS[shift - 1] : 0, now: nowText, then: USES_TEXT[FASTER[now]], boost: false, locked: false };
+  if (limit && !boost) return { level: shift, max: shifts + 1, uses, next: MASTERY_BOOST, from: shift ? MASTERY_STEPS[shift - 1] : 0, now: nowText, then: "verstärkte Wirkung (Meisterschaft III)", boost: false, locked: false };
+  return { level: shift + (boost ? 1 : 0), max: shifts + (limit ? 1 : 0), uses, next: null, from: 0, now: nowText, then: null, boost, locked: !limit };
 }
 
 /** Fähigkeiten mit Meisterschaft (Server und Anzeige rechnen gleich). */
-export function applyMastery<A extends { id: string; uses: string }>(abilities: A[], c: WithGrowth, w: WorldState | null | undefined): (A & { mastery?: number })[] {
+export function applyMastery<A extends { id: string; uses: string; text: string }>(abilities: A[], c: WithGrowth, w: WorldState | null | undefined): (A & { mastery?: number })[] {
+  const limit = limitBroken(growthOf(c));
   return abilities.map((a) => {
-    const level = masteryInfo(a.uses, masteryUses(c, w, a.id))?.level ?? 0;
-    return level ? { ...a, uses: masteredUses(a.uses, level), mastery: level } : a;
+    const info = masteryInfo(a.uses, masteryUses(c, w, a.id), limit);
+    if (!info?.level) return a;
+    const shifted = info.level - (info.boost ? 1 : 0);
+    return { ...a, uses: masteredUses(a.uses, shifted), mastery: info.level, ...(info.boost ? { text: `${a.text} [${BOOST_TEXT}]` } : {}) };
   });
+}
+
+/** Legendäre Fähigkeit als normale Fähigkeit (für Liste, Einsatz und Meisterschaft). */
+export function legendAbility(c: WithGrowth) {
+  const l = growthOf(c).legend;
+  if (!l || !limitBroken(growthOf(c))) return null;
+  return { id: "legende", name: l.name, type: l.type, uses: l.uses, text: l.text, beginnerText: l.beginnerText, legendary: true as const };
 }
 
 /* ── Zu Beginn eines Abenteuers ── */
@@ -127,6 +179,45 @@ export function toggleHeirloom(g: Growth, item: Growth["heirlooms"][number]): Gr
   return { ...g, heirlooms: list };
 }
 
+/* ── Erwachende Erbstücke ── */
+
+const RARITY_ORDER = ["gewoehnlich", "ungewoehnlich", "selten", "sagenhaft"] as const;
+/** Nach jedem Abenteuer, das ein Erbstück mitgemacht hat: +1 auf einen Wert (Waffe: Angriff/Schaden, Rüstung/Schild:
+ * Rüstung), höchstens 3 je Wert. Die Seltenheit steigt mit der Stärke. Andere Gegenstände erwachen nicht. */
+export function awakenHeirloom<H extends Growth["heirlooms"][number]>(h: H): H {
+  if (!["waffe", "ruestung", "schild"].includes(h.kind)) return h;
+  const s = { ...h.stats };
+  const a = s.angriff ?? 0, d = s.schaden ?? 0, r = s.ruestung ?? 0;
+  if (h.kind === "waffe") { if (a <= d && a < 3) s.angriff = a + 1; else if (d < 3) s.schaden = d + 1; else if (a < 3) s.angriff = a + 1; else return h; }
+  else if (r < 3) s.ruestung = r + 1; else return h;
+  const sum = (s.angriff ?? 0) + (s.schaden ?? 0) + (s.ruestung ?? 0);
+  const earnedRarity = sum >= 4 ? "sagenhaft" : sum === 3 ? "selten" : sum === 2 ? "ungewoehnlich" : "gewoehnlich";
+  const was = s.seltenheit ?? "gewoehnlich";
+  s.seltenheit = RARITY_ORDER.indexOf(earnedRarity) > RARITY_ORDER.indexOf(was) ? earnedRarity : was;
+  return { ...h, stats: s };
+}
+
+/* ── Machtstufe (Gegnerstärke passt sich an) ── */
+
+export type PowerScaling = "aus" | "angepasst" | "hart";
+/** Grobe Stärke einer Figur aus allem, was sie mitbringt (0 = frisch). */
+export function powerScore(c: WithGrowth): number {
+  const g = growthOf(c);
+  const perks = Object.values(g.perks).reduce((n: number, v) => n + (v ?? 0), 0);
+  const items = g.heirlooms.reduce((n, h) => n + (h.stats?.angriff ?? 0) + (h.stats?.schaden ?? 0) + (h.stats?.ruestung ?? 0), 0);
+  return g.earned.length + perks + items + (g.legend ? 3 : 0) + (limitBroken(g) ? 3 : 0);
+}
+/** Für Claude: wie stark die Gegner sein sollen. Leer, wenn ausgeschaltet oder die Figuren frisch sind. */
+export function powerHint(characters: (WithGrowth & { name: string })[], scaling: PowerScaling | undefined): string {
+  if (!scaling || scaling === "aus") return "";
+  const scores = characters.map((c) => ({ name: c.name, score: powerScore(c) }));
+  const top = Math.max(0, ...scores.map((x) => x.score));
+  if (!top && scaling !== "hart") return "";
+  const tier = top >= 20 ? "legendär" : top >= 12 ? "sehr erfahren" : top >= 6 ? "erfahren" : "etwas erfahren";
+  const push = scaling === "hart" ? "deutlich stärker als üblich (mehr Gegner, mehr Trefferpunkte und Rüstung, höhere Angriffsboni) – sie sollen ins Schwitzen kommen" : "passend stärker als üblich, damit Kämpfe spannend bleiben";
+  return `Machtstufe: ${scores.map((x) => `${x.name} ${x.score}`).join(", ")} (${tier}). Gestalte Gegner ${push}.`;
+}
+
 /* ── Nach jedem Zug (im Browser): Stand aus dem Spielstand an die Figur übernehmen ── */
 
 export function syncGrowth<C extends WithGrowth>(c: C, w: WorldState | null | undefined): C | null {
@@ -136,12 +227,14 @@ export function syncGrowth<C extends WithGrowth>(c: C, w: WorldState | null | un
   const mine = w.abilityUses?.[c.id];
   if (mine && Object.keys(mine).length) uses[w.id] = { ...mine };
   const scars = [...g.scars.filter((s) => s.campaign !== w.id), ...(w.scars?.[c.id] ?? []).map((s) => ({ ...s, campaign: w.id! }))].slice(-SCARS_MAX);
-  let { fame, earned } = g;
+  let { fame, earned, heirlooms } = g;
   if (w.arc?.finished && !earned.includes(w.id)) {
     fame = Math.min(FAME_MAX, fame + FAME_FOR[w.arc.outcome === "niederlage" ? "niederlage" : "sieg"]);
     earned = [...earned, w.id].slice(-500);
+    // Erbstücke, die dieses Abenteuer mitgemacht haben, erwachen ein Stück weiter
+    heirlooms = heirlooms.map(awakenHeirloom);
   }
-  const next: Growth = { ...g, uses, scars, fame, earned };
+  const next: Growth = { ...g, uses, scars, fame, earned, heirlooms };
   if (JSON.stringify(next) === JSON.stringify(g)) return null;
   return { ...c, growth: next };
 }
@@ -154,5 +247,7 @@ export function growthSummary(c: WithGrowth & { name: string }): string {
   if (g.scars.length) parts.push(`Narben aus früheren Abenteuern: ${g.scars.map((s) => `${s.name} (${s.text})`).join("; ")} – greif sie gelegentlich erzählerisch auf`);
   if (g.heirlooms.length) parts.push(`${g.heirlooms.length > 1 ? "Erbstücke" : "Erbstück"}, das ${c.name} immer bei sich trägt: ${g.heirlooms.map((h) => h.name).join(", ")}`);
   if (g.earned.length) parts.push(`hat schon ${g.earned.length} ${g.earned.length === 1 ? "Abenteuer" : "Abenteuer"} bestanden`);
+  if (limitBroken(g)) parts.push(`hat das Limit gebrochen – eine Legende`);
+  if (g.legend && limitBroken(g)) parts.push(`legendäre Fähigkeit „${g.legend.name}“ (${g.legend.uses.replace(/_/g, " ")}): ${g.legend.text}`);
   return parts.join(". ");
 }

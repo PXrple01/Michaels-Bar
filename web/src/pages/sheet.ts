@@ -1,6 +1,6 @@
 import { legacyOf } from "../lib/legacy";
 import type { PerkId } from "../../../shared/growth";
-import { growthSection, masteryBar, redeemPerk, usesWithMastery } from "../lib/growthUi";
+import { forgeLegend, growthSection, masteryBar, maybeLimitBreak, redeemPerk, usesWithMastery } from "../lib/growthUi";
 import { costText } from "../../../shared/campaign";
 import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
 import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusForLevel, trainedSkills, type CharacterRollType } from "../../../shared/character";
@@ -235,9 +235,17 @@ export function sheetPage(): Page {
         if (isNew && !portraitOf(c.id)) void paint();
       });
 
-      // Ruhm einlösen
+      // Ruhm einlösen, legendäre Fähigkeit, Limit Break noch einmal
       $("#growth-box", root).addEventListener("click", (e) => {
-        const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-perk]");
+        const t = e.target as HTMLElement;
+        if (t.closest("[data-limit-replay]")) { void maybeLimitBreak(c.id, true); return; }
+        const lg = t.closest<HTMLButtonElement>("[data-legend]");
+        if (lg) {
+          lg.disabled = true;
+          void forgeLegend(c.id, (nc) => { c = nc; $("#growth-box", root).innerHTML = growthSection(c).value; }).finally(() => { lg.disabled = false; });
+          return;
+        }
+        const b = t.closest<HTMLButtonElement>("[data-perk]");
         if (!b || b.disabled) return;
         const next = redeemPerk(c, b.dataset.perk as PerkId);
         if (!next) return;
@@ -259,6 +267,8 @@ export function sheetPage(): Page {
         go("/figuren");
       });
 
+      // Limit Break, falls noch nicht gesehen (z. B. in einer Gruppe auf einem anderen Gerät erreicht)
+      void maybeLimitBreak(c.id);
       enhance(root);
     },
   };

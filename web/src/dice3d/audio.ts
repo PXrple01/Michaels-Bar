@@ -138,3 +138,50 @@ export function playIgnite(dur = 1.7) {
     c.stop(at + 0.1);
   }
 }
+
+/** Metallisches Klirren (Ketten): kurzes, helles Rauschen mit zwei Glockentönen. */
+export function playChainRattle(strength = 1) {
+  const a = ac();
+  if (!a || !noise) return;
+  const t = a.currentTime, vol = Math.min(0.4, 0.18 * strength);
+  const src = a.createBufferSource();
+  src.buffer = noise;
+  src.playbackRate.value = 1.6 + Math.random() * 0.6;
+  const hp = a.createBiquadFilter();
+  hp.type = "highpass"; hp.frequency.value = 2500;
+  const g = a.createGain();
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  src.connect(hp).connect(g).connect(out!);
+  src.start(t); src.stop(t + 0.2);
+  for (const f of [2600 + Math.random() * 900, 4100 + Math.random() * 1200]) {
+    const o = a.createOscillator();
+    o.type = "triangle"; o.frequency.value = f;
+    const og = a.createGain();
+    og.gain.setValueAtTime(vol * 0.35, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(og).connect(out!); o.start(t); o.stop(t + 0.4);
+  }
+}
+
+/** Gewaltiger Knall mit tiefem Nachhall (Ketten gesprengt). */
+export function playExplosion() {
+  const a = ac();
+  if (!a) return;
+  const t = a.currentTime;
+  const len = a.sampleRate * 1.6;
+  const buf = a.createBuffer(1, len, a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  const lp = a.createBiquadFilter();
+  lp.type = "lowpass"; lp.frequency.setValueAtTime(3000, t); lp.frequency.exponentialRampToValueAtTime(120, t + 1.4);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+  src.connect(lp).connect(g).connect(out!);
+  src.start(t);
+  const o = a.createOscillator();
+  o.type = "sine"; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(28, t + 1.2);
+  const og = a.createGain();
+  og.gain.setValueAtTime(0.8, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 1.3);
+  o.connect(og).connect(out!); o.start(t); o.stop(t + 1.4);
+}

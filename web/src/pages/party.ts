@@ -1,3 +1,4 @@
+import { settings } from "../lib/settings";
 import { offerLetters } from "../lib/letters";
 import { heirloomPicker, syncCharacterGrowth } from "../lib/growthUi";
 import { setMusic } from "../lib/music";
@@ -530,7 +531,7 @@ export function partyPage(): Page {
       async function stream(op: "start" | "action" | "roll", extra: Record<string, unknown> = {}) {
         busyLocal = true; liveLocal = "";
         renderBelow();
-        await partyApi.stream(op, me, extra, handle);
+        await partyApi.stream(op, me, { ...extra, power: settings().powerScaling }, handle);
         busyLocal = false;
         try { apply(await partyApi.state(me)); } catch { /* nächster Poll */ }
         renderBelow();
@@ -547,7 +548,7 @@ export function partyPage(): Page {
         let open = true;
         let damage: RollRecord | null = null;
         // Erst den Wurf abschicken, dann die 3D-Bühne aufbauen – so erfahren die anderen sofort davon
-        const s = partyApi.stream("roll", me, {}, (ev) => {
+        const s = partyApi.stream("roll", me, { power: settings().powerScaling }, (ev) => {
           if (ev.type === "roll") { seenRolls.add(ev.record.id); if (ev.record.label.includes("Schaden")) damage = ev.record; else resolveRoll(ev.record); return; }
           if (ev.type === "error") rejectRoll(new Error(ev.message));
           if (open) queued.push(ev); else handle(ev);

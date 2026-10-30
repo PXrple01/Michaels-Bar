@@ -7,6 +7,7 @@ import { ACTS, arcSummary, currentChapter, isArc, worldSummary, type WorldState 
 import { shopSummary } from "../../shared/shop";
 import { gambleSummary } from "../../shared/gamble";
 import { voteSummary } from "../../shared/vote";
+import { powerHint } from "../../shared/growth";
 import { inventorySummary, itemLogSummary } from "../../shared/inventory";
 import { peopleSummary } from "../../shared/people";
 import { mapSummary } from "../../shared/map";
@@ -15,7 +16,7 @@ import { standingSummary } from "../../shared/standing";
 export const ARC_EVERY = 5;
 const hashOf = (s: string) => createHash("sha256").update(s).digest("base64url").slice(0, 12);
 
-export function turnSummary(w: WorldState, characters: Pick<Character, "id" | "name">[], rules?: Rules): string {
+export function turnSummary(w: WorldState, characters: (Pick<Character, "id" | "name"> & { growth?: Character["growth"] })[], rules?: Rules): string {
   const lines = [worldSummary(w, characters, rules, { arc: false })];
   const inv = inventorySummary(w, characters);
   const arc = w.arc && isArc(w.arc) ? w.arc : null;
@@ -44,6 +45,8 @@ export function turnSummary(w: WorldState, characters: Pick<Character, "id" | "n
   if (used) lines.push(used);
   const vote = voteSummary(w, characters);
   if (vote) lines.push(vote);
+  const power = powerHint(characters, w.powerScaling);
+  if (power) lines.push(power);
   if (arc) lines.push(arcFull ? full : `Kampagne: Akt ${ch!.act + 1} „${ACTS[ch!.act].name}“, Kapitel „${ch!.titel}“${ch!.detour ? " (Abzweigung)" : ""} – Plan und Tempo unverändert wie im letzten ausführlichen <spielstand>.`);
   return lines.join("\n");
 }

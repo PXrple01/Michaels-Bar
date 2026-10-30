@@ -58,6 +58,14 @@ export function settingsPage(): Page {
           </section>
 
           <section class="card set-section" data-reveal>
+            <h2>${icon("sword")} Spiel</h2>
+            <div class="set-row">
+              <div><b>Machtstufe der Gegner</b><p>Erfahrene Figuren (Ruhm, Erbstücke, Limit Break) sind stärker. „Angepasst“ lässt den Spielleiter die Gegner passend stärker machen, „Hart“ noch mehr, „Aus“ hält sie wie für frische Figuren. Gilt ab dem nächsten Zug; in der Gruppe zählt die Einstellung des Gastgebers.</p></div>
+              ${segmented<Settings["powerScaling"]>("powerScaling", [{ value: "aus", label: "Aus" }, { value: "angepasst", label: "Angepasst" }, { value: "hart", label: "Hart" }], s.powerScaling)}
+            </div>
+          </section>
+
+          <section class="card set-section" data-reveal>
             <h2>${icon("sparkles")} Animation</h2>
             <div class="set-row">
               <div><b>Würfel-Animation</b><p>„Kurz“ rollt schneller, „Aus“ zeigt sofort das Ergebnis.</p></div>
@@ -117,6 +125,7 @@ export function settingsPage(): Page {
         $$("[data-theme]", root).forEach((x) => x.classList.toggle("selected", x === b));
       }));
       bindSegmented<Settings["animation"]>(root, "animation", (v) => updateSettings({ animation: v }));
+      bindSegmented<Settings["powerScaling"]>(root, "powerScaling", (v) => updateSettings({ powerScaling: v }));
       bindSegmented<Settings["quality"]>(root, "quality", (v) => updateSettings({ quality: v }));
       $$<HTMLElement>("[data-toggle]", root).forEach((t) => t.addEventListener("click", () => {
         const key = t.dataset.toggle as "slowmo" | "backgroundFx";

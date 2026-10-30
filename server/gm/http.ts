@@ -9,7 +9,7 @@ import { ValidationError } from "../characters";
 import { serveImage } from "../images";
 import { LimitError } from "./usage";
 
-export const GM_KINDS = ["start", "turn", "roll", "upgrade", "choose", "level", "shop", "letter", "import"] as const;
+export const GM_KINDS = ["start", "turn", "roll", "upgrade", "choose", "level", "shop", "letter", "import", "legend"] as const;
 export type GmKind = (typeof GM_KINDS)[number];
 
 type AnyEvent = GmEvent | ReviewEvent | PartyEvent;

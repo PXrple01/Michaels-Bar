@@ -81,6 +81,8 @@ export interface WorldState {
   scars?: Record<string, { name: string; text: string }[]>;
   /** Dauerhafte Boni aus Ruhm je Figur (zu Beginn festgelegt). */
   fameBonus?: Record<string, { angriff: number }>;
+  /** Machtstufe (Einstellung): Gegner passen sich erfahrenen Figuren an. */
+  powerScaling?: "aus" | "angepasst" | "hart";
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */

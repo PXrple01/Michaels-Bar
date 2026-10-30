@@ -46,6 +46,11 @@ export interface GmOptions {
 
 interface Saved { messages: MessageParam[]; world: WorldState; held: ToolResult[] }
 
+/** Machtstufe aus den Einstellungen übernehmen (gilt ab diesem Zug). */
+export function setPower(w: WorldState, v: unknown) {
+  if (v === "aus" || v === "angepasst" || v === "hart") w.powerScaling = v;
+}
+
 export class GameMaster {
   readonly narrator: Narrator;
   readonly forge: UpgradeForge;
@@ -80,13 +85,19 @@ export class GameMaster {
   }
 
   /** Führt eine Aktion aus und meldet alle Ereignisse über `emit`. Fehler werden als Ereignis gemeldet. */
-  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level" | "shop" | "letter" | "import", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
+  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level" | "shop" | "letter" | "import" | "legend", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
     try {
       if (kind === "choose") return void (await this.choose(body as UpgradeRequest, emit));
       if (kind === "level") return void (await this.levelChoice(body as LevelRequest, emit));
       if (kind === "shop") return void (await this.shop(body as ShopRequest, emit));
       if (kind === "import") return void (await this.importGame(body as ImportRequest, emit));
       if (kind === "letter") return void (await this.letter(body as LetterRequest, who, emit));
+      if (kind === "legend") {
+        const { c, data } = this.character((body as { character?: unknown })?.character);
+        const titles = Array.isArray((body as { titles?: unknown }).titles) ? ((body as { titles: unknown[] }).titles).filter((t): t is string => typeof t === "string") : [];
+        const r = await this.narrator.forgeLegend(c, data, titles, who);
+        return void emit({ type: "legend", legend: r.legend, budget: await this.o.guard.info() });
+      }
       this.narrator.ensureReady();
       if (kind === "start") await this.start(body as StartRequest, who, emit);
       else if (kind === "turn") await this.turn(body as TurnRequest, who, emit);
@@ -103,6 +114,7 @@ export class GameMaster {
     const opening = rollOpening(data.openings, previous);
     emit({ type: "opening", opening, summary: openingSummary(opening) });
     const world = initWorld([c]);
+    setPower(world, (req as { power?: unknown }).power);
     world.time = initTime(opening.zeit);
     upsertPerson(world, { name: opening.npc.name, role: opening.npc.rolle, note: opening.npc.eigenschaft });
     visitPlace(world, startPlace(opening.ort));
@@ -112,6 +124,7 @@ export class GameMaster {
   private async turn(req: TurnRequest, who: string, emit: (ev: GmEvent) => void) {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
+    setPower(world, (req as { power?: unknown }).power);
     if (this.pendingFrom(messages, effectiveCharacter(c, world), data, world)) throw new GmError("Erst muss die verlangte Probe gewürfelt werden.", "state");
     if (world.arc?.finished) throw new GmError("Dieses Abenteuer ist abgeschlossen. Beginne ein neues!", "state");
     const action = typeof req.action === "string" ? req.action.trim() : "";
@@ -125,6 +138,7 @@ export class GameMaster {
   private async roll(req: RollRequest, who: string, emit: (ev: GmEvent) => void) {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
+    setPower(world, (req as { power?: unknown }).power);
     const ce = effectiveCharacter(c, world);
     if (world.arc?.finished) throw new GmError("Dieses Abenteuer ist abgeschlossen. Beginne ein neues!", "state");
     const pending = this.pendingFrom(messages, ce, data, world);

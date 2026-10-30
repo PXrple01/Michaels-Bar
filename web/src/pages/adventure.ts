@@ -1,5 +1,7 @@
+import { settings } from "../lib/settings";
 import { letterStore, offerLetters } from "../lib/letters";
 import { heirloomPicker, syncCharacterGrowth } from "../lib/growthUi";
+import { legendAbility } from "../../../shared/growth";
 import { exportSave, importSaveFile } from "../lib/saveTransfer";
 import type { ItemAction } from "../../../shared/inventory";
 import { setMusic } from "../lib/music";
@@ -393,7 +395,8 @@ export function playPage(): Page {
       const myClassDef = () => dataFor(data, character).classes.find((x) => x.id === character.classId);
       const abilityType = (id: string) => myClassDef()?.abilities.find((a) => a.id === id)?.type ?? "unterstuetzung";
       function renderAbilities() {
-        const abilities = effectiveAbilities(myClassDef()?.abilities ?? [], save!.state.world?.progress?.[character.id]);
+        const legend = legendAbility(character);
+        const abilities = [...effectiveAbilities(myClassDef()?.abilities ?? [], save!.state.world?.progress?.[character.id]), ...(legend ? [legend] : [])];
         $("#my-abilities", root).innerHTML = abilityList(character.name, abilities, save!.state.world, character.id, character).value;
       }
 
@@ -564,7 +567,7 @@ export function playPage(): Page {
         renderWorld();
         renderStory(); renderOpening(false); renderBelow();
         retry = () => void begin(false);
-        await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings() }, (ev) => {
+        await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings(), power: settings().powerScaling }, (ev) => {
           if (ev.type === "opening") {
             save!.opening = ev.opening;
             save!.openingSummary = ev.summary;
@@ -591,7 +594,7 @@ export function playPage(): Page {
         renderBelow(); scrollDown();
         const before = save!.state;
         retry = () => { save!.story.pop(); renderStory(); void sendAction(action); };
-        await streamGm("turn", { character, state: before, action }, handle);
+        await streamGm("turn", { character, state: before, action, power: settings().powerScaling }, handle);
         busy = false;
         if (!lastError) {
           save!.started = true; retry = null; persist();
@@ -629,7 +632,7 @@ export function playPage(): Page {
         const overlay = rollWithOverlay(`${p.label}${MODE_TEXT[p.modus]}${p.sg !== null ? ` · SG ${p.sg}` : ""}`, () => rollP);
         renderBelow();
         retry = () => void doRoll();
-        const streaming = streamGm("roll", { character, state: save!.state }, (ev) => {
+        const streaming = streamGm("roll", { character, state: save!.state, power: settings().powerScaling }, (ev) => {
           if (ev.type === "roll") {
             const entry = { type: "roll" as const, record: ev.record };
             save!.story.push(entry); appendEntry(entry); persist();

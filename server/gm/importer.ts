@@ -73,6 +73,7 @@ export function sanitizeWorld(raw: unknown, c: Character, data: GameData): World
   w.scars = scar ? { [c.id]: [{ name: str(scar.name, 60), text: str(scar.text, 160) }] } : {};
   const erprobt = perkCount(c, "erprobt");
   if (erprobt) w.fameBonus = { [c.id]: { angriff: erprobt } }; else delete w.fameBonus;
+  if (!["aus", "angepasst", "hart"].includes(String(w.powerScaling))) delete w.powerScaling;
   // Offene Läden, Spiele, Abstimmungen und Protokolle gehören zur alten Sitzung
   w.shop = null; w.gamble = null; w.vote = null; delete w.itemLog; delete w.drank; delete w.sent; w.sinceImage = 0;
   try { turnSummary(structuredClone(w), [c], data.rules); } catch { throw new ImportError("Die Spielwelt in der Datei ist beschädigt."); }

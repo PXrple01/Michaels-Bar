@@ -19,6 +19,8 @@ export interface Settings {
   backgroundFx: boolean;
   /** Wird automatisch gesetzt, wenn Würfe auf diesem Gerät ruckeln. */
   lowPerfDetected: boolean;
+  /** Machtstufe: Gegner passen sich der Stärke erfahrener Figuren an. */
+  powerScaling: "aus" | "angepasst" | "hart";
 }
 
 const KEY = "wus.settings.v1";
@@ -35,6 +37,7 @@ const defaults = (): Settings => ({
   slowmo: true,
   backgroundFx: true,
   lowPerfDetected: false,
+  powerScaling: "angepasst",
 });
 
 let current: Settings = load();

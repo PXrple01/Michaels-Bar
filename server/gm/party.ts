@@ -12,6 +12,8 @@ import { startPlace, visitPlace } from "../../shared/map";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
 import { castVote, resolveVote } from "../../shared/vote";
+import { legendAbility } from "../../shared/growth";
+import { setPower } from "./engine";
 import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
 import { playGamble } from "../../shared/gamble";
 import { turnSummary } from "./summary";
@@ -187,7 +189,8 @@ export class PartyService {
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
         return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", acted: p.id in party.actions,
-          abilities: effectiveAbilities(cls?.abilities ?? [], party.world?.progress?.[p.character.id]).map((x) => ({ id: x.id, name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded })) };
+          abilities: [...effectiveAbilities(cls?.abilities ?? [], party.world?.progress?.[p.character.id]).map((x) => ({ id: x.id, name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded })),
+            ...(legendAbility(p.character) ? [{ ...legendAbility(p.character)!, upgraded: false }] : [])] };
       }),
       opening: party.opening,
       story: party.story,
@@ -517,6 +520,7 @@ export class PartyService {
         countChapterTurn(p.world!);
         messages = [...p.messages, userTurn(p.held ?? [], `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${turnSummary(p.world!, this.characters(p), data.rules)}\n</spielstand>`)];
       }
+      if (me.host && p.world) setPower(p.world, body.power); // Machtstufe: Einstellung des Gastgebers
       p.busy = lock;
       p.live = "";
       p.failed = null;
@@ -556,6 +560,7 @@ export class PartyService {
       if (!p.pendings!.length) {
         // Letzter Wurf: Spielleiter-Zug beginnt (bei einem Abbruch zurück auf den Stand vor diesem Wurf)
         this.migrate(p);
+        if (me.host) setPower(p.world!, body.power);
         lock = before;
         p.busy = before;
         p.live = "";
