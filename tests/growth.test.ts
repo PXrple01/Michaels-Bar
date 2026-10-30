@@ -265,3 +265,19 @@ describe("Limit-Angriff", () => {
     expect(w.limitArmed?.[vet.id]).toBeUndefined();
   });
 });
+
+describe("Legendäre Fähigkeiten im Abenteuer verbessern", () => {
+  it("stehen bei den Verbesserungen zur Auswahl und die Verbesserung wirkt", async () => {
+    const { withLegends } = await import("../shared/growth");
+    const { abilitiesOf } = await import("../shared/abilityUses");
+    const legend = { name: "Zorn des Ogertöters", type: "angriff" as const, uses: "einmal_pro_tag" as const, text: "Ein Schlag mit 3W8 zusätzlichem Schaden gegen einen Gegner.", beginnerText: "Ein gewaltiger Hieb." };
+    const c = { ...base, growth: g({ earned: ["a", "b", "c"], legend }) };
+    const cls = data.classes.find((x) => x.id === "ritter")!;
+    expect(withLegends(cls.abilities, c).map((a) => a.id)).toContain("legende");
+    const w = initWorld([c]);
+    w.progress = { [c.id]: { abilities: ["legende", cls.abilities[0].id], chosen: [{ abilityId: "legende", tier: 1, basedOn: legend.name, name: "Zorn des Ogertöters II", text: "Ein Schlag mit 4W8 zusätzlichem Schaden; der Gegner ist benommen.", beginnerText: "Ein noch gewaltigerer Hieb.", uses: "einmal_pro_tag", scope: "breit" }] as never, offer: null } as never };
+    const up = abilitiesOf(c, data.classes, w).find((a) => a.id === "legende")!;
+    expect(up.name).toBe("Zorn des Ogertöters II");
+    expect((up as { legendary?: boolean }).legendary).toBe(true);
+  });
+});

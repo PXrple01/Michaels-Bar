@@ -173,6 +173,14 @@ export function applyMastery<A extends { id: string; uses: string; text: string 
   });
 }
 
+/**
+ * Klassenfähigkeiten plus legendäre Fähigkeiten in derselben Form – so können auch legendäre Fähigkeiten im Abenteuer
+ * verbessert werden (Mitte/Finale) und zählen für die Meisterschaft.
+ */
+export function withLegends<A extends { id: string }>(base: A[], c: WithGrowth): (A | (ReturnType<typeof legendAbilities>[number] & { level: number; scope: "breit"; magic: boolean }))[] {
+  return [...base, ...legendAbilities(c).map((l) => ({ ...l, level: 1, scope: "breit" as const, magic: false }))];
+}
+
 /** Legendäre Fähigkeiten als normale Fähigkeiten (für Liste, Einsatz und Meisterschaft). */
 export function legendAbilities(c: WithGrowth) {
   const g = growthOf(c), tier = limitTier(g);

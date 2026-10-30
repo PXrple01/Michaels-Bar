@@ -4,7 +4,7 @@ import type { Opening, PendingCheck, SceneImage } from "../../shared/campaign";
 import { MAX_ACTION_LENGTH, stripMarkers } from "../../shared/campaign";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyOverview, type PartyStoryEntry, type PartyView, type PartyDelta } from "../../shared/party";
 import type { RollRecord } from "../../shared/dice";
-import type { Character } from "../../shared/schema";
+import type { Ability, Character } from "../../shared/schema";
 import { initArc, initWorld, isArc, type WorldState } from "../../shared/world";
 import { initTime } from "../../shared/time";
 import { upsertPerson } from "../../shared/people";
@@ -12,7 +12,7 @@ import { startPlace, visitPlace } from "../../shared/map";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
 import { castVote, resolveVote } from "../../shared/vote";
-import { armLimitAttack, growthOf, legendAbilities, limitAttackNote, limitTier } from "../../shared/growth";
+import { armLimitAttack, growthOf, limitAttackNote, limitTier, withLegends } from "../../shared/growth";
 import { setPower } from "./engine";
 import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
 import { playGamble } from "../../shared/gamble";
@@ -189,8 +189,7 @@ export class PartyService {
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
         return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", tier: limitTier(growthOf(p.character)), acted: p.id in party.actions,
-          abilities: [...effectiveAbilities(cls?.abilities ?? [], party.world?.progress?.[p.character.id]).map((x) => ({ id: x.id, name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded })),
-            ...legendAbilities(p.character).map((l) => ({ ...l, upgraded: false }))] };
+          abilities: effectiveAbilities(withLegends(cls?.abilities ?? [], p.character) as Ability[], party.world?.progress?.[p.character.id]).map((x) => ({ id: x.id, name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded, ...((x as { legendary?: boolean }).legendary ? { legendary: true } : {}) })) };
       }),
       opening: party.opening,
       story: party.story,

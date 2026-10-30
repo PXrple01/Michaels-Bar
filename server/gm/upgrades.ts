@@ -1,5 +1,6 @@
 // Claude erfindet verbesserte Fähigkeiten im Moment der Freischaltung – passend zur Figur und teils zur Lage.
 // Ob eine Verbesserung erlaubt ist, entscheidet danach allein shared/upgrades.ts (Punkte, Grenzen, verbotene Effekte).
+import { withLegends } from "../../shared/growth";
 import type Anthropic from "@anthropic-ai/sdk";
 import { abilityCost } from "../../shared/classbuilder";
 import type { Ability, Character } from "../../shared/schema";
@@ -85,7 +86,8 @@ export class UpgradeForge {
     const { data, character, world, tier } = args;
     const cls = data.classes.find((x) => x.id === character.classId)!;
     const prog = world.progress?.[character.id] ?? emptyProgression();
-    const abilities = cls.abilities;
+    // Auch legendäre Fähigkeiten (nach dem Limit Break) können verbessert werden
+    const abilities = withLegends(cls.abilities, character) as Ability[];
     const byId = new Map(abilities.map((a) => [a.id, a]));
     const fixedTarget = tier === 2 && prog.abilities ? prog.abilities[1] : null;
     const effective = effectiveAbilities(abilities, prog);

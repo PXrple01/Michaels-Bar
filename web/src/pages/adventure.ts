@@ -1,7 +1,8 @@
 import { settings } from "../lib/settings";
 import { letterStore, offerLetters } from "../lib/letters";
 import { heirloomPicker, limitAttackButton, runLimitAttack, syncCharacterGrowth } from "../lib/growthUi";
-import { fullName, legendAbilities } from "../../../shared/growth";
+import { fullName, withLegends } from "../../../shared/growth";
+import type { Ability } from "../../../shared/schema";
 import { exportSave, importSaveFile } from "../lib/saveTransfer";
 import type { ItemAction } from "../../../shared/inventory";
 import { setMusic } from "../lib/music";
@@ -396,7 +397,7 @@ export function playPage(): Page {
       const myClassDef = () => dataFor(data, character).classes.find((x) => x.id === character.classId);
       const abilityType = (id: string) => myClassDef()?.abilities.find((a) => a.id === id)?.type ?? "unterstuetzung";
       function renderAbilities() {
-        const abilities = [...effectiveAbilities(myClassDef()?.abilities ?? [], save!.state.world?.progress?.[character.id]), ...legendAbilities(character)];
+        const abilities = effectiveAbilities(withLegends(myClassDef()?.abilities ?? [], character) as Ability[], save!.state.world?.progress?.[character.id]);
         $("#my-abilities", root).innerHTML = abilityList(character.name, abilities, save!.state.world, character.id, character).value;
       }
 
