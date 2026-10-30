@@ -65,7 +65,11 @@ export class GoogleCloud {
   constructor(readonly cfg: GoogleConfig, private f: typeof fetch = fetch, private counters?: CounterStore) {}
 
   /** Ausgaben über Google mitzählen (für den Ausgabe-Regler). */
-  async addSpend(usd: number) { if (usd > 0) await this.counters?.add(SPEND_KEY, Math.round(usd * 10_000)); }
+  async addSpend(usd: number) {
+    // Mitzählen darf nie einen Zug oder ein Bild scheitern lassen
+    try { if (usd > 0) await this.counters?.add(SPEND_KEY, Math.round(usd * 10_000)); }
+    catch (e) { console.error("[Google] Ausgaben konnten nicht gezählt werden:", (e as Error).message); }
+  }
   async spentUsd(): Promise<number> { return ((await this.counters?.get(SPEND_KEY)) ?? 0) / 10_000; }
 
   /**
@@ -75,20 +79,29 @@ export class GoogleCloud {
   async luxury(now = Date.now()): Promise<boolean> {
     const day = new Date(now).toISOString().slice(0, 10);
     if (this.tier?.day === day) return this.tier.luxury;
+    // Gespeichert wird 1 (Luxus) oder 100 (normal). Legen zwei Server gleichzeitig verschieden fest (101), gilt normal.
     const key = `google-tier-${day}`;
-    let stored = (await this.counters?.get(key)) ?? 0;
-    if (!stored) {
-      const elapsed = Math.max(0, Math.floor((now - this.cfg.start.getTime()) / 86_400_000));
-      const pace = (this.cfg.budgetUsd * (elapsed + 1)) / TRIAL_DAYS;
-      stored = (await this.spentUsd()) < pace ? 1 : 2;
-      await this.counters?.add(key, stored);
+    let luxury = false;
+    try {
+      let stored = (await this.counters?.get(key)) ?? 0;
+      if (!stored) {
+        const elapsed = Math.max(0, Math.floor((now - this.cfg.start.getTime()) / 86_400_000));
+        const pace = (this.cfg.budgetUsd * (elapsed + 1)) / TRIAL_DAYS;
+        const mine = (await this.spentUsd()) < pace ? 1 : 100;
+        stored = (await this.counters?.add(key, mine)) ?? mine;
+        console.log(`[Google] Stufe für ${day}: ${mine === 1 ? "Luxus" : "normal"} (verbraucht ${(await this.spentUsd()).toFixed(2)} $ von ${pace.toFixed(2)} $ Tempo).`);
+      }
+      luxury = stored > 0 && stored < 100;
+    } catch (e) {
+      console.error("[Google] Stufe konnte nicht bestimmt werden – heute normal:", (e as Error).message);
+      return false; // nicht merken: beim nächsten Aufruf neu versuchen
     }
-    this.tier = { day, luxury: stored === 1 };
-    return this.tier.luxury;
+    this.tier = { day, luxury };
+    return luxury;
   }
 
   /** Wird Google gerade benutzt? Nur im Zeitfenster und wenn es nicht kürzlich abgelehnt hat. */
-  active(now = Date.now()): boolean { return now < this.cfg.until.getTime() && now >= this.brokenUntil; }
+  active(now = Date.now()): boolean { return now >= this.cfg.start.getTime() && now < this.cfg.until.getTime() && now >= this.brokenUntil; }
 
   /** Nach einer Ablehnung eine Weile auf die bisherigen Anbieter umschalten. */
   markBroken(what: string, reason: string) {

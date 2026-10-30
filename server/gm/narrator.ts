@@ -11,7 +11,7 @@ import { currentChapter, type WorldState } from "../../shared/world";
 import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { systemPrompt } from "./prompt";
-import { costUsd, LimitError, type UsageGuard } from "./usage";
+import { costUsd, LimitError, PRICES, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
 import { gearOf } from "../../shared/shop";
@@ -527,9 +527,11 @@ export class Narrator {
           if (abort.signal.aborted) throw new GmError("Der Spielleiter hat zu lange gebraucht und wurde unterbrochen. Bitte erneut versuchen.", "api");
           throw e;
         }
-        const c = costUsd(msg.usage, this.model);
+        // Tatsächlich genutztes Modell (in der Google-Luxus-Stufe kann es Opus statt Sonnet sein)
+        const served = msg.model && msg.model in PRICES ? msg.model : this.model;
+        const c = costUsd(msg.usage, served);
         cost += c;
-        await this.o.guard.record(msg.usage, this.model);
+        await this.o.guard.record(msg.usage, served);
         const u = msg.usage;
         usage.input += u.input_tokens + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
         usage.output += u.output_tokens;

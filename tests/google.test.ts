@@ -85,4 +85,17 @@ describe("Google-Testphase", () => {
     await g.addSpend(2);
     expect(await new GoogleCloud(cfg, fakeGoogle([]), counters).luxury(new Date("2026-01-06T08:00:00Z").getTime())).toBe(false); // Tag 6: 6 $ < 6,5 $
   });
+
+  it("Lücken: Start in der Zukunft = noch aus; Zählfehler bricht nichts ab; gleichzeitig verschieden festgelegt = normal", async () => {
+    const future = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: "2099-01-01" })!);
+    expect(future.active()).toBe(false);
+    const broken = { get: async () => { throw new Error("weg"); }, add: async () => { throw new Error("weg"); } };
+    const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle([]), broken);
+    await expect(g.addSpend(1)).resolves.toBeUndefined();
+    expect(await g.luxury()).toBe(false);
+    const counters = new MemoryCounterStore();
+    const day = new Date().toISOString().slice(0, 10);
+    await counters.add(`google-tier-${day}`, 101); // ein Server sagte Luxus, einer normal
+    expect(await new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle([]), counters).luxury()).toBe(false);
+  });
 });
