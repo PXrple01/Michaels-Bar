@@ -2,7 +2,7 @@
 import type { ImageMaker } from "../images";
 import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest, type SceneImage, type CampaignSave, type ImportRequest, type LetterRequest } from "../../shared/campaign";
 import { sanitizeOpening, sanitizeStory } from "../../shared/saveFile";
-import { armLimitAttack, limitAttackNote } from "../../shared/growth";
+import { armLimitAttack, cleanChallenges, limitAttackNote } from "../../shared/growth";
 import { ImportError, importedMessages, sanitizeWorld } from "./importer";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
@@ -116,6 +116,8 @@ export class GameMaster {
     emit({ type: "opening", opening, summary: openingSummary(opening) });
     const world = initWorld([c]);
     setPower(world, (req as { power?: unknown }).power);
+    const challenges = cleanChallenges((req as { challenges?: unknown }).challenges);
+    if (challenges.length) world.challenges = challenges;
     world.time = initTime(opening.zeit);
     upsertPerson(world, { name: opening.npc.name, role: opening.npc.rolle, note: opening.npc.eigenschaft });
     visitPlace(world, startPlace(opening.ort));

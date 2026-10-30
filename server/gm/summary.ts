@@ -7,7 +7,7 @@ import { ACTS, arcSummary, currentChapter, isArc, worldSummary, type WorldState 
 import { shopSummary } from "../../shared/shop";
 import { gambleSummary } from "../../shared/gamble";
 import { voteSummary } from "../../shared/vote";
-import { powerHint } from "../../shared/growth";
+import { challengeSummary, powerHint } from "../../shared/growth";
 import { inventorySummary, itemLogSummary } from "../../shared/inventory";
 import { peopleSummary } from "../../shared/people";
 import { mapSummary } from "../../shared/map";
@@ -47,6 +47,8 @@ export function turnSummary(w: WorldState, characters: (Pick<Character, "id" | "
   if (vote) lines.push(vote);
   const power = powerHint(characters, w.powerScaling);
   if (power) lines.push(power);
+  const challenges = challengeSummary(w);
+  if (challenges) lines.push(challenges);
   if (arc) lines.push(arcFull ? full : `Kampagne: Akt ${ch!.act + 1} „${ACTS[ch!.act].name}“, Kapitel „${ch!.titel}“${ch!.detour ? " (Abzweigung)" : ""} – Plan und Tempo unverändert wie im letzten ausführlichen <spielstand>.`);
   return lines.join("\n");
 }

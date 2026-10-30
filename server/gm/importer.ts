@@ -6,7 +6,7 @@ import { addItem, cleanStats, ensureInventory, kindOf, MAX_ITEMS, type InvItem }
 import type { Character } from "../../shared/schema";
 import { GEAR_MAX } from "../../shared/shop";
 import { initArc, initWorld, isArc, newWorldId, type WorldState } from "../../shared/world";
-import { perkCount } from "../../shared/growth";
+import { cleanChallenges, perkCount } from "../../shared/growth";
 import type { GameData } from "../rules/loader";
 import type { MessageParam } from "./narrator";
 import { turnSummary } from "./summary";
@@ -74,6 +74,9 @@ export function sanitizeWorld(raw: unknown, c: Character, data: GameData): World
   const erprobt = perkCount(c, "erprobt");
   if (erprobt) w.fameBonus = { [c.id]: { angriff: erprobt } }; else delete w.fameBonus;
   if (!["aus", "angepasst", "hart"].includes(String(w.powerScaling))) delete w.powerScaling;
+  const ch = cleanChallenges(w.challenges);
+  if (ch.length) w.challenges = ch; else delete w.challenges;
+  delete w.kills;
   // Offene Läden, Spiele, Abstimmungen und Protokolle gehören zur alten Sitzung
   w.shop = null; w.gamble = null; w.vote = null; delete w.itemLog; delete w.drank; delete w.sent; w.sinceImage = 0;
   try { turnSummary(structuredClone(w), [c], data.rules); } catch { throw new ImportError("Die Spielwelt in der Datei ist beschädigt."); }

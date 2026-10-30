@@ -1,9 +1,11 @@
 import { legacyOf } from "../lib/legacy";
 // Heldenhalle: alle Figuren mit ihren Sagen – Kampagnen allein und in der Gruppe, Ausgang, Epilog, erstes Szenenbild –
-// dazu Ruhmeszahlen und die freigeschalteten Erfolge.
+// dazu Ruhmeszahlen, die Bestenliste und die freigeschalteten Erfolge.
 import { ACHIEVEMENTS } from "../../../shared/achievements";
 import type { CampaignSave } from "../../../shared/campaign";
+import type { Character } from "../../../shared/schema";
 import { levelTitle } from "../../../shared/levels";
+import { fullName, growthOf, powerScore, totalKills } from "../../../shared/growth";
 import { enhance } from "../fx/effects";
 import { partyRuns, unlockedAchievements } from "../lib/achievements";
 import { api, loadGameData } from "../lib/api";
@@ -51,6 +53,30 @@ function sagaCard(s: Saga, i: number): Raw {
   return html`<div class="saga ${s.defeat ? "lost" : s.finished ? "won" : ""}" style="--i:${i}">${body}</div>`;
 }
 
+/* ── Bestenliste: die eigenen Figuren in drei Wertungen, je die besten drei ── */
+type Entry = { c: Character; adventures: number; kills: number; power: number };
+const BOARDS: { key: "adventures" | "kills" | "power"; title: string; icon: string; unit: string; hint: string }[] = [
+  { key: "adventures", title: "Meiste Abenteuer", icon: "book", unit: "Abenteuer", hint: "abgeschlossene Abenteuer (Sieg oder Niederlage)" },
+  { key: "kills", title: "Meiste Gegner besiegt", icon: "sword", unit: "Gegner", hint: "Gegner, die diese Figur selbst zu Boden gebracht hat" },
+  { key: "power", title: "Stärkste Figur", icon: "zap", unit: "Macht", hint: "Stufe, Ruhm-Vorteile, Erbstücke, Legenden, Limit Break und Gefährte zusammengezählt" },
+];
+const MEDAL = ["gold", "silver", "bronze"];
+
+function boardOf(list: Entry[]): Raw | "" {
+  if (!list.length) return "";
+  return html`<section class="hall-board" data-reveal>
+    <h2 class="sec-title">${icon("crown")} Bestenliste</h2>
+    <div class="board-grid">${BOARDS.map((b) => {
+      const top = list.filter((e) => e[b.key] > 0).sort((x, y) => y[b.key] - x[b.key]).slice(0, 3);
+      return html`<div class="card board" title="${b.hint}">
+        <h3>${icon(b.icon)} ${b.title}</h3>
+        ${top.length ? html`<ol>${top.map((e, i) => html`<li class="${MEDAL[i]}"><span class="medal">${i + 1}</span><a href="#/figur/${e.c.id}">${fullName(e.c)}</a><b>${e[b.key]} <small>${b.unit}</small></b></li>`)}</ol>`
+          : html`<p class="muted small">Noch leer – ${b.hint}.</p>`}
+      </div>`;
+    })}</div>
+  </section>`;
+}
+
 export function hallPage(): Page {
   return {
     async render(root) {
@@ -78,6 +104,7 @@ export function hallPage(): Page {
 
       const total = { sagas: heroes.reduce((n, h) => n + h.sagas.length, 0), won: heroes.reduce((n, h) => n + h.won, 0), places: heroes.reduce((n, h) => n + h.places, 0) };
       const medals = ACHIEVEMENTS.filter((a) => unlocked[a.id]);
+      const board = boardOf(heroes.map((h) => ({ c: h.c, adventures: Math.max(growthOf(h.c).earned.length, h.won + h.lost), kills: totalKills(h.c), power: powerScore(h.c) + h.level })));
 
       setHTML(root, html`<div class="container hall">
         <header class="page-head hall-head" data-reveal>
@@ -97,6 +124,8 @@ export function hallPage(): Page {
           <span class="hm-row">${medals.slice(0, 14).map((a) => html`<span class="hm-medal" title="${a.name} – ${a.text}">${icon(a.icon)}</span>`)}${medals.length > 14 ? html`<span class="hm-more">+${medals.length - 14}</span>` : ""}</span>
           <span class="hm-go">${icon("arrowRight")}</span>
         </a>` : ""}
+
+        ${board}
 
         ${heroes.length ? html`<div class="hall-list">${heroes.map((h, i) => {
           const cls = classes.find((x) => x.id === h.c.classId) ?? h.c.customClass?.cls;

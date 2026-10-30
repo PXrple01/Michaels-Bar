@@ -1,4 +1,5 @@
 // Kampagne in der Oberfläche: Akte mit Kapiteln (kommende Kapitel ohne Titel – keine Spoiler) und Abschlusskarte.
+import { CHALLENGES } from "../../../shared/growth";
 import { ACTS, currentChapter, isArc, type Arc, type WorldState } from "../../../shared/world";
 import { html, type Raw } from "./dom";
 import { icon } from "./icons";
@@ -36,6 +37,7 @@ export function endCard(w: WorldState, names: { id: string; name: string }[], ag
     <h2>${lost ? "Niederlage" : "Ende"}</h2>
     ${lost ? html`<p class="muted">${solo ? "Niemand konnte dich mehr retten" : "Niemand konnte euch mehr retten"} – so endet diese Geschichte. Eine neue wartet schon.</p>` : ""}
     ${arc.epilog ? html`<p class="end-epilog">${arc.epilog}</p>` : ""}
+    ${w.challenges?.length ? html`<p class="end-challenges">${icon("fist")} Herausforderungen: ${w.challenges.map((id) => html`<span class="chip gold">${CHALLENGES[id].name}</span>`)} – doppelter Ruhm</p>` : ""}
     <div class="end-grid">
       <div><span>Kapitel</span><b>${played.length}</b></div>
       <div><span>Abzweigungen</span><b>${played.filter((c) => c.detour).length}</b></div>

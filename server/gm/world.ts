@@ -239,9 +239,11 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
     case "kampf_beginnen": {
       const parsed = z.array(z.object({ name: z.string().min(1).max(40), trefferpunkte: z.number(), ruestung: z.number(), aussehen: z.string().optional() })).min(1).safeParse(input.gegner);
       if (!parsed.success) return err("gegner muss eine Liste mit name, trefferpunkte, ruestung sein.");
+      // Herausforderung „Harte Gegner“: +2 Rüstung, ein Viertel mehr Trefferpunkte
+      const hard = !!w.challenges?.includes("harte_gegner");
       const enemies = parsed.data.slice(0, LIMITS.enemies).map((g, i) => {
-        const hp = Math.max(1, Math.min(LIMITS.enemyHp, Math.round(g.trefferpunkte)));
-        return { id: `${i}-${randomBytes(3).toString("hex")}`, name: g.name, hp, maxHp: hp, armor: Math.max(LIMITS.armorMin, Math.min(LIMITS.armorMax, Math.round(g.ruestung))), ...(g.aussehen?.trim() ? { look: g.aussehen.trim().slice(0, 300) } : {}) };
+        const hp = Math.max(1, Math.min(LIMITS.enemyHp * (hard ? 1.25 : 1), Math.round(g.trefferpunkte * (hard ? 1.25 : 1))));
+        return { id: `${i}-${randomBytes(3).toString("hex")}`, name: g.name, hp, maxHp: hp, armor: Math.max(LIMITS.armorMin, Math.min(LIMITS.armorMax + (hard ? 2 : 0), Math.round(g.ruestung) + (hard ? 2 : 0))), ...(g.aussehen?.trim() ? { look: g.aussehen.trim().slice(0, 300) } : {}) };
       });
       // gleiche Namen unterscheidbar machen
       const total: Record<string, number> = {};
@@ -632,7 +634,9 @@ export function applyPlayerRoll(ctx: Omit<ToolContext, "onRoll" | "rolls">, char
   if (art === "damage") {
     delete w.critPending[characterId];
     const amount = Math.max(1, record.total);
+    const was = enemy.hp;
     enemy.hp = Math.max(0, enemy.hp - amount);
+    if (was > 0 && enemy.hp <= 0) w.kills = { ...w.kills, [characterId]: (w.kills?.[characterId] ?? 0) + 1 };
     return ` ${enemy.name} verliert ${amount} TP und hat noch ${enemy.hp}/${enemy.maxHp}${enemy.hp <= 0 ? " – besiegt!" : "."}${checkCombatEnd({ ...ctx, rolls: null as never, onRoll: () => {} })}`;
   }
   return "";

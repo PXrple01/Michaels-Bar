@@ -12,7 +12,7 @@ import { startPlace, visitPlace } from "../../shared/map";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
 import { castVote, resolveVote } from "../../shared/vote";
-import { armLimitAttack, growthOf, limitAttackNote, limitTier, withLegends } from "../../shared/growth";
+import { armLimitAttack, cleanChallenges, growthOf, limitAttackNote, limitTier, withLegends } from "../../shared/growth";
 import { setPower } from "./engine";
 import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
 import { playGamble } from "../../shared/gamble";
@@ -509,6 +509,8 @@ export class PartyService {
         p.opening = rollOpening(data.openings, previous);
         p.status = "playing";
         p.world = initWorld(this.characters(p));
+        const challenges = cleanChallenges(body.challenges);
+        if (challenges.length) p.world.challenges = challenges;
         p.world.time = initTime(p.opening.zeit);
         upsertPerson(p.world, { name: p.opening.npc.name, role: p.opening.npc.rolle, note: p.opening.npc.eigenschaft });
         visitPlace(p.world, startPlace(p.opening.ort));

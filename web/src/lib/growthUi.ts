@@ -3,7 +3,7 @@
 import { legacyOf } from "./legacy";
 import { streamGm } from "./gm";
 import { imagesEnabled, paintPortrait, portraitOf } from "./portraits";
-import { canLimitAttack, fullName, LIMIT2_AFTER, limitTier, LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, type Growth, type PerkId } from "../../../shared/growth";
+import { canLimitAttack, fullName, LIMIT2_AFTER, limitTier, LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, companionLevel, type Growth, type LifeCompanion, type PerkId } from "../../../shared/growth";
 import { rarityOf, statsText, type InvItem } from "../../../shared/inventory";
 import type { Character } from "../../../shared/schema";
 import type { LegendOption } from "../../../shared/growth";
@@ -168,6 +168,7 @@ export function growthSection(c: Character): Raw {
       <div><h3 class="small-head">${icon("star")} Erbstück-Truhe <small class="muted">${g.heirlooms.length}/${heirloomSlots(g)}</small></h3>
         ${g.heirlooms.length ? html`<ul class="heirlooms">${g.heirlooms.map((h) => html`<li class="heirloom r-${rarityOf(h as InvItem)}"><b>${h.name}</b>${h.stats ? html` <small>${statsText(h.stats as InvItem["stats"])}</small>` : ""}</li>`)}</ul><small class="muted">Reist in jedes neue Abenteuer mit.</small>` : html`<p class="muted small">Leer. Am Ende eines Abenteuers kannst du einen Gegenstand hineinlegen.</p>`}
         <p class="muted small">${heirloomSlots(g) > 2 ? "Drei Plätze – freigeschaltet durch den Limit Break II." : heirloomSlots(g) > 1 ? `Zwei Plätze – ab ${LIMIT2_AFTER} bestandenen Abenteuern drei.` : `Ab ${HEIRLOOM_TWO_AFTER} bestandenen Abenteuern fasst die Truhe zwei Gegenstände (bisher ${g.earned.length}).`}</p></div>
+      <div><h3 class="small-head">${icon("users")} Gefährte fürs Leben</h3>${g.companion ? html`<p class="small"><b>${g.companion.name}</b> <small class="muted">${g.companion.role}</small><br><span class="chip gold">Stufe ${companionLevel(g.companion.journeys)}/5</span> <small class="muted">${g.companion.journeys} Abenteuer gemeinsam</small></p><button class="btn btn-ghost btn-sm" data-companion-drop="${c.id}">${icon("x")} Ziehen lassen</button>` : html`<p class="muted small">Noch keiner. Am Ende eines Abenteuers kannst du einen Begleiter einladen, ${c.name} in alle künftigen Abenteuer zu folgen. Alle zwei Abenteuer steigt er eine Stufe.</p>`}</div>
       <div><h3 class="small-head">${icon("fist")} Narben <small class="muted">${g.scars.length}/${SCARS_MAX}</small></h3>${g.scars.length ? html`<ul class="scars">${g.scars.map((s) => html`<li><b>${s.name}</b><small>${s.text}</small></li>`)}</ul>` : html`<p class="muted small">Noch keine. Wer im Kampf zu Boden geht und überlebt, trägt eine Narbe davon (+1 auf Einschüchtern).</p>`}</div>
     </div>
   </section>`;
@@ -182,6 +183,49 @@ export function redeemPerk(c: Character, p: PerkId): Character | null {
   toast(`„${PERKS[p].name}“ eingelöst – gilt ab dem nächsten Abenteuer.`, "success");
   return next;
 }
+
+/** Abschluss-Karte: einen Begleiter aus diesem Abenteuer als Gefährten fürs Leben mitnehmen. */
+export function companionPicker(w: WorldState, c: { id: string; name: string }): Raw {
+  const list = w.companions ?? [];
+  if (!list.length) return html``;
+  const mine = growthOf(characterStore.get(c.id)).companion;
+  return html`<div class="heirloom-pick companion-pick">
+    <div class="eyebrow">${icon("users")} Gefährte fürs Leben</div>
+    <p class="small">Wer soll ${c.name} in jedes künftige Abenteuer folgen? Alle zwei gemeinsamen Abenteuer wird der Gefährte stärker (Stufe 1–5). Es geht nur einer – ein neuer ersetzt den alten.${mine ? html` Jetzt dabei: <b>${mine.name}</b> (Stufe ${companionLevel(mine.journeys)}).` : ""}</p>
+    <div class="heirloom-list">${list.map((k) => html`<button class="inv-item ${mine?.name === k.name ? "worn" : ""}" data-companion="${JSON.stringify({ name: k.name, role: k.role, skill: k.skill.replace(/\s*\(Gefährten-Stufe \d\)$/, ""), ...(k.look ? { look: k.look } : {}), ...(k.portrait && k.portrait.length <= 200 ? { portrait: k.portrait } : {}) })}" data-char="${c.id}">${k.name}<small class="inv-stat">${k.role}</small></button>`)}</div>
+  </div>`;
+}
+
+/** Gefährten fürs Leben setzen oder (mit null) ziehen lassen. Gibt die neue Figur zurück. */
+export function setCompanion(id: string, k: LifeCompanion | null): Character | null {
+  const c = characterStore.get(id);
+  if (!c) return null;
+  const g = growthOf(c);
+  const next = { ...c, growth: { ...g, companion: k }, updatedAt: new Date().toISOString() };
+  characterStore.save(next);
+  return next;
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target as HTMLElement;
+  const b = t.closest<HTMLElement>("[data-companion]");
+  if (!b) return;
+  let k: Omit<LifeCompanion, "journeys"> | null = null;
+  try { k = JSON.parse(b.dataset.companion ?? ""); } catch { /* kaputt */ }
+  const c = characterStore.get(b.dataset.char ?? "");
+  if (!c || !k?.name) return;
+  const old = growthOf(c).companion;
+  if (old?.name === k.name) {
+    setCompanion(c.id, null);
+    toast(`${k.name} bleibt hier zurück.`, "success");
+  } else {
+    // Dieses Abenteuer zählt schon als erste gemeinsame Reise
+    setCompanion(c.id, { name: k.name.slice(0, 60), role: k.role.slice(0, 60), skill: k.skill.slice(0, 120), ...(k.look ? { look: k.look.slice(0, 300) } : {}), ...(k.portrait ? { portrait: k.portrait } : {}), journeys: 1 });
+    toast(`${k.name} folgt ${c.name} ab jetzt in jedes Abenteuer${old ? ` (statt ${old.name})` : ""}.`, "success");
+  }
+  const now = growthOf(characterStore.get(c.id)).companion?.name;
+  b.parentElement?.querySelectorAll<HTMLElement>("[data-companion]").forEach((x) => { try { x.classList.toggle("worn", JSON.parse(x.dataset.companion ?? "{}").name === now); } catch { /* egal */ } });
+});
 
 /** Abschluss-Karte: Erbstück für die eigene Figur wählen. */
 export function heirloomPicker(w: WorldState, c: { id: string; name: string }): Raw {

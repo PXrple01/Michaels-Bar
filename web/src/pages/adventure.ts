@@ -1,6 +1,7 @@
 import { settings } from "../lib/settings";
+import { challengePicker, selectedChallenges } from "../lib/challengesUi";
 import { letterStore, offerLetters } from "../lib/letters";
-import { heirloomPicker, limitAttackButton, runLimitAttack, syncCharacterGrowth } from "../lib/growthUi";
+import { companionPicker, heirloomPicker, limitAttackButton, runLimitAttack, syncCharacterGrowth } from "../lib/growthUi";
 import { fullName, withLegends } from "../../../shared/growth";
 import type { Ability } from "../../../shared/schema";
 import { exportSave, importSaveFile } from "../lib/saveTransfer";
@@ -134,6 +135,7 @@ export function adventuresPage(): Page {
               })}
             </div>` : ""}
           <h2 class="sec-title" id="neues-abenteuer" data-reveal style="margin-top:40px">${icon("sparkles")} Neues Solo-Abenteuer</h2>
+          ${chars.length ? challengePicker() : ""}
           ${chars.length ? html`
             <div class="char-grid">
               <button class="card char-card tilt start-card quick-card" data-quick data-reveal="scale">
@@ -340,7 +342,7 @@ export function playPage(): Page {
         else if (busy) content = html`<div class="thinking">${icon("feather")} Der Spielleiter erzählt …</div>`;
         else if (!save!.opening) content = html``;
         else if (save!.pending) content = pendingCard(save!.pending);
-        else if (save!.state.world?.arc?.finished) content = html`${endCard(save!.state.world, [character], { href: "#/abenteuer#neues-abenteuer", label: "Neue Kampagne beginnen" }, `#/chronik/${save!.id}`)}${heirloomPicker(save!.state.world, character)}`;
+        else if (save!.state.world?.arc?.finished) content = html`${endCard(save!.state.world, [character], { href: "#/abenteuer#neues-abenteuer", label: "Neue Kampagne beginnen" }, `#/chronik/${save!.id}`)}${heirloomPicker(save!.state.world, character)}${companionPicker(save!.state.world, character)}`;
         else content = html`
           ${suggestions.length ? html`<div class="suggestions"><span class="muted small">Ideen:</span>${suggestions.map((s, i) => html`<button class="chip suggestion" data-suggest="${s}" style="--i:${i}">${s}</button>`)}</div>` : ""}
           ${limitAttackButton(save!.state.world, character)}
@@ -573,7 +575,7 @@ export function playPage(): Page {
         renderWorld();
         renderStory(); renderOpening(false); renderBelow();
         retry = () => void begin(false);
-        await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings(), power: settings().powerScaling }, (ev) => {
+        await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings(), power: settings().powerScaling, challenges: selectedChallenges() }, (ev) => {
           if (ev.type === "opening") {
             save!.opening = ev.opening;
             save!.openingSummary = ev.summary;

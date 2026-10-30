@@ -71,9 +71,11 @@ export function ensureInventory(w: WorldState, characters: (Pick<Character, "id"
     }
     const custom = (c as { customClass?: { cls?: { id: string; abilities: { type: string; text: string }[] } } }).customClass?.cls;
     if (!potion && isHealer(classes?.find((x) => x.id === c.classId) ?? custom)) potion = { ...START_POTION };
-    if (potion) addItem({ items, money: 0 }, potion);
+    // Herausforderung „Ohne Heiltränke“: kein Trank im Startgepäck
+    const noPotions = !!w.challenges?.includes("keine_traenke");
+    if (potion && !noPotions) addItem({ items, money: 0 }, potion);
     // Ruhm-Vorteil „Vorrat“ und das Erbstück aus der Truhe
-    if (perkCount(c, "vorrat")) addItem({ items, money: 0 }, { ...START_POTION });
+    if (perkCount(c, "vorrat") && !noPotions) addItem({ items, money: 0 }, { ...START_POTION });
     for (const heir of heirloomItems(c)) { const stats = cleanStats(heir.stats as Record<string, unknown> | undefined); addItem({ items, money: 0 }, { ...heir, ...(stats ? { stats } : { stats: undefined }) }); }
     for (const slot of SLOTS) fillSlot({ items, money: 0 }, slot);
     w.inventory[c.id] = { items, money: toPfennig(c.money ?? {}) + startMoneyBonus(c) };

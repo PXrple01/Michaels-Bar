@@ -1383,6 +1383,20 @@ button.inv-item:hover { border-color: var(--purple-2); transform: translateY(-1p
 .saga-top .chip svg { width: 13px; height: 13px; }
 .saga-epilog { display: block; margin-top: 4px; font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 0.92rem; color: var(--text-2); quotes: "„" "“"; }
 .empty-hall { display: grid; gap: 14px; justify-items: center; text-align: center; padding: 32px 20px; }
+/* Bestenliste */
+.hall-board { margin-bottom: 26px; }
+.board-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.board { padding: 14px 16px; }
+.board h3 { margin: 0 0 10px; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.board ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.board li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; }
+.board li a { color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board li a:hover { text-decoration: underline; }
+.board li b small { font-weight: 400; opacity: 0.7; }
+.board .medal { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 0.8rem; color: #1a1208; background: #8a6a4a; }
+.board li.gold .medal { background: linear-gradient(135deg, #fff1b8, #e0a930); box-shadow: 0 0 10px rgba(240, 190, 70, 0.5); }
+.board li.silver .medal { background: linear-gradient(135deg, #f4f4f4, #a9adb4); }
+.board li.bronze .medal { background: linear-gradient(135deg, #f0c49a, #a8683a); }
 @media (max-width: 560px) { .hall-medals { flex-wrap: wrap; } .saga { flex-direction: column; } .saga-img { width: 100%; } }
 .hero-learn { color: var(--gold); text-decoration: underline; text-decoration-color: rgba(245, 214, 138, 0.45); text-underline-offset: 3px; }
 .hero-learn:hover { color: #fff; text-decoration-color: currentColor; }
@@ -1739,3 +1753,13 @@ body.fal-on .read-btn { display: inline-flex; }
 .limit-attack-btn:hover { transform: translateY(-2px) scale(1.02); }
 .limit-attack-row { display: flex; justify-content: center; margin: 4px 0 10px; }
 @keyframes la-btn { to { background-position: -220% 0; } }
+/* Herausforderungen */
+.challenges { display: grid; gap: 10px; margin: 0 0 18px; padding: 14px 16px; }
+.ch-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.ch-head b { display: inline-flex; align-items: center; gap: 6px; }
+.ch-head svg { width: 16px; height: 16px; }
+.ch-list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.ch-opt { display: grid; gap: 3px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(var(--c-s08), 0.45); color: var(--text); font: inherit; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+.ch-opt small { color: var(--muted); font-size: 0.78rem; }
+.ch-opt.on { border-color: #ff8a3c; box-shadow: 0 0 0 1px #ff8a3c, 0 0 16px rgba(255, 110, 20, 0.25); background: rgba(255, 110, 20, 0.1); }
+.end-challenges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; font-size: 0.9rem; }

@@ -1,6 +1,6 @@
 import { legacyOf } from "../lib/legacy";
 import { fullName, type PerkId } from "../../../shared/growth";
-import { forgeLegend, growthSection, masteryBar, maybeLimitBreak, redeemPerk, usesWithMastery } from "../lib/growthUi";
+import { forgeLegend, growthSection, masteryBar, maybeLimitBreak, redeemPerk, setCompanion, usesWithMastery } from "../lib/growthUi";
 import { costText } from "../../../shared/campaign";
 import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
 import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusForLevel, trainedSkills, type CharacterRollType } from "../../../shared/character";
@@ -243,6 +243,15 @@ export function sheetPage(): Page {
         if (lg) {
           lg.disabled = true;
           void forgeLegend(c.id, (nc) => { c = nc; $("#growth-box", root).innerHTML = growthSection(c).value; }, lg.hasAttribute("data-legend2") ? 2 : 1).finally(() => { lg.disabled = false; });
+          return;
+        }
+        if (t.closest("[data-companion-drop]")) {
+          const k = c.growth?.companion;
+          const next = k && setCompanion(c.id, null);
+          if (!next) return;
+          c = next;
+          toast(`${k.name} geht fortan eigene Wege.`, "success");
+          $("#growth-box", root).innerHTML = growthSection(c).value;
           return;
         }
         const b = t.closest<HTMLButtonElement>("[data-perk]");

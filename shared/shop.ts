@@ -47,6 +47,7 @@ export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipme
     const ware = shop.wares.find((x) => x.id === ref);
     if (!ware) return "Diese Ware gibt es nicht (mehr).";
     if (ware.stock !== undefined && ware.stock <= 0) return `„${ware.name}“ ist ausverkauft.`;
+    if (w.challenges?.includes("keine_traenke") && (ware.stats?.heilung || ware.kind === "trank")) return "Herausforderung „Ohne Heiltränke“: Tränke kannst du in diesem Abenteuer nicht kaufen.";
     const price = priceFor(ware.price, c);
     if (inv.money < price) return `Dafür reicht dein Geld nicht (${moneyText(inv.money)} von ${moneyText(price)}).`;
     if (ware.kind === "verbesserung") {

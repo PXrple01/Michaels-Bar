@@ -1,6 +1,7 @@
 import { settings } from "../lib/settings";
+import { challengePicker, selectedChallenges } from "../lib/challengesUi";
 import { offerLetters } from "../lib/letters";
-import { heirloomPicker, limitAttackButton, runLimitAttack, syncCharacterGrowth } from "../lib/growthUi";
+import { companionPicker, heirloomPicker, limitAttackButton, runLimitAttack, syncCharacterGrowth } from "../lib/growthUi";
 import { setMusic } from "../lib/music";
 import { prepareRead, readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
@@ -314,7 +315,7 @@ export function partyPage(): Page {
             <p class="muted small">${v.players.length} von ${MAX_PARTY_SIZE} Plätzen belegt</p>
             ${v.failed ? html`<p class="hint">${icon("info")} Der letzte Start hat nicht geklappt: ${v.failed}</p>` : ""}
             ${amHost
-              ? html`<button class="btn btn-lg magnetic glow-border" id="start" ${busyLocal || v.busy ? "disabled" : ""}>${icon("sparkles")} Abenteuer starten</button>${v.players.length === 1 ? html`<p class="hint">Du kannst auch allein starten – aber zu zweit macht es mehr Spaß.</p>` : ""}`
+              ? html`${challengePicker()}<button class="btn btn-lg magnetic glow-border" id="start" ${busyLocal || v.busy ? "disabled" : ""}>${icon("sparkles")} Abenteuer starten</button>${v.players.length === 1 ? html`<p class="hint">Du kannst auch allein starten – aber zu zweit macht es mehr Spaß.</p>` : ""}`
               : html`<p class="thinking">${icon("feather")} Warte, bis der Gastgeber das Abenteuer startet …</p>`}
             ${!amHost ? html`<button class="btn btn-ghost btn-sm" id="leave">${icon("x")} Gruppe verlassen</button>` : ""}
           </div>`;
@@ -325,7 +326,7 @@ export function partyPage(): Page {
           const again = v.pendings.find((c) => c.playerId === me.playerId);
           content = html`${v.failed ? html`<div class="card failed-card"><h3>${icon("info")} Das hat nicht geklappt</h3><p>${v.failed}</p><small class="muted">${again ? "Würfle einfach noch einmal – das Ergebnis bleibt dasselbe." : `${v.pendings.map((c) => c.characterName).join(", ")} würfelt noch einmal – das Ergebnis bleibt dasselbe.`}</small></div>` : ""}${pendingCard()}`;
         } else if (v.world?.arc?.finished) {
-          content = html`${endCard(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), { href: "#/gruppe", label: "Neue Gruppe gründen" }, `#/chronik/gruppe/${v.code}`)}${myChar ? heirloomPicker(v.world, myChar) : ""}`;
+          content = html`${endCard(v.world, v.players.map((p) => ({ id: p.characterId, name: p.name })), { href: "#/gruppe", label: "Neue Gruppe gründen" }, `#/chronik/gruppe/${v.code}`)}${myChar ? heirloomPicker(v.world, myChar) : ""}${myChar ? companionPicker(v.world, myChar) : ""}`;
         } else {
           const last = [...v.story].reverse().find((e) => e.type === "gm");
           const suggestions = last?.type === "gm" ? splitSuggestions(last.text).suggestions : [];
@@ -573,7 +574,7 @@ export function partyPage(): Page {
           try { await navigator.clipboard.writeText(inviteLink(code)); toast("Link kopiert – schick ihn deinen Mitspielern.", "success"); }
           catch { toast(inviteLink(code)); }
         });
-        belowEl.querySelector("#start")?.addEventListener("click", () => void stream("start", { previousOpenings: campaignStore.previousOpenings() }));
+        belowEl.querySelector("#start")?.addEventListener("click", () => void stream("start", { previousOpenings: campaignStore.previousOpenings(), challenges: selectedChallenges() }));
         belowEl.querySelector("#leave")?.addEventListener("click", async () => { try { await partyApi.leave(me); } catch { /* egal */ } memberships.remove(code); go("/gruppe"); });
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());

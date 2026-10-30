@@ -9,7 +9,7 @@ import type { Inventory } from "./inventory";
 import { gearSummary, type Gear, type Shop } from "./shop";
 import type { Gamble } from "./gamble";
 import type { Vote } from "./vote";
-import { perkCount, startHpBonus } from "./growth";
+import { companionLevel, perkCount, startHpBonus } from "./growth";
 
 /** Zufällige Kennung (ohne Node-Abhängigkeit – läuft auch im Browser). */
 export const newWorldId = () => `w-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -86,6 +86,10 @@ export interface WorldState {
   /** Limit-Angriff: in diesem Abenteuer schon benutzt bzw. für den nächsten Angriff bereit. */
   limitUsed?: Record<string, boolean>;
   limitArmed?: Record<string, boolean>;
+  /** Gewählte Herausforderungen (doppelter Ruhm). */
+  challenges?: ("keine_traenke" | "harte_gegner" | "ohne_limit")[];
+  /** Besiegte Gegner je Figur in diesem Abenteuer. */
+  kills?: Record<string, number>;
 }
 
 /* ── Kampagnenbogen: drei Akte, gegliedert in Kapitel ── */
@@ -155,6 +159,8 @@ export function initWorld(characters: (Pick<Character, "id" | "hp"> & { growth?:
     hp: Object.fromEntries(characters.map((c) => [c.id, c.hp.max + startHpBonus(c)])),
     maxHp: Object.fromEntries(characters.map((c) => [c.id, c.hp.max + startHpBonus(c)])),
     ...(fame.length ? { fameBonus: Object.fromEntries(fame.map((c) => [c.id, { angriff: perkCount(c, "erprobt") }])) } : {}),
+    // Gefährten fürs Leben reisen von Anfang an mit
+    ...(characters.some((c) => c.growth?.companion) ? { companions: characters.filter((c) => c.growth?.companion).slice(0, 3).map((c) => { const k = c.growth!.companion!; return { name: k.name, role: k.role, skill: `${k.skill} (Gefährten-Stufe ${companionLevel(k.journeys)})`.slice(0, 160), loyalty: 5, notes: [`Gefährte fürs Leben – schon ${k.journeys} Abenteuer dabei`], ...(k.look ? { look: k.look } : {}), ...(k.portrait ? { portrait: k.portrait } : {}) }; }) } : {}),
     xp: Object.fromEntries(characters.map((c) => [c.id, 0])),
     combat: null,
     quests: [],

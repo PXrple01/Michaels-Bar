@@ -48,6 +48,12 @@ export const legendOptionSchema = legendSchema.extend({ beiname: z.string().min(
 export type LegendOption = z.infer<typeof legendOptionSchema>;
 export { legendSchema };
 
+/* ── Gefährte fürs Leben ── */
+
+export const companionLevel = (journeys: number) => Math.min(5, 1 + Math.floor(journeys / 2));
+const companionSchema = z.object({ name: z.string().min(1).max(60), role: z.string().max(60), skill: z.string().max(120), look: z.string().max(300).optional(), portrait: z.string().max(200).optional(), journeys: z.number().int().min(0).max(999) });
+export type LifeCompanion = z.infer<typeof companionSchema>;
+
 /* ── Narben ── */
 
 export const SCARS_MAX = 3;
@@ -93,6 +99,10 @@ export const growthSchema = z.object({
   legend2: legendSchema.nullable().optional(),
   /** Legendäre Fähigkeit (nach dem Limit Break, aus der Geschichte der Figur). */
   legend: legendSchema.nullable().optional(),
+  /** Gefährte fürs Leben: reist in jedes neue Abenteuer mit und wächst mit. */
+  companion: companionSchema.nullable().optional(),
+  /** Besiegte Gegner je Abenteuer (für die Bestenliste). */
+  kills: z.record(z.string().max(80), z.number().int().min(0).max(9999)).default({}),
   /** Beiname nach dem Limit Break, z. B. „der Unbändige“. */
   epithet: z.string().min(3).max(40).optional(),
 }).refine((g) => g.heirlooms.length <= heirloomSlots(g), "Zu viele Erbstücke für die Truhe")
@@ -106,7 +116,8 @@ type WithGrowth = { id: string; growth?: Growth | null };
 
 /** Name mit Beinamen („Georg der Unbändige“) – für Anzeige und Erzählung. */
 export const fullName = (c: { name: string; growth?: Growth | null }) => (c.growth?.epithet && c.growth.earned.length >= LIMIT_AFTER ? `${c.name} ${c.growth.epithet}` : c.name);
-export const growthOf = (c: WithGrowth | null | undefined): Growth => c?.growth ?? { fame: 0, earned: [], perks: {}, scars: [], heirlooms: [], uses: {} };
+export const growthOf = (c: WithGrowth | null | undefined): Growth => c?.growth ?? { fame: 0, earned: [], perks: {}, scars: [], heirlooms: [], uses: {}, kills: {} };
+export const totalKills = (c: WithGrowth | null | undefined) => Object.values(growthOf(c).kills ?? {}).reduce((n, v) => n + v, 0);
 export const perkCount = (c: WithGrowth | null | undefined, p: PerkId) => growthOf(c).perks[p] ?? 0;
 
 /** Vorteil einlösen (außerhalb eines Abenteuers). Fehlertext oder die neue Entwicklung. */
@@ -208,17 +219,34 @@ export function toggleHeirloom(g: Growth, item: Growth["heirlooms"][number]): Gr
   return { ...g, heirlooms: list };
 }
 
+/* ── Herausforderungen (vor dem Start wählbar, doppelter Ruhm) ── */
+
+export const CHALLENGES = {
+  keine_traenke: { name: "Ohne Heiltränke", text: "Kein Heiltrank im Startgepäck, Händler verkaufen keine." },
+  harte_gegner: { name: "Harte Gegner", text: "Gegner haben +2 Rüstung und ein Viertel mehr Trefferpunkte." },
+  ohne_limit: { name: "Ohne Limit-Angriff", text: "Der Limit-Angriff ist in diesem Abenteuer gesperrt." },
+} as const;
+export type ChallengeId = keyof typeof CHALLENGES;
+export const CHALLENGE_IDS = Object.keys(CHALLENGES) as ChallengeId[];
+export const cleanChallenges = (raw: unknown): ChallengeId[] => (Array.isArray(raw) ? [...new Set(raw.filter((x): x is ChallengeId => CHALLENGE_IDS.includes(x as ChallengeId)))] : []);
+export const hasChallenge = (w: WorldState | null | undefined, id: ChallengeId) => !!w?.challenges?.includes(id);
+export function challengeSummary(w: WorldState): string {
+  if (!w.challenges?.length) return "";
+  return `Herausforderungen dieses Abenteuers (die Spieler haben sie gewählt, halte dich daran): ${w.challenges.map((c) => `${CHALLENGES[c].name} – ${CHALLENGES[c].text}`).join("; ")}${hasChallenge(w, "keine_traenke") ? ". Gib keine Heiltränke als Beute oder Geschenk" : ""}.`;
+}
+
 /* ── Limit-Angriff (einmal pro Abenteuer, nach dem Limit Break) ── */
 
 /** Bonus des Limit-Angriffs auf den Angriffswurf (garantierter Treffer) und auf den Schaden. */
 export const LIMIT_ATTACK = { hit: 20, damage: 5 } as const;
-export const canLimitAttack = (w: WorldState | null | undefined, c: WithGrowth) => !!w?.combat && limitTier(growthOf(c)) >= 1 && !w.limitUsed?.[c.id];
+export const canLimitAttack = (w: WorldState | null | undefined, c: WithGrowth) => !!w?.combat && limitTier(growthOf(c)) >= 1 && !w.limitUsed?.[c.id] && !hasChallenge(w, "ohne_limit");
 
 /** Limit-Angriff scharf machen: Der nächste Angriff dieser Figur trifft kritisch. Fehlertext oder null. */
 export function armLimitAttack(w: WorldState, c: WithGrowth & { name: string }): string | null {
   if (limitTier(growthOf(c)) < 1) return "Den Limit-Angriff gibt es erst nach dem Limit Break.";
   if (!w.combat) return "Den Limit-Angriff kann man nur im Kampf entfesseln.";
   if (w.limitUsed?.[c.id]) return "Der Limit-Angriff ist in diesem Abenteuer schon verbraucht.";
+  if (hasChallenge(w, "ohne_limit")) return "Herausforderung „Ohne Limit-Angriff“: in diesem Abenteuer gesperrt.";
   w.limitUsed = { ...w.limitUsed, [c.id]: true };
   w.limitArmed = { ...w.limitArmed, [c.id]: true };
   return null;
@@ -253,7 +281,7 @@ export function powerScore(c: WithGrowth): number {
   const g = growthOf(c);
   const perks = Object.values(g.perks).reduce((n: number, v) => n + (v ?? 0), 0);
   const items = g.heirlooms.reduce((n, h) => n + (h.stats?.angriff ?? 0) + (h.stats?.schaden ?? 0) + (h.stats?.ruestung ?? 0), 0);
-  return g.earned.length + perks + items + (g.legend ? 3 : 0) + (limitBroken(g) ? 3 : 0);
+  return g.earned.length + perks + items + (g.legend ? 3 : 0) + (g.legend2 ? 3 : 0) + (limitBroken(g) ? 3 : 0) + (g.companion ? companionLevel(g.companion.journeys) : 0);
 }
 /** Für Claude: wie stark die Gegner sein sollen. Leer, wenn ausgeschaltet oder die Figuren frisch sind. */
 export function powerHint(characters: (WithGrowth & { name: string })[], scaling: PowerScaling | undefined): string {
@@ -275,14 +303,19 @@ export function syncGrowth<C extends WithGrowth>(c: C, w: WorldState | null | un
   const mine = w.abilityUses?.[c.id];
   if (mine && Object.keys(mine).length) uses[w.id] = { ...mine };
   const scars = [...g.scars.filter((s) => s.campaign !== w.id), ...(w.scars?.[c.id] ?? []).map((s) => ({ ...s, campaign: w.id! }))].slice(-SCARS_MAX);
-  let { fame, earned, heirlooms } = g;
+  let { fame, earned, heirlooms, companion } = g;
+  const kills = { ...(g.kills ?? {}) };
+  if (w.kills?.[c.id]) kills[w.id] = w.kills[c.id];
   if (w.arc?.finished && !earned.includes(w.id)) {
-    fame = Math.min(FAME_MAX, fame + FAME_FOR[w.arc.outcome === "niederlage" ? "niederlage" : "sieg"]);
+    // Herausforderungen verdoppeln den Ruhm
+    fame = Math.min(FAME_MAX, fame + FAME_FOR[w.arc.outcome === "niederlage" ? "niederlage" : "sieg"] * (w.challenges?.length ? 2 : 1));
     earned = [...earned, w.id].slice(-500);
     // Erbstücke, die dieses Abenteuer mitgemacht haben, erwachen ein Stück weiter
     heirlooms = heirlooms.map(awakenHeirloom);
+    // Der Gefährte fürs Leben war dabei: eine Reise mehr
+    if (companion && w.companions?.some((x) => x.name === companion!.name)) companion = { ...companion, journeys: companion.journeys + 1 };
   }
-  const next: Growth = { ...g, uses, scars, fame, earned, heirlooms };
+  const next: Growth = { ...g, uses, scars, fame, earned, heirlooms, kills, ...(companion ? { companion } : {}) };
   if (JSON.stringify(next) === JSON.stringify(g)) return null;
   return { ...c, growth: next };
 }
@@ -298,6 +331,7 @@ export function growthSummary(c: WithGrowth & { name: string }): string {
   if (limitBroken(g)) parts.push(`hat das Limit gebrochen – eine Legende${g.epithet ? `; man kennt ${c.name} als „${c.name} ${g.epithet}“ (nenne den Beinamen gelegentlich)` : ""}`);
   if (g.legend && limitBroken(g)) parts.push(`legendäre Fähigkeit „${g.legend.name}“ (${g.legend.uses.replace(/_/g, " ")}): ${g.legend.text}`);
   if (g.legend2 && limitTier(g) >= 2) parts.push(`zweite legendäre Fähigkeit „${g.legend2.name}“ (${g.legend2.uses.replace(/_/g, " ")}): ${g.legend2.text}`);
+  if (g.companion) parts.push(`Gefährte fürs Leben: ${g.companion.name} (${g.companion.role}), schon ${g.companion.journeys} ${g.companion.journeys === 1 ? "Abenteuer" : "Abenteuer"} an ${c.name}s Seite – Gefährten-Stufe ${companionLevel(g.companion.journeys)} von 5, entsprechend erfahren, treu und fähig`);
   if (limitBroken(g)) parts.push(`Der Ruf eilt ${c.name} voraus: Viele erkennen ${c.name}${g.epithet ? ` als „${c.name} ${g.epithet}“` : ""} – manche bitten um Hilfe, andere fordern ${c.name} heraus, Händler geben ${legendDiscount(g)} % Rabatt (wird beim Kauf schon abgezogen). Lass das gelegentlich in Begegnungen einfließen`);
   return parts.join(". ");
 }
