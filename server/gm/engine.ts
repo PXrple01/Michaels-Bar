@@ -1,6 +1,8 @@
 // Solo-Modus: Der Spielstand liegt im Browser und ist vom Server signiert.
 import type { ImageMaker } from "../images";
-import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest, type SceneImage } from "../../shared/campaign";
+import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest, type SceneImage, type CampaignSave, type ImportRequest, type LetterRequest } from "../../shared/campaign";
+import { sanitizeOpening, sanitizeStory } from "../../shared/saveFile";
+import { ImportError, importedMessages, sanitizeWorld } from "./importer";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
 import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
@@ -76,11 +78,13 @@ export class GameMaster {
   }
 
   /** Führt eine Aktion aus und meldet alle Ereignisse über `emit`. Fehler werden als Ereignis gemeldet. */
-  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level" | "shop", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
+  async run(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level" | "shop" | "letter" | "import", body: unknown, who: string, emit: (ev: GmEvent) => void): Promise<void> {
     try {
       if (kind === "choose") return void (await this.choose(body as UpgradeRequest, emit));
       if (kind === "level") return void (await this.levelChoice(body as LevelRequest, emit));
       if (kind === "shop") return void (await this.shop(body as ShopRequest, emit));
+      if (kind === "import") return void (await this.importGame(body as ImportRequest, emit));
+      if (kind === "letter") return void (await this.letter(body as LetterRequest, who, emit));
       this.narrator.ensureReady();
       if (kind === "start") await this.start(body as StartRequest, who, emit);
       else if (kind === "turn") await this.turn(body as TurnRequest, who, emit);
@@ -175,6 +179,40 @@ export class GameMaster {
       : trade(world, c, data.rules, req.action, req.ref);
     if (problem) throw new GmError(problem, "state");
     emit({ type: "upgrade", state: this.sign(messages, world, held, c), offer: world.progress?.[c.id]?.offer ?? null, budget: await this.o.guard.info() });
+  }
+
+  /** Brief am Kapitelende: Tagebucheintrag der Figur (Haiku). Der Spielstand bleibt unverändert. */
+  private async letter(req: LetterRequest, who: string, emit: (ev: GmEvent) => void) {
+    const { c } = this.character(req?.character);
+    const { messages, world } = this.verified(req.state, c);
+    const chapter = Math.round(Number(req.chapter));
+    // Was im Kapitel erzählt wurde: die letzten Erzählungen des Spielleiters
+    const narration = messages.filter((m) => m.role === "assistant").slice(-14)
+      .map((m) => (typeof m.content === "string" ? m.content : m.content.map((b) => (b.type === "text" ? b.text : "")).join(""))).join("\n\n");
+    const letter = await this.narrator.writeLetter(effectiveCharacter(c, world), world, chapter, narration, who);
+    emit({ type: "letter", chapter, title: letter.title, text: letter.text, budget: await this.o.guard.info() });
+  }
+
+  /** Spielstand-Datei einlesen (ohne Claude): Signatur gültig → unverändert weiter, sonst mit Grenzen übernommen. */
+  private async importGame(req: ImportRequest, emit: (ev: GmEvent) => void) {
+    const { c, data } = this.character(req?.character);
+    const raw = (req?.campaign && typeof req.campaign === "object" ? req.campaign : {}) as Partial<CampaignSave>;
+    const story = sanitizeStory(raw.story);
+    const opening = sanitizeOpening(raw.opening);
+    const title = (typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : opening.ort).slice(0, 120);
+    const head = { story, opening, title, openingSummary: typeof raw.openingSummary === "string" ? raw.openingSummary.slice(0, 400) : openingSummary(opening) };
+    if (raw.state && verifyState(this.o.secret, raw.state, c)) {
+      const { messages, world, held } = this.verified(raw.state, c);
+      emit({ type: "imported", ...head, state: this.sign(messages, world, held, c), trusted: true, pending: this.pendingFrom(messages, c, data, world) });
+      return;
+    }
+    try {
+      const world = sanitizeWorld(raw.state?.world, c, data);
+      emit({ type: "imported", ...head, state: this.sign(importedMessages(story), world, [], c), trusted: false, pending: null });
+    } catch (e) {
+      if (e instanceof ImportError) throw new GmError(e.message, "state");
+      throw e;
+    }
   }
 
   private sign(messages: MessageParam[], world: WorldState, held: ToolResult[], c: Character): SignedState {

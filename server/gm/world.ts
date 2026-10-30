@@ -10,6 +10,7 @@ import { resetUses, useAbility } from "../../shared/abilityUses";
 import { advanceTime, ensureTime, timeLine, type TimeStep } from "../../shared/time";
 import { BONUS_NAME, bonusTotal, type Ware } from "../../shared/shop";
 import { GAMBLE_MAX } from "../../shared/gamble";
+import { openVote } from "../../shared/vote";
 import { ATTITUDE_NAME, ATTITUDES, upsertPerson } from "../../shared/people";
 import { PLACE_KINDS, PLACE_NAME, visitPlace } from "../../shared/map";
 import { addItem, cleanStats, ensureInventory, ITEM_KINDS, RARITIES, itemText, kindOf, moneyText, removeItem, statsText, toPfennig } from "../../shared/inventory";
@@ -18,7 +19,7 @@ import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { addFate, addRumor, changeStanding, companionAction, standingName } from "../../shared/standing";
 
-export const AUTO_TOOLS = ["ruf", "schicksal", "begleiter", "geruecht", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "gluecksspiel", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["ruf", "schicksal", "begleiter", "geruecht", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "gluecksspiel", "abstimmung", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -104,6 +105,10 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
         ...statProps,
       }, required: ["name", "art"] } },
     }, ["aktion"]),
+    ...(party ? [tool("abstimmung", "Lässt die Gruppe bei einer großen, echten Entscheidung abstimmen (Weggabelung, Schicksal eines Gefangenen, Bündnis ja oder nein) – alle stimmen per Knopf ab, der Server zählt aus (Mehrheit, bei Gleichstand der Würfel). Nur bei wirklich wichtigen Weichen, höchstens etwa einmal pro Kapitel; danach endet deine Antwort, das Ergebnis kommt im nächsten <spielstand>.", {
+      frage: { type: "string", description: "Kurz, z. B. „Durchs Moor oder über den Pass?“" },
+      optionen: { type: "array", items: { type: "string" }, description: "2–4 kurze Antworten, z. B. [„Durchs Moor“, „Über den Pass“]" },
+    }, ["frage", "optionen"])] : []),
     tool("gluecksspiel", "Stellt in einer Taverne, auf dem Jahrmarkt oder im Lager einen Würfeltisch auf: Die Spieler würfeln selbst über die Oberfläche gegen eine Person (beide 2W6, der höhere Wurf gewinnt den Einsatz). Der Server würfelt und verbucht das Geld; wie die Spiele ausgingen, steht im nächsten <spielstand>. Biete es an, wenn die Figuren in geselliger Runde sind. schliessen, sobald sie weitergehen.", {
       aktion: { type: "string", enum: ["oeffnen", "schliessen"] },
       gegner: { type: "string", description: "Gegen wen gespielt wird, z. B. „der einäugige Söldner Ruprecht“" },
@@ -334,6 +339,11 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       if (!wares.length) return err("waren fehlt (Name, Art und Preis je Ware).");
       w.shop = { name: text(input.name, 60) || "Händler", kind: input.art === "schmied" ? "schmied" : "haendler", wares, log: [] };
       return { content: `Laden „${w.shop.name}“ geöffnet: ${wares.map((x) => `${x.name} (${moneyText(x.price, true)}${x.bonus ? `, ${BONUS_NAME[x.bonus.target]} +1` : ""}${x.stats ? `, ${statsText(x.stats)}` : ""})`).join(", ")}. Die Spieler kaufen über die Oberfläche.` };
+    }
+    case "abstimmung": {
+      if (ctx.characters.length < 2) return err("Abstimmungen gibt es nur in der Gruppe.");
+      const e = openVote(w, text(input.frage, 160), Array.isArray(input.optionen) ? input.optionen.map(String) : []);
+      return e ? err(e) : { content: `Abstimmung gestartet: „${w.vote!.question}“ – ${w.vote!.options.join(" / ")}. Die Spieler stimmen per Knopf ab; das Ergebnis steht im nächsten <spielstand>. Erzähle bis dahin nicht, wie es ausgeht.` };
     }
     case "gluecksspiel": {
       if (input.aktion === "schliessen") { w.gamble = null; return { content: "Der Würfeltisch ist abgeräumt." }; }

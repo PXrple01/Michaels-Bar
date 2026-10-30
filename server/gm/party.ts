@@ -1,5 +1,5 @@
 // Mehrspieler-Gruppen: Spielstand auf dem Server, Runden mit gesammelten Handlungen, Proben für bestimmte Figuren.
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import type { Opening, PendingCheck, SceneImage } from "../../shared/campaign";
 import { MAX_ACTION_LENGTH, stripMarkers } from "../../shared/campaign";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyJoinResult, type PartyOverview, type PartyStoryEntry, type PartyView, type PartyDelta } from "../../shared/party";
@@ -11,6 +11,7 @@ import { upsertPerson } from "../../shared/people";
 import { startPlace, visitPlace } from "../../shared/map";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
+import { castVote, resolveVote } from "../../shared/vote";
 import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
 import { playGamble } from "../../shared/gamble";
 import { turnSummary } from "./summary";
@@ -381,6 +382,17 @@ export class PartyService {
     return this.view(done, me.id, await this.o.guard.info());
   }
 
+  /** Brief am Kapitelende für die eigene Figur (Haiku) – der Gruppenstand bleibt unverändert. */
+  async letter(body: { code?: unknown; token?: unknown; chapter?: unknown }, who: string): Promise<{ chapter: number; title: string; text: string }> {
+    const { party } = await this.load(body?.code);
+    const me = this.player(party, body?.token);
+    if (!party.world) throw new PartyError("Das Abenteuer hat noch nicht begonnen.");
+    const chapter = Math.round(Number(body.chapter));
+    const narration = party.story.filter((e) => e.type === "gm").slice(-14).map((e) => (e as { text: string }).text).join("\n\n");
+    const r = await this.o.narrator.writeLetter(effectiveCharacter(me.character, party.world), party.world, chapter, narration, who);
+    return { chapter, title: r.title, text: r.text };
+  }
+
   /** Figurenblatt eines Mitspielers (mit den Stufenaufstiegen dieser Kampagne) – nur für Mitglieder der Gruppe. */
   async sheet(body: { code?: unknown; token?: unknown; playerId?: unknown }): Promise<{ character: Character }> {
     const { party } = await this.load(body?.code);
@@ -410,6 +422,7 @@ export class PartyService {
       if (p.busy && !isStale(p.busy)) throw new PartyError("Der Spielleiter erzählt schon – zu spät zum Zurückziehen.");
       if (!(me.id in p.actions)) throw new PartyError("Du hast in dieser Runde noch nichts abgegeben.");
       delete p.actions[me.id];
+      if (p.world?.vote && !p.world.vote.result) delete p.world.vote.votes[me.character.id];
     });
     return this.view(done, me.id, await this.o.guard.info());
   }
@@ -430,6 +443,15 @@ export class PartyService {
       if (openChecks(p).length) throw new PartyError(`Erst muss gewürfelt werden (${openChecks(p).map((c) => c.characterName).join(", ")}).`);
       if (p.world?.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
       // Ändern geht nur über Zurückziehen (withdraw), solange der Spielleiter noch nicht erzählt.
+      if (body.vote !== undefined) {
+        // Abstimmen zählt als Handlung (wer schon gehandelt hat, gibt nur seine Stimme ab)
+        const e = castVote(p.world, me.character.id, body.vote);
+        if (e) throw new PartyError(e);
+        const choice = `Ich stimme für „${p.world!.vote!.options[Number(body.vote)]}“.`;
+        // Stimme geändert: eine reine Stimm-Handlung wird mitgeändert
+        if (!(me.id in p.actions) || p.actions[me.id].startsWith("Ich stimme für „")) p.actions[me.id] = text ? `${choice} ${text}` : choice;
+        return;
+      }
       if (text && me.id in p.actions) throw new PartyError("Deine Handlung ist schon abgegeben – zieh sie zurück, um sie zu ändern.");
       if (text) p.actions[me.id] = text;
     });
@@ -491,6 +513,7 @@ export class PartyService {
         const lines = items.map((i) => `- ${i.name}: ${i.text || "(keine Angabe – handelt passend zur Lage)"}`).join("\n");
         if (p.world!.arc?.finished) throw new PartyError("Dieses Abenteuer ist abgeschlossen. Gründet eine neue Gruppe für das nächste!");
         if (p.world!.combat) p.world!.combat.round++;
+        if (p.world!.vote) resolveVote(p.world!, (n) => randomInt(n));
         countChapterTurn(p.world!);
         messages = [...p.messages, userTurn(p.held ?? [], `<aktionen>\n${lines}\n</aktionen>\n\n<spielstand>\n${turnSummary(p.world!, this.characters(p), data.rules)}\n</spielstand>`)];
       }

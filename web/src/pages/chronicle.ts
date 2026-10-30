@@ -6,6 +6,7 @@ import type { WorldState } from "../../../shared/world";
 import { enhance } from "../fx/effects";
 import { api, loadGameData } from "../lib/api";
 import { campaignStore } from "../lib/campaigns";
+import { letterStore, type Letter } from "../lib/letters";
 import { allClasses } from "../lib/customClasses";
 import { html, setHTML, type Raw } from "../lib/dom";
 import { icon } from "../lib/icons";
@@ -22,7 +23,7 @@ type Entry =
   | { type: "info"; text: string };
 
 interface Hero { id: string; name: string; className: string; sigil: string }
-interface Book { title: string; heroes: Hero[]; entries: Entry[]; world: WorldState | null; from: string; to: string; group: boolean; back: string }
+interface Book { title: string; heroes: Hero[]; entries: Entry[]; world: WorldState | null; from: string; to: string; group: boolean; back: string; letters: Letter[] }
 
 const date = (iso: string) => new Date(iso).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
 
@@ -65,6 +66,10 @@ function bookHtml(b: Book): Raw {
         })}
       </section>
 
+      ${b.letters.length ? html`<section class="ch-letters">
+        <h2><span class="ch-orn">❧</span> Briefe und Tagebuch</h2>
+        ${b.letters.map((l) => { const [place, ...rest] = l.text.split("\n"); return html`<article class="ch-letter"><small class="muted">Nach dem Kapitel „${l.title}“</small><p class="letter-place">${place}</p>${rest.join("\n").trim().split(/\n\s*\n|\n/).filter(Boolean).map((p) => html`<p>${p}</p>`)}</article>`; })}
+      </section>` : ""}
       ${played.length ? html`<section class="ch-chapters">
         <h2><span class="ch-orn">❧</span> Kapitel im Rückblick</h2>
         <ol>${played.map((c) => html`<li><b>${c.titel}</b>${c.rueckblick ? html` – ${c.rueckblick}` : ""}</li>`)}</ol>
@@ -107,7 +112,7 @@ export function chroniclePage(): Page {
           : e.type === "image" ? [{ type: "image", url: e.url, caption: e.caption }]
           : [{ type: "info", text: e.text }]);
         const ort = v.opening?.ort ?? `Gruppe ${v.code}`;
-        return mount(root, { title: ort.charAt(0).toUpperCase() + ort.slice(1), heroes: v.players.map((p) => ({ id: p.characterId, name: p.name, className: p.className, sigil: p.sigil })), entries, world: v.world, from: m.joinedAt, to: new Date().toISOString(), group: true, back: `#/gruppe/${v.code}` });
+        return mount(root, { title: ort.charAt(0).toUpperCase() + ort.slice(1), heroes: v.players.map((p) => ({ id: p.characterId, name: p.name, className: p.className, sigil: p.sigil })), entries, world: v.world, from: m.joinedAt, to: new Date().toISOString(), group: true, back: `#/gruppe/${v.code}`, letters: letterStore.list(`gruppe-${v.code}`) });
       }
       const save = campaignStore.get(params.id);
       if (!save) return fail("Dieses Abenteuer gibt es in deinem Konto nicht.");
@@ -118,7 +123,7 @@ export function chroniclePage(): Page {
         : e.type === "player" ? { type: "act", who, text: e.text }
         : e.type === "roll" ? { type: "roll", who: e.auto ? "" : who, record: e.record, auto: !!e.auto }
         : { type: "image", url: e.url, caption: e.caption });
-      mount(root, { title: save.title, heroes: c ? [{ id: c.id, name: c.name, className: cls?.name ?? c.classId, sigil: cls?.sigil ?? "shield" }] : [], entries, world: save.state.world ?? null, from: save.createdAt, to: save.updatedAt, group: false, back: `#/abenteuer/${save.id}` });
+      mount(root, { title: save.title, heroes: c ? [{ id: c.id, name: c.name, className: cls?.name ?? c.classId, sigil: cls?.sigil ?? "shield" }] : [], entries, world: save.state.world ?? null, from: save.createdAt, to: save.updatedAt, group: false, back: `#/abenteuer/${save.id}`, letters: letterStore.list(save.id) });
     },
     leave() { document.title = "The Last Ember"; },
   };

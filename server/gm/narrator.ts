@@ -92,11 +92,12 @@ const MAP_TERRAIN: Record<string, string> = { dorf: "small villages", stadt: "a 
 const THINKING_BINDING_BETA = "thinking-binding-controls-2026-08-01";
 /** Kleines Modell für Bildbeschreibungen. */
 const IMAGE_PROMPT_MODEL: ModelId = "claude-haiku-5-5";
+const LETTER_MODEL: ModelId = "claude-haiku-5-5";
 /** Kapitelmarke: ändert sie sich in einem Zug, hat ein neues Kapitel (oder die Kampagne) begonnen. */
 export const chapterMark = (w: WorldState) => (w.arc?.plan ? `${w.arc.current}:${w.arc.chapters[w.arc.current]?.titel ?? ""}` : "");
 const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
-const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "begleiter", "geruecht", "ort", "person", "laden", "gluecksspiel", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
+const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "begleiter", "geruecht", "ort", "person", "laden", "gluecksspiel", "abstimmung", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
 /** Höchstens so viele Züge hintereinander ohne Szenenbild. */
 /**
@@ -322,6 +323,28 @@ export class Narrator {
       console.error("[Bilder]", (e as Error).message);
       return `Das Bild konnte nicht gemalt werden (${(e as Error).message}). Erzähle einfach weiter.`;
     }
+  }
+
+  /**
+   * Brief am Kapitelende: Die Figur schreibt einen kurzen Tagebucheintrag über das abgeschlossene Kapitel (Haiku, Bruchteil
+   * eines Cents). Nur was die Figur selbst erlebt hat – ohne Geheimnisse aus dem Kampagnenplan.
+   */
+  async writeLetter(c: Character, w: WorldState, chapterIndex: number, narration: string, who: string): Promise<{ title: string; text: string; costUsd: number }> {
+    this.ensureReady();
+    const ch = w.arc?.chapters?.[chapterIndex];
+    if (!ch?.done) throw new GmError("Dieses Kapitel ist noch nicht abgeschlossen.", "state");
+    await this.o.guard.check(who);
+    const persona = [c.personality.trait && `Eigenart: ${c.personality.trait}`, c.personality.ideal && `Glaube: ${c.personality.ideal}`, c.personality.bond && `Bindung: ${c.personality.bond}`, c.personality.flaw && `Schwäche: ${c.personality.flaw}`].filter(Boolean).join("; ");
+    const msg = await this.o.llm!.stream({
+      ...requestBase(LETTER_MODEL, "low"),
+      max_tokens: 600,
+      system: [{ type: "text", text: "Du schreibst für ein deutsches Mittelalter-Rollenspiel (Heiliges Römisches Reich um 1400) einen kurzen Tagebucheintrag aus Sicht einer Spielfigur. Erste Person, 70–120 Wörter, schlichte, bildhafte Sprache ohne modernes Vokabular. Erste Zeile: Ort und Zeit, kursiv-tauglich ohne Formatierung (z. B. „Hollerbach, am Abend des dritten Tages“). Danach zwei bis drei kurze Absätze: was geschah, was die Figur fühlt oder über Gefährten und Personen denkt, ein Blick nach vorn. Letzte Zeile: „– Name“. Nur was die Figur selbst erlebt hat, nichts erfinden, was der Erzählung widerspricht, keine Spielmechanik (keine Würfel, Trefferpunkte, Boni). Antworte nur mit dem Eintrag." }],
+      messages: [{ role: "user", content: `Figur: ${c.name}${persona ? ` (${persona})` : ""}.\nAbgeschlossenes Kapitel: „${ch.titel}“${ch.rueckblick ? ` – Rückblick: ${ch.rueckblick}` : ""}.\n${w.time ? `Zeit: Tag ${w.time.day}, ${w.time.phase}, Wetter: ${w.time.weather}.\n` : ""}${w.map?.current ? `Ort: ${w.map.current}.\n` : ""}Erzählung des Kapitels (Auszug):\n${narration.slice(-5000)}` }],
+    }, () => {}, AbortSignal.timeout(30_000));
+    await this.o.guard.record(msg.usage, LETTER_MODEL);
+    const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("").trim().slice(0, 2000);
+    if (!text) throw new GmError("Der Brief konnte nicht geschrieben werden – versuch es gleich noch einmal.", "api");
+    return { title: ch.titel, text, costUsd: costUsd(msg.usage, LETTER_MODEL) };
   }
 
   ensureReady() {
@@ -572,7 +595,8 @@ export class Narrator {
           const results = uses.map((b) => byId.get(b.id)).filter((r): r is ToolResult => !!r);
           if (pendings.length) return { history, pending: pendings[0], pendings, held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
           const told = msg.content.some((b) => b.type === "text" && closes(b.text));
-          const ended = uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished;
+          // Abstimmung: Die Spieler antworten per Knopf – der Zug endet hier immer
+          const ended = (uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished) || (uses.some((b) => b.name === "abstimmung") && !!world.vote && !world.vote.result);
           if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return { history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage };
           // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.
           if (deadline - Date.now() < MIN_CALL_MS) {

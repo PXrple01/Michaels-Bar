@@ -1,3 +1,4 @@
+import { offerLetters } from "../lib/letters";
 import { setMusic } from "../lib/music";
 import { readButton, setVoiceCast } from "../lib/voice";
 import { setWeather } from "../lib/weather";
@@ -23,6 +24,7 @@ import { go, type Page } from "../lib/router";
 import { confirmDialog, toast } from "../lib/ui";
 import { openingCards, paragraphs, rollSummary, withSpeech } from "./adventure";
 import { noteParty } from "../lib/achievements";
+import { bindVote, voteCard } from "../lib/voteUi";
 import { bindSides, fillSide, itemDoneText, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
@@ -357,6 +359,10 @@ export function partyPage(): Page {
         if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.gamble && !v.world.combat && !v.world.arc?.finished && myCharId) {
           content = html`${gambleCard(v.world, myCharId)}${content}`;
         }
+        // Abstimmung: Frage des Spielleiters, alle stimmen per Knopf ab
+        if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.vote && !v.world.vote.result && myCharId) {
+          content = html`${voteCard(v.world, myCharId, Object.fromEntries(v.players.map((p) => [p.characterId, p.name])), v.players.length)}${content}`;
+        }
         // Wahl beim Stufenaufstieg (eigene Figur)
         if (myChar && v.status === "playing" && !v.busy && !busyLocal && !v.world?.arc?.finished && levelChoiceDue(v.world, myChar.id, data.rules)) {
           content = html`${levelChoiceCard(v.world, myChar, dataFor(data, myChar).classes.find((x) => x.id === myChar.classId), data.rules)}${content}`;
@@ -464,7 +470,9 @@ export function partyPage(): Page {
         const changed = !view || v.version !== view.version || v.live !== view.live;
         const levelBefore = myChar ? view?.world?.levels?.[myChar.id]?.level : undefined;
         const invBefore = myChar ? view?.world?.inventory?.[myChar.id] : undefined;
+        const worldBefore = view?.world;
         view = v;
+        if (myChar && worldBefore) void offerLetters(`gruppe-${code}`, myChar.name, worldBefore, v.world, (chapter) => partyApi.letter(me, chapter));
         if (myChar) { const loot = lootText(invBefore, v.world?.inventory?.[myChar.id]); if (loot) toast(loot, "success", 5000); }
         if (myChar && levelBefore !== undefined) announceLevel(levelBefore, v.world?.levels?.[myChar.id]?.level ?? levelBefore, data.rules);
         if (!changed && !firstLoad) return;
@@ -583,6 +591,7 @@ export function partyPage(): Page {
           try { draft = text; apply(await partyApi.withdraw(me)); renderBelow(); belowEl.querySelector<HTMLTextAreaElement>("#action")?.focus(); }
           catch (e) { toast((e as Error).message, "error", 6000); }
         });
+        bindVote(belowEl, (option) => void stream("action", { text: "", vote: option }));
         belowEl.querySelector("#now")?.addEventListener("click", () => void stream("action", { text: "", now: true }));
         belowEl.querySelector("#retry")?.addEventListener("click", () => void stream("action", { text: "", retry: true }));
         const ta = belowEl.querySelector<HTMLTextAreaElement>("#action");

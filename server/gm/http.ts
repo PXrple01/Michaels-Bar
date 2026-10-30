@@ -9,7 +9,7 @@ import { ValidationError } from "../characters";
 import { serveImage } from "../images";
 import { LimitError } from "./usage";
 
-export const GM_KINDS = ["start", "turn", "roll", "upgrade", "choose", "level", "shop"] as const;
+export const GM_KINDS = ["start", "turn", "roll", "upgrade", "choose", "level", "shop", "letter", "import"] as const;
 export type GmKind = (typeof GM_KINDS)[number];
 
 type AnyEvent = GmEvent | ReviewEvent | PartyEvent;
@@ -50,15 +50,15 @@ async function sseExpress(res: import("express").Response, run: (write: (chunk: 
   try { await run(write); } catch (e) { console.error(e); } finally { clearInterval(ping); res.end(); }
 }
 
-const PARTY_JSON = ["create", "join", "state", "leave", "choose", "level", "overview", "remove", "shop", "sheet", "withdraw"] as const;
+const PARTY_JSON = ["create", "join", "state", "leave", "choose", "level", "overview", "remove", "shop", "sheet", "withdraw", "letter"] as const;
 const PARTY_STREAM = ["start", "action", "roll", "upgrade"] as const;
 
 /** Gruppen-Anfragen ohne Claude: direkte JSON-Antwort. */
-async function partyJson(claude: Claude, op: (typeof PARTY_JSON)[number], body: unknown): Promise<{ status: number; body: unknown }> {
+async function partyJson(claude: Claude, op: (typeof PARTY_JSON)[number], body: unknown, who = "local"): Promise<{ status: number; body: unknown }> {
   try {
     const b = (body ?? {}) as Record<string, unknown>;
     const svc = claude.party;
-    const out = op === "create" ? await svc.create(b) : op === "join" ? await svc.join(b) : op === "state" ? await svc.poll(b) : op === "choose" ? await svc.choose(b) : op === "level" ? await svc.levelChoice(b)
+    const out = op === "letter" ? await svc.letter(b, who) : op === "create" ? await svc.create(b) : op === "join" ? await svc.join(b) : op === "state" ? await svc.poll(b) : op === "choose" ? await svc.choose(b) : op === "level" ? await svc.levelChoice(b)
       : op === "overview" ? await svc.overview(b) : op === "remove" ? await svc.remove(b) : op === "shop" ? await svc.shop(b) : op === "sheet" ? await svc.sheet(b) : op === "withdraw" ? await svc.withdraw(b) : await svc.leave(b);
     return { status: 200, body: out };
   } catch (e) {
@@ -133,7 +133,7 @@ export function mountGm(app: Express, claude: () => Claude, accessCode: string |
     const g = gateOf(req);
     if (!g.ok) return void res.status(403).json({ error: "Zugangscode fehlt oder ist falsch.", code: "access" });
     if ((PARTY_JSON as readonly string[]).includes(op)) {
-      const r = await partyJson(claude(), op as (typeof PARTY_JSON)[number], req.body);
+      const r = await partyJson(claude(), op as (typeof PARTY_JSON)[number], req.body, g.who);
       return void res.status(r.status).json(r.body);
     }
     if (!(PARTY_STREAM as readonly string[]).includes(op)) return void res.status(404).json({ error: "Unbekannter Endpunkt" });
@@ -228,7 +228,7 @@ async function handlePartyRequest(request: globalThis.Request, op: string, claud
   let body: Record<string, unknown> = {};
   try { body = (await request.json()) ?? {}; } catch { /* leer */ }
   if ((PARTY_JSON as readonly string[]).includes(op)) {
-    const r = await partyJson(claude, op as (typeof PARTY_JSON)[number], body);
+    const r = await partyJson(claude, op as (typeof PARTY_JSON)[number], body, who);
     return Response.json(r.body, { status: r.status });
   }
   if (!(PARTY_STREAM as readonly string[]).includes(op)) return new Response("Not found", { status: 404 });

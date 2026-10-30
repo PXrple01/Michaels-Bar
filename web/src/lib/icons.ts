@@ -45,6 +45,7 @@ const P: Record<string, string> = {
   quill: '<path d="M20 2C10 4 6 10 5 19l-2 3"/><path d="M5 19c6 0 11-4 13-11M9 15c2-1 4-3 5-6"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   download: '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>',
+  upload: '<path d="M12 21V9M7 14l5-5 5 5M4 3h16"/>',
 };
 
 export function icon(name: keyof typeof P | string, cls = ""): Raw {

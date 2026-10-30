@@ -141,3 +141,25 @@ describe("Kosten", () => {
     expect(costUsd({ input_tokens: 0, output_tokens: 0, iterations: [{ type: "compaction", input_tokens: 0, output_tokens: 100_000 }] }, "claude-opus-5-5")).toBeCloseTo(2);
   });
 });
+
+describe("Abstimmung in der Gruppe", () => {
+  it("Claude fragt, Stimmen zählen als Handlung, das Ergebnis geht mit dem nächsten Zug an Claude", async () => {
+    const vote = { stop_reason: "tool_use" as const, content: [{ type: "text", text: "Ein Scheideweg.", citations: null }, { type: "tool_use", id: "toolu_vote1", name: "abstimmung", input: { frage: "Moor oder Pass?", optionen: ["Moor", "Pass"] } }] as Anthropic.Beta.BetaContentBlock[] };
+    const { svc, llm, run } = setup([text("Ihr steht am Tor."), vote, text("Ihr stapft ins Moor.")]);
+    const host = await svc.create({ character: hagen });
+    const guest = await svc.join({ code: host.code, character: agnes });
+    await run("start", { code: host.code, token: host.token });
+    expect((llm.calls[0].tools as Anthropic.Beta.BetaTool[]).some((t) => t.name === "abstimmung")).toBe(true);
+    await run("action", { code: host.code, token: host.token, text: "Weiter." });
+    await run("action", { code: host.code, token: guest.token, text: "Weiter." });
+    expect((await svc.state({ code: host.code, token: host.token })).world?.vote?.options).toEqual(["Moor", "Pass"]);
+    expect((await run("action", { code: host.code, token: host.token, text: "", vote: 5 })).at(-1)).toMatchObject({ type: "error" });
+    await run("action", { code: host.code, token: host.token, text: "", vote: 0 });
+    await run("action", { code: host.code, token: guest.token, text: "", vote: 0 });
+    const last = JSON.stringify(llm.calls.at(-1)!.messages.at(-1));
+    expect(last).toContain("Ich stimme für „Moor“");
+    expect(last).toContain("Abstimmung „Moor oder Pass?“ entschieden: Moor");
+    expect((await svc.state({ code: host.code, token: host.token })).world?.vote).toBeNull();
+    expect(llm.calls).toHaveLength(3); // die Abstimmung beendet den Zug ohne weiteren Aufruf
+  });
+});

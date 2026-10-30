@@ -511,8 +511,11 @@ input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius
 .table-page .page-head .lead { font-size: 0.98rem; margin: 0; }
 
 /* ── Abenteuer ── */
-.adv-card { display: grid; gap: 6px; }
-.adv-actions { display: flex; gap: 8px; margin-top: 8px; }
+.adv-card { position: relative; display: grid; gap: 6px; min-width: 0; overflow: hidden; }
+.adv-corner { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; }
+.adv-corner .icon-btn { width: 34px; height: 34px; }
+.adv-card h3 { overflow-wrap: anywhere; hyphens: auto; }
+.adv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .start-card { text-align: left; cursor: pointer; color: var(--text); font: inherit; }
 .play { max-width: 860px; padding-bottom: 40px; }
 .play-head { display: flex; align-items: center; gap: 16px; padding: 26px 0 18px; }
@@ -1538,3 +1541,30 @@ body.fal-on .read-btn { display: inline-flex; }
 .item-menu button small { margin-left: auto; color: var(--muted); font-size: 0.72rem; }
 .item-menu svg { width: 15px; height: 15px; flex: none; }
 @keyframes item-menu-in { from { opacity: 0; transform: translateY(-4px); } }
+/* Abstimmung in der Gruppe */
+.vote-card { display: grid; gap: 10px; }
+.vote-card h3 { margin: 0; }
+.vote-options { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.vote-opt { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(var(--c-s08), 0.55); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color 0.2s, transform 0.2s var(--ease-spring), box-shadow 0.2s; }
+.vote-opt:hover:not(:disabled) { border-color: var(--purple-2); transform: translateY(-2px); }
+.vote-opt.chosen { border-color: var(--purple-2); box-shadow: 0 0 0 1px var(--purple-2), 0 0 18px rgba(var(--c-glow), 0.25); }
+.vote-opt:disabled { opacity: 0.7; cursor: progress; }
+.vote-opt small { color: var(--muted); font-size: 0.75rem; }
+.vote-bar { height: 5px; border-radius: 99px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.vote-bar i { display: block; height: 100%; background: var(--purple-2); transition: width 0.4s var(--ease-spring); }
+.import-row { display: flex; justify-content: flex-end; margin: 18px 0 -8px; }
+/* Brief am Kapitelende: Pergament */
+.letter-sheet { position: relative; width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 30px 32px 24px; border-radius: 6px; color: #3a2a1a; background: radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.35), transparent 60%), radial-gradient(ellipse at 100% 100%, rgba(120, 72, 30, 0.25), transparent 55%), linear-gradient(180deg, #f1e2bf, #e2cb98); box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 0 60px rgba(120, 72, 30, 0.35); font-family: "Cormorant Garamond", "EB Garamond", Georgia, serif; font-size: 1.12rem; line-height: 1.55; animation: letter-in 0.5s var(--ease-spring, ease-out); }
+.letter-sheet .eyebrow { color: #7a4a20; font-family: inherit; }
+.letter-sheet .eyebrow svg { width: 14px; height: 14px; vertical-align: -2px; }
+.letter-place { font-style: italic; color: #6a4626; margin: 10px 0 14px; }
+.letter-sheet p { margin: 0 0 10px; color: #3a2a1a; }
+.letter-sheet .letter-place { color: #6a4626; }
+.letter-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 18px; font-family: var(--font-body, system-ui); font-size: 0.95rem; }
+.letter-actions .btn-ghost { color: #5a3a1a; border-color: rgba(90, 58, 26, 0.4); }
+@keyframes letter-in { from { opacity: 0; transform: translateY(16px) rotate(-1.5deg) scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .letter-sheet { animation: none; } }
+.ch-letters { margin-top: 32px; }
+.ch-letter { margin: 16px 0; padding: 16px 20px; border-left: 3px solid rgba(160, 110, 50, 0.6); background: rgba(160, 110, 50, 0.07); font-style: normal; }
+.ch-letter p { margin: 0 0 8px; }
+.pick-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

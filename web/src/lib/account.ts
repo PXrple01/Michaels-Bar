@@ -3,7 +3,7 @@
 // SYNC_KEYS geht kurz danach an den Server. Beim Start kommt der Stand aus dem Konto.
 
 /** Was zum Konto gehört: Figuren, Abenteuer, eigene Klassen, Gruppen, Einstiege, Einstellungen, Würfelverlauf, Erfolge, Porträts, Vermächtnis. */
-export const SYNC_KEYS = ["wus.characters.v1", "wus.campaigns.v1", "wus.classes.v1", "wus.parties.v1", "wus.openings.v1", "wus.settings.v1", "wus.rolls.v1", "wus.achievements.v1", "wus.portraits.v1", "wus.legacy.v1"] as const;
+export const SYNC_KEYS = ["wus.characters.v1", "wus.campaigns.v1", "wus.classes.v1", "wus.parties.v1", "wus.openings.v1", "wus.settings.v1", "wus.rolls.v1", "wus.achievements.v1", "wus.portraits.v1", "wus.legacy.v1", "wus.letters.v1"] as const;
 const SYNC = new Set<string>(SYNC_KEYS);
 
 const SESSION = "wus.session.v1";

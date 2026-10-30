@@ -1,3 +1,5 @@
+import { letterStore, offerLetters } from "../lib/letters";
+import { exportSave, importSaveFile } from "../lib/saveTransfer";
 import type { ItemAction } from "../../../shared/inventory";
 import { setMusic } from "../lib/music";
 import { readButton, setVoiceCast } from "../lib/voice";
@@ -102,6 +104,10 @@ export function adventuresPage(): Page {
               <span class="link-arrow">Gruppe gründen oder beitreten ${icon("arrowRight")}</span>
             </a>
           </div>
+          <div class="import-row" data-reveal>
+            <button class="btn btn-ghost btn-sm" data-import title="Eine gespeicherte Spielstand-Datei (.ember.json) einlesen">${icon("upload")} Spielstand importieren</button>
+            <input type="file" id="import-file" accept=".json,application/json" hidden>
+          </div>
           ${saves.length ? html`
             <h2 class="sec-title" data-reveal>${icon("scroll")} Weitererzählen</h2>
             <div class="char-grid">
@@ -115,7 +121,10 @@ export function adventuresPage(): Page {
                   <div class="adv-actions">
                     ${c ? html`<a class="btn btn-sm" href="#/abenteuer/${s.id}">${icon("play")} ${s.state.world?.arc?.finished ? "Nachlesen" : "Weiter"}</a>` : ""}
                     ${s.started ? html`<a class="btn btn-ghost btn-sm" href="#/chronik/${s.id}" title="Als Buch lesen und als PDF speichern">${icon("book")} Chronik</a>` : ""}
-                    <button class="btn btn-ghost btn-sm" data-delete="${s.id}" aria-label="Abenteuer löschen">${icon("trash")}</button>
+                  </div>
+                  <div class="adv-corner">
+                    ${c && s.started ? html`<button class="icon-btn" data-export="${s.id}" aria-label="Spielstand als Datei speichern" title="Als Datei speichern (zum Importieren auf einem anderen Gerät)">${icon("download")}</button>` : ""}
+                    <button class="icon-btn" data-delete="${s.id}" aria-label="Abenteuer löschen" title="Abenteuer löschen">${icon("trash")}</button>
                   </div>
                 </article>`;
               })}
@@ -160,11 +169,23 @@ export function adventuresPage(): Page {
           campaignStore.save(save);
           go(`/abenteuer/${save.id}?neu`);
         }
+        if (t.closest("[data-import]")) root.querySelector<HTMLInputElement>("#import-file")?.click();
+        const exp = t.closest<HTMLElement>("[data-export]");
+        if (exp) { const s = campaignStore.get(exp.dataset.export!); if (s) exportSave(s); }
         const del = t.closest<HTMLElement>("[data-delete]");
         if (del && (await confirmDialog("Abenteuer löschen?", "Die Geschichte wird endgültig gelöscht. Die Figur bleibt erhalten.", "Löschen", true))) {
           campaignStore.remove(del.dataset.delete!);
+          letterStore.remove(del.dataset.delete!);
           go("/abenteuer");
         }
+      });
+      root.querySelector<HTMLInputElement>("#import-file")?.addEventListener("change", async (e) => {
+        const input = e.target as HTMLInputElement;
+        const file = input.files?.[0];
+        input.value = "";
+        if (!file) return;
+        const id = await importSaveFile(file);
+        if (id) go(`/abenteuer/${id}`);
       });
       enhance(root);
     },
@@ -502,6 +523,7 @@ export function playPage(): Page {
           scrollDown(true);
         } else if (ev.type === "done") {
           endLive();
+          const worldBefore = save!.state.world;
           const before = levelOf();
           const invBefore = save!.state.world?.inventory?.[character.id];
           save!.state = ev.state;
@@ -516,6 +538,11 @@ export function playPage(): Page {
           save!.imageUsd = (save!.imageUsd ?? 0) + (ev.turnImageUsd ?? 0);
           persist();
           renderWorld();
+          void offerLetters(save!.id, character.name, worldBefore, ev.state.world, async (chapter) => {
+            let got: { title: string; text: string } | null = null;
+            await streamGm("letter", { character, state: save!.state, chapter }, (e) => { if (e.type === "letter") got = { title: e.title, text: e.text }; });
+            return got;
+          });
         } else if (ev.type === "error") {
           liveEl?.remove(); liveEl = null; liveText = "";
           lastError = ev;

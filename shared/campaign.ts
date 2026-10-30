@@ -102,6 +102,10 @@ export type GmEvent =
   | { type: "done"; state: SignedState; pending: PendingCheck | null; budget: BudgetInfo; turnCostUsd?: number; turnImageUsd?: number }
   /** Verbesserungen erstellt (offer) oder gewählt (offer = null) – neuer signierter Spielstand. */
   | { type: "upgrade"; state: SignedState; offer: UpgradeOffer | null; budget: BudgetInfo; turnCostUsd?: number }
+  /** Brief am Kapitelende (Tagebucheintrag der Figur). */
+  | { type: "letter"; chapter: number; title: string; text: string; budget: BudgetInfo }
+  /** Spielstand eingelesen – trusted: Signatur war gültig (Verlauf unverändert), sonst neu zusammengefasst. */
+  | { type: "imported"; state: SignedState; story: StoryEntry[]; opening: Opening; title: string; openingSummary: string; trusted: boolean; pending: PendingCheck | null }
   | { type: "error"; message: string; code?: "no_api_key" | "access" | "budget" | "rate" | "state" | "refusal" | "api" };
 
 export interface StartRequest {
@@ -123,6 +127,8 @@ export interface RollRequest {
 
 /** Wahl beim Stufenaufstieg: Fertigkeit (Stufe 4) oder Attributsteigerung (Stufe 3, 6, 9). */
 /** Kaufen oder verkaufen im offenen Laden (ohne Claude). */
+export interface LetterRequest { character: unknown; state: SignedState; chapter?: unknown }
+export interface ImportRequest { character: unknown; campaign: unknown }
 export interface ShopRequest { character: unknown; state: SignedState; action?: unknown; ref?: unknown }
 
 export interface LevelRequest {

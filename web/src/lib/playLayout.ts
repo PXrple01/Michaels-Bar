@@ -144,7 +144,7 @@ function inventoryBlock(w: WorldState, members: TeamMember[]): Raw {
           return html`<${m.me ? "button" : "span"} class="inv-item k-${i.kind} r-${r}${i.equipped ? " worn" : ""}" ${m.me ? html`type="button" data-use-item="${i.name}"${i.stats?.heilung ? html` data-heal="${i.stats.heilung}"` : ""}${slotOf(i) ? html` data-slot="${slotOf(i)!}"` : ""}${i.equipped ? html` data-worn="1"` : ""}` : ""} title="${[r !== "gewoehnlich" ? RARITY_NAME[r] : "", statsText(i.stats), i.equipped ? "angelegt" : "", i.note, m.me ? "Antippen" : ""].filter(Boolean).join(" – ")}">${icon(KIND_ICON[i.kind])}<span>${itemText(i)}</span>${i.stats && statsText(i.stats) ? html`<small class="inv-stat">${statsText(i.stats)}</small>` : ""}${i.equipped ? html`<small class="inv-worn" aria-label="angelegt">${icon("check")}</small>` : ""}</${m.me ? "button" : "span"}>`;
         }) : html`<small class="muted">nichts</small>`}</div>
         <div class="inv-money">${icon("coins")} ${moneyText(inv.money)}</div>
-        ${w.gear?.[m.id] ? html`<div class="inv-gear">${icon("fist")} Vom Schmied: ${(["angriff", "schaden", "ruestung"] as const).filter((k) => w.gear![m.id][k]).map((k) => `${({ angriff: "Angriff", schaden: "Schaden", ruestung: "Rüstung" })[k]} +${w.gear![m.id][k]}`).join(", ")}</div>` : ""}
+        ${w.gear?.[m.id] && (w.gear[m.id].angriff || w.gear[m.id].schaden || w.gear[m.id].ruestung) ? html`<div class="inv-gear">${icon("fist")} Vom Schmied: ${(["angriff", "schaden", "ruestung"] as const).filter((k) => w.gear![m.id][k]).map((k) => `${({ angriff: "Angriff", schaden: "Schaden", ruestung: "Rüstung" })[k]} +${w.gear![m.id][k]}`).join(", ")}</div>` : ""}
       </div>`;
     })}
   </details>`;

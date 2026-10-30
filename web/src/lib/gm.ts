@@ -11,7 +11,7 @@ export function setAccessCode(code: string) {
   try { localStorage.setItem(CODE_KEY, code); } catch { /* nur für diese Sitzung */ }
 }
 
-export function streamGm(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level" | "shop", body: unknown, onEvent: (ev: GmEvent) => void): Promise<void> {
+export function streamGm(kind: "start" | "turn" | "roll" | "upgrade" | "choose" | "level" | "shop" | "letter" | "import", body: unknown, onEvent: (ev: GmEvent) => void): Promise<void> {
   return streamSse(`/api/campaign/${kind}`, body, onEvent as (ev: { type: string }) => void);
 }
 
@@ -61,7 +61,7 @@ export async function streamSse<E extends { type: string }>(url: string, body: u
       const line = chunk.split("\n").find((l) => l.startsWith("data: "));
       if (!line) continue;
       const ev = JSON.parse(line.slice(6)) as E;
-      if (ev.type === "done" || ev.type === "error" || ev.type === "review" || ev.type === "view" || ev.type === "upgrade") finished = true;
+      if (ev.type === "done" || ev.type === "error" || ev.type === "review" || ev.type === "view" || ev.type === "upgrade" || ev.type === "letter" || ev.type === "imported") finished = true;
       onEvent(ev);
     }
   }

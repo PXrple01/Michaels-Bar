@@ -8,6 +8,7 @@ import { timeLine, type GameTime } from "./time";
 import type { Inventory } from "./inventory";
 import { gearSummary, type Gear, type Shop } from "./shop";
 import type { Gamble } from "./gamble";
+import type { Vote } from "./vote";
 import type { Person } from "./people";
 import type { TravelMap } from "./map";
 
@@ -54,6 +55,8 @@ export interface WorldState {
   sinceImage?: number;
   /** Offener Würfeltisch in der Taverne */
   gamble?: Gamble | null;
+  /** Abstimmung in der Gruppe (Claude fragt, alle stimmen per Knopf ab). */
+  vote?: Vote | null;
   /** Wann der ausführliche Kampagnenstand zuletzt an Claude ging (Prüfsumme und Züge seitdem) – spart Tokens. */
   sent?: { arc: string; turns: number; inv?: string; people?: string; map?: string; standing?: string };
   /** Ruf bei Fraktionen (−10 bis +10). */

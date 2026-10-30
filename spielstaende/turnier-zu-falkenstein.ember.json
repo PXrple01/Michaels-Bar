@@ -1,0 +1,248 @@
+{
+ "format": "the-last-ember-spielstand",
+ "version": 1,
+ "exportedAt": "2026-10-30T10:14:31.846Z",
+ "character": null,
+ "characterName": "Makkalot",
+ "campaign": {
+  "id": "turnier-falkenstein",
+  "characterId": "",
+  "title": "Das Turnier zu Falkenstein",
+  "opening": {
+   "ort": "das Turnierfeld vor Burg Falkenstein",
+   "zeit": "ein klarer, windiger Herbstmorgen",
+   "anlass": "das große Herbstturnier des Pfalzgrafen",
+   "npc": {
+    "name": "Herold Bertolt",
+    "rolle": "Turnierherold",
+    "eigenschaft": "kennt jedes Wappen im Reich"
+   },
+   "konflikt": "ein Rivale will Makkalots sagenhafte Klinge um jeden Preis",
+   "detail": "rot-goldene Wimpel knattern über den Tribünen"
+  },
+  "openingSummary": "Turnierfeld vor Burg Falkenstein · Herbstturnier des Pfalzgrafen · Rivale will die sagenhafte Klinge",
+  "state": {
+   "messages": [],
+   "characterHash": "",
+   "sig": "",
+   "world": {
+    "hp": {},
+    "maxHp": {},
+    "xp": {
+     "makkalot-turnier": 0
+    },
+    "combat": null,
+    "quests": [
+     {
+      "id": "q-turnier",
+      "title": "Das Turnier zu Falkenstein gewinnen",
+      "description": "Tjost, Buhurt und Finale vor dem Pfalzgrafen – der Sieger erhält den goldenen Falken.",
+      "status": "offen",
+      "notes": []
+     }
+    ],
+    "memory": [
+     "Makkalot trägt Morgenrot, eine sagenhafte Klinge der eigenen Ahnen – die Schneide schimmert rötlich wie Glut im Morgenlicht. Viele Ritter beneiden Makkalot darum.",
+     "Wolfram von Harrach wollte Morgenrot kaufen und wurde abgewiesen."
+    ],
+    "critPending": {},
+    "arc": {
+     "plan": {
+      "ziel": "Das Turnier zu Falkenstein gewinnen und dabei Morgenrot behalten",
+      "bedrohung": "Wolfram von Harrach will um jeden Preis siegen und Morgenrot besitzen: Er besticht Knappen, lässt Sattelgurte ansägen und plant, im Finale mit einer heimlich geschärften Lanze anzutreten. Hinter ihm steht ein verschuldeter Vetter des Pfalzgrafen, der den Turnierausgang verwettet hat."
+     },
+     "chapters": [
+      {
+       "titel": "Ankunft in Falkenstein",
+       "ziel": "Beim Herold anmelden, das Zeltlager kennenlernen, erste Rivalen und Verbündete treffen; Morgenrot erregt Aufsehen.",
+       "act": 0,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Der erste Tjost",
+       "ziel": "Ein Lanzengang gegen einen ehrgeizigen jungen Ritter; danach ein erster Hinweis, dass jemand nachhilft (angesägter Sattelgurt).",
+       "act": 0,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Gerüchte im Zeltlager",
+       "ziel": "Herausfinden, wer hinter den Sabotagen steckt; Wetten, bestochene Knappen, ein nächtlicher Einbruch ins Zelt.",
+       "act": 1,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Der Buhurt",
+       "ziel": "Gruppenkampf mit stumpfen Waffen auf dem großen Feld – Bündnisse, Verrat mitten im Getümmel, Wolfram zeigt sein wahres Gesicht.",
+       "act": 1,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Die geschärfte Lanze",
+       "ziel": "Beweise sammeln und entscheiden: den Pfalzgrafen warnen, Wolfram selbst stellen oder ihn in eine Falle locken.",
+       "act": 1,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Das Finale vor dem Pfalzgrafen",
+       "ziel": "Der letzte Lanzengang gegen Wolfram von Harrach vor vollen Tribünen – mit allem, was die Figur aufgedeckt hat.",
+       "act": 2,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Ehre und Abschied",
+       "ziel": "Siegerehrung, Gericht über die Verschwörer, was aus Morgenrot und Makkalot wird.",
+       "act": 2,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      }
+     ],
+     "current": 0,
+     "detoursUsed": [
+      0,
+      0,
+      0
+     ],
+     "turnsInChapter": 0,
+     "finished": false,
+     "epilog": null,
+     "known": {
+      "kern": "Gewinne das Turnier zu Falkenstein",
+      "aufgabe": "Melde dich beim Herold an"
+     }
+    },
+    "time": {
+     "day": 1,
+     "phase": "morgen",
+     "weather": "klar und windig"
+    },
+    "map": {
+     "places": [
+      {
+       "name": "Falkenstein",
+       "kind": "burg",
+       "x": 0,
+       "y": 0,
+       "visits": 1,
+       "day": 1,
+       "note": "Pfalzgräfliche Burg über dem Main – Schauplatz des großen Herbstturniers"
+      }
+     ],
+     "roads": [],
+     "current": "Falkenstein"
+    },
+    "people": [
+     {
+      "name": "Herold Bertolt",
+      "role": "Turnierherold",
+      "attitude": "freund",
+      "notes": [
+       "Führt die Liste der Kämpfer und kennt jedes Wappen im Reich"
+      ],
+      "met": 1,
+      "seen": 1,
+      "look": "A lean herald with a grey beard, a tabard in blue and gold and a brass trumpet"
+     },
+     {
+      "name": "Pfalzgraf Ruprecht",
+      "role": "Turnierherr",
+      "attitude": "neutral",
+      "notes": [
+       "Hat das Turnier ausgerufen; der Sieger erhält seine Gunst und einen goldenen Falken"
+      ],
+      "met": 1,
+      "seen": 1,
+      "look": "A stout middle-aged count in a fur-trimmed crimson mantle with a golden chain"
+     },
+     {
+      "name": "Wolfram von Harrach",
+      "role": "Ritter, Favorit des Turniers",
+      "attitude": "misstrauisch",
+      "notes": [
+       "Starrte lange auf Morgenrot und bot an, die Klinge zu kaufen"
+      ],
+      "met": 1,
+      "seen": 1,
+      "look": "A tall knight with a scarred jaw, black hair and armor lacquered dark green"
+     },
+     {
+      "name": "Grete",
+      "role": "Knappin aus dem Zeltlager",
+      "attitude": "freund",
+      "notes": [
+       "Bot an, für ein paar Pfennige Rüstung und Pferd zu versorgen"
+      ],
+      "met": 1,
+      "seen": 1,
+      "look": "A freckled girl of fifteen with short red hair, a leather apron and soot on her hands"
+     }
+    ],
+    "inventory": {
+     "makkalot-turnier": {
+      "money": 240,
+      "items": [
+       {
+        "name": "Morgenrot",
+        "qty": 1,
+        "kind": "waffe",
+        "note": "Klinge der Ahnen, die Schneide glimmt rötlich im Morgenlicht",
+        "stats": {
+         "angriff": 3,
+         "schaden": 2,
+         "seltenheit": "sagenhaft"
+        }
+       },
+       {
+        "name": "Turnierlanze",
+        "qty": 1,
+        "kind": "waffe",
+        "note": "Mit stumpfer Krone für den Tjost",
+        "stats": {
+         "schaden": 1
+        }
+       },
+       {
+        "name": "Heiltrank",
+        "qty": 2,
+        "kind": "trank",
+        "note": "Vom Feldscher des Turniers",
+        "stats": {
+         "heilung": "2W4+2"
+        }
+       }
+      ]
+     }
+    }
+   }
+  },
+  "pending": null,
+  "story": [
+   {
+    "type": "gm",
+    "text": "Fanfaren schmettern über das Tal, als du durch das Tor von Falkenstein reitest. Unter der Burg liegt das Turnierfeld wie ein bunter Teppich: Zelte in allen Farben, Wimpel, die im Wind knattern, Tribünen voller Edelleute, Händler, die Bratwurst und Würzwein ausrufen. Irgendwo wiehert ein Schlachtross, irgendwo klirrt Stahl auf Stahl.\n\nAn deiner Seite hängt Morgenrot, die Klinge deiner Ahnen. Im schrägen Morgenlicht glimmt ihre Schneide rötlich wie Glut – und mehr als ein Ritter dreht den Kopf danach.\n\nAm Schreibpult unter dem Wappenbaum wartet Herold Bertolt, ein hagerer Mann mit grauem Bart und blau-goldenem Wappenrock. „Noch ein Kämpe für das Herbstturnier des Pfalzgrafen?“, fragt er und taucht die Feder ein. „Tjost, Buhurt und Finale. Dem Sieger winkt der goldene Falke.“\n\nHinter dir räuspert sich jemand. Ein großer Ritter in dunkelgrün lackierter Rüstung, eine Narbe am Kinn: Wolfram von Harrach. Seine Augen hängen an Morgenrot. „Schönes Eisen“, sagt er leise. „Zu schade, wenn es im Staub landet. Mein Angebot von gestern gilt noch.“\n\nAm Rand des Zeltlagers winkt dir ein sommersprossiges Mädchen mit rußigen Händen zu – Grete, die Knappin, die sich gestern für ein paar Pfennige angeboten hat.\n\n» Vorschläge: Beim Herold anmelden | Wolfram eine Antwort geben | Zu Grete ins Zeltlager gehen"
+   }
+  ],
+  "started": true,
+  "createdAt": "2026-10-30T10:14:31.846Z",
+  "updatedAt": "2026-10-30T10:14:31.846Z"
+ }
+}
