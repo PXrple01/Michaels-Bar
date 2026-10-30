@@ -48,6 +48,8 @@ export function parseServiceAccount(raw: string): unknown {
   let s = raw.trim().replace(/^\uFEFF/, "");
   if (!s.startsWith("{") && /^[A-Za-z0-9+/=\s]+$/.test(s)) { try { s = Buffer.from(s, "base64").toString("utf8").trim(); } catch { /* kein Base64 */ } }
   if ((s.startsWith("'") && s.endsWith("'")) || (s.startsWith('"{') && s.endsWith('}"'))) { try { const inner = s.startsWith('"') ? JSON.parse(s) : s.slice(1, -1); if (typeof inner === "string") s = inner.trim(); } catch { s = s.slice(1, -1); } }
+  // Ganz in Anführungszeichen gesetzt (auch mit Leerzeichen/Zeilenumbruch dazwischen): „"  { … }  "“
+  if (s.startsWith('"') && s.endsWith('"') && s.slice(1, -1).trim().startsWith("{") && s.slice(1, -1).trim().endsWith("}")) s = s.slice(1, -1).trim().replace(/\\"/g, '"');
   // Nur der Inhalt ohne die geschweiften Klammern kopiert („"type": … "googleapis.com"“)
   if (s.startsWith('"') && !s.startsWith('"{') && /"\s*:/.test(s)) s = `{${s.replace(/,\s*$/, "")}}`;
   try { return JSON.parse(s); } catch { /* weiter unten reparieren */ }
