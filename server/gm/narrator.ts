@@ -401,22 +401,23 @@ export class Narrator {
    * Legendäre Fähigkeit nach dem Limit Break: Claude entwirft aus der Geschichte der Figur (Narben, Erbstücke, Titel)
    * eine persönliche, starke, aber faire Fähigkeit. Ergebnis geprüft (legendSchema).
    */
-  async forgeLegend(c: Character, data: GameData, titles: string[], who: string): Promise<{ legend: Legend; costUsd: number }> {
+  async forgeLegend(c: Character, data: GameData, titles: string[], who: string): Promise<{ options: Legend[]; costUsd: number }> {
     this.ensureReady();
     if (!limitBroken(growthOf(c))) throw new GmError(`Eine legendäre Fähigkeit gibt es erst nach ${LIMIT_AFTER} bestandenen Abenteuern.`, "state");
     if (growthOf(c).legend) throw new GmError("Diese Figur hat ihre legendäre Fähigkeit schon.", "state");
     await this.o.guard.check(who);
-    const schema = { type: "object", additionalProperties: false, required: ["name", "type", "uses", "text", "beginnerText"], properties: {
+    const one = { type: "object", additionalProperties: false, required: ["name", "type", "uses", "text", "beginnerText"], properties: {
       name: { type: "string", description: "2–4 Wörter, deutsch, klangvoll (z. B. „Zorn des Ogertöters“)" },
       type: { type: "string", enum: [...ABILITY_TYPES] },
       uses: { type: "string", enum: ["einmal_pro_kampf", "einmal_pro_rast", "einmal_pro_tag"] },
       text: { type: "string", description: "Genaue Regel in einem bis zwei Sätzen (Würfel, Boni, Dauer) – stark, aber nicht unbesiegbar" },
       beginnerText: { type: "string", description: "Ein Satz für Einsteiger, was die Fähigkeit tut" },
     } };
+    const schema = { type: "object", additionalProperties: false, required: ["optionen"], properties: { optionen: { type: "array", items: one, description: "Genau zwei deutlich verschiedene Vorschläge (z. B. einer offensiv, einer schützend oder unterstützend)" } } };
     const msg = await this.o.llm!.stream({
       ...requestBase(this.model, "low"),
       output_config: { effort: "low", format: { type: "json_schema", schema } },
-      max_tokens: 1200,
+      max_tokens: 2000,
       system: [{ type: "text", text: "Du entwirfst für ein deutsches Mittelalter-Rollenspiel (nach DnD-Art, Heiliges Römisches Reich um 1400, wenig Magie) eine legendäre Fähigkeit für eine Figur, die schon mehrere Abenteuer bestanden und ihr Limit gebrochen hat. Sie soll sich aus ihrer Geschichte ergeben (Narben, Erbstücke, Titel, Klasse) und sich episch anfühlen: deutlich stärker als normale Klassenfähigkeiten (z. B. 3W8 Schaden, Vorteil für die ganze Gruppe, einen Gegner eine Runde ausschalten), aber begrenzt einsetzbar und ohne Unverwundbarkeit oder sofortigen Sieg. Antworte nur im verlangten Format." }],
       messages: [{ role: "user", content: `<figur>\n${characterSheetText(c, data)}\n</figur>${titles.length ? `\nEhrentitel: ${titles.slice(0, 10).map((t) => t.slice(0, 80)).join(", ")}` : ""}` }],
     }, () => {}, AbortSignal.timeout(40_000));
@@ -424,9 +425,10 @@ export class Narrator {
     const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
     let parsed: unknown = null;
     try { parsed = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); } catch { /* unten */ }
-    const ok = legendSchema.safeParse(parsed);
-    if (!ok.success) throw new GmError("Die legendäre Fähigkeit konnte nicht erschaffen werden – versuch es gleich noch einmal.", "api");
-    return { legend: ok.data, costUsd: costUsd(msg.usage, this.model) };
+    const raw = (parsed as { optionen?: unknown[] } | null)?.optionen ?? [];
+    const options = raw.map((o) => legendSchema.safeParse(o)).filter((r) => r.success).map((r) => r.data!).slice(0, 2);
+    if (!options.length) throw new GmError("Die legendäre Fähigkeit konnte nicht erschaffen werden – versuch es gleich noch einmal.", "api");
+    return { options, costUsd: costUsd(msg.usage, this.model) };
   }
 
   ensureReady() {

@@ -96,7 +96,7 @@ export class GameMaster {
         const { c, data } = this.character((body as { character?: unknown })?.character);
         const titles = Array.isArray((body as { titles?: unknown }).titles) ? ((body as { titles: unknown[] }).titles).filter((t): t is string => typeof t === "string") : [];
         const r = await this.narrator.forgeLegend(c, data, titles, who);
-        return void emit({ type: "legend", legend: r.legend, budget: await this.o.guard.info() });
+        return void emit({ type: "legend", options: r.options, budget: await this.o.guard.info() });
       }
       this.narrator.ensureReady();
       if (kind === "start") await this.start(body as StartRequest, who, emit);

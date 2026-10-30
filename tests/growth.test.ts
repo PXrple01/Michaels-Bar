@@ -182,15 +182,20 @@ describe("Legendäre Fähigkeit erwecken", () => {
   it("erst nach dem Limit Break, Ergebnis wird geprüft", async () => {
     const { GameMaster } = await import("../server/gm/engine");
     const { MemoryCounterStore, UsageGuard } = await import("../server/gm/usage");
-    const reply = JSON.stringify({ name: "Zorn des Ogertöters", type: "angriff", uses: "einmal_pro_tag", text: "Ein Schlag mit 3W8 zusätzlichem Schaden gegen einen Gegner.", beginnerText: "Ein gewaltiger Hieb." });
+    const reply = JSON.stringify({ optionen: [
+      { name: "Zorn des Ogertöters", type: "angriff", uses: "einmal_pro_tag", text: "Ein Schlag mit 3W8 zusätzlichem Schaden gegen einen Gegner.", beginnerText: "Ein gewaltiger Hieb." },
+      { name: "Schild der Gefallenen", type: "verteidigung", uses: "einmal_pro_kampf", text: "Alle Verbündeten erhalten bis zum Ende der Runde +3 Rüstung.", beginnerText: "Du schützt deine Freunde." },
+      { name: "kaputt" },
+    ] });
     const calls: unknown[] = [];
     const llm = { stream: async (p: unknown) => { calls.push(p); return { id: "m", type: "message", role: "assistant", model: "fake", stop_reason: "end_turn", usage: { input_tokens: 500, output_tokens: 100 }, content: [{ type: "text", text: reply }] }; } };
     const gm = new GameMaster({ data: () => data, llm: llm as never, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: "s".repeat(20) });
-    const run = async (c: unknown) => { const evs: { type: string; legend?: { name: string }; message?: string }[] = []; await gm.run("legend", { character: c, titles: ["Retter von Falkenstein"] }, "t", (e) => evs.push(e as never)); return evs; };
+    const run = async (c: unknown) => { const evs: { type: string; options?: { name: string }[]; message?: string }[] = []; await gm.run("legend", { character: c, titles: ["Retter von Falkenstein"] }, "t", (e) => evs.push(e as never)); return evs; };
     expect((await run(base))[0]).toMatchObject({ type: "error" });
     expect(calls).toHaveLength(0);
     const evs = await run({ ...base, growth: g({ earned: ["a", "b", "c"] }) });
-    expect(evs[0]).toMatchObject({ type: "legend", legend: { name: "Zorn des Ogertöters" } });
+    expect(evs[0].type).toBe("legend");
+    expect(evs[0].options!.map((o) => o.name)).toEqual(["Zorn des Ogertöters", "Schild der Gefallenen"]); // ungültige fallen weg
     expect(JSON.stringify(calls[0])).toContain("Retter von Falkenstein");
   });
 });

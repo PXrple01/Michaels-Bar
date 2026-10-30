@@ -1655,3 +1655,10 @@ body.fal-on .read-btn { display: inline-flex; }
 .legend-ab p { margin: 4px 0; color: var(--text-2); }
 .ab.legendary { border-color: rgba(255, 170, 60, 0.6); box-shadow: 0 0 18px rgba(255, 120, 20, 0.18); }
 .perk.beyond { border-color: rgba(255, 150, 60, 0.6); }
+.legend-pick { max-width: 640px; }
+.legend-options { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 8px; }
+.legend-option { display: grid; gap: 6px; text-align: left; padding: 14px; border-radius: 12px; border: 1px solid rgba(255, 170, 60, 0.4); background: rgba(255, 140, 40, 0.07); color: var(--text); font: inherit; cursor: pointer; transition: transform 0.2s var(--ease-spring), box-shadow 0.2s, border-color 0.2s; }
+.legend-option:hover, .legend-option:focus-visible { transform: translateY(-3px); border-color: #ffb35c; box-shadow: 0 0 22px rgba(255, 120, 20, 0.3); outline: none; }
+.legend-option b { display: flex; align-items: center; gap: 6px; color: var(--gold); }
+.legend-option b svg { width: 15px; height: 15px; }
+.legend-option .chip { justify-self: start; }

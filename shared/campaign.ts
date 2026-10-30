@@ -106,7 +106,7 @@ export type GmEvent =
   /** Brief am Kapitelende (Tagebucheintrag der Figur). */
   | { type: "letter"; chapter: number; title: string; text: string; budget: BudgetInfo }
   /** Legendäre Fähigkeit nach dem Limit Break (wird an der Figur gespeichert). */
-  | { type: "legend"; legend: Legend; budget: BudgetInfo }
+  | { type: "legend"; options: Legend[]; budget: BudgetInfo }
   /** Spielstand eingelesen – trusted: Signatur war gültig (Verlauf unverändert), sonst neu zusammengefasst. */
   | { type: "imported"; state: SignedState; story: StoryEntry[]; opening: Opening; title: string; openingSummary: string; trusted: boolean; pending: PendingCheck | null }
   | { type: "error"; message: string; code?: "no_api_key" | "access" | "budget" | "rate" | "state" | "refusal" | "api" };

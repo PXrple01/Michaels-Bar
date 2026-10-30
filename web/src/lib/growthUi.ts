@@ -5,8 +5,9 @@ import { streamGm } from "./gm";
 import { LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, type Growth, type PerkId } from "../../../shared/growth";
 import { rarityOf, statsText, type InvItem } from "../../../shared/inventory";
 import type { Character } from "../../../shared/schema";
+import type { Legend } from "../../../shared/growth";
 import type { WorldState } from "../../../shared/world";
-import { html, type Raw } from "./dom";
+import { $, fragment, html, type Raw } from "./dom";
 import { icon } from "./icons";
 import { characterStore } from "./store";
 import { toast } from "./ui";
@@ -63,16 +64,47 @@ export async function forgeLegend(characterId: string, onDone?: (c: Character) =
   const c = characterStore.get(characterId);
   if (!c) return;
   toast(`Die Legende von ${c.name} nimmt Gestalt an …`, "info", 6000);
-  let saved: Character | null = null;
+  let options: Legend[] = [];
   await streamGm("legend", { character: c, titles: legacyOf(c.id).map((l) => l.title) }, (ev) => {
     if (ev.type === "error") toast(ev.message, "error", 7000);
-    if (ev.type !== "legend") return;
-    const fresh = characterStore.get(characterId) ?? c;
-    saved = { ...fresh, growth: { ...growthOf(fresh), legend: ev.legend }, updatedAt: new Date().toISOString() };
-    characterStore.save(saved);
-    toast(`Legendäre Fähigkeit: „${ev.legend.name}“ – ${ev.legend.beginnerText}`, "success", 10000);
+    if (ev.type === "legend") options = ev.options;
   });
-  if (saved) onDone?.(saved);
+  if (!options.length) return;
+  const pick = await chooseLegend(c.name, options);
+  if (!pick) { toast("Keine Wahl getroffen – du kannst die Fähigkeit später auf dem Figurenbogen erwecken.", "info", 6000); return; }
+  const fresh = characterStore.get(characterId) ?? c;
+  const saved = { ...fresh, growth: { ...growthOf(fresh), legend: pick }, updatedAt: new Date().toISOString() };
+  characterStore.save(saved);
+  toast(`Legendäre Fähigkeit: „${pick.name}“ – ${pick.beginnerText}`, "success", 10000);
+  onDone?.(saved);
+}
+
+const USES_DE: Record<string, string> = { einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag" };
+
+/** Zwei Vorschläge – eine Wahl (für immer). null = abgebrochen. */
+function chooseLegend(name: string, options: Legend[]): Promise<Legend | null> {
+  return new Promise((resolve) => {
+    const el = fragment(html`
+      <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Legendäre Fähigkeit wählen">
+        <div class="modal card glow-border legend-pick">
+          <div class="limit-badge">LEGENDÄRE FÄHIGKEIT</div>
+          <p>Wähle die Fähigkeit, die ${name} für immer begleitet. Die Wahl gilt endgültig.</p>
+          <div class="legend-options">${options.map((o, i) => html`<button class="legend-option" data-pick-legend="${i}">
+            <b>${icon("crown")} ${o.name}</b><small class="chip gold">${USES_DE[o.uses] ?? o.uses}</small>
+            <span>${o.beginnerText}</span><small class="muted">${o.text}</small>
+          </button>`)}</div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-ghost btn-sm" data-pick-legend="">Später entscheiden</button></div>
+        </div>
+      </div>`);
+    const close = (l: Legend | null) => { el.remove(); removeEventListener("keydown", onKey); resolve(l); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(null); };
+    el.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>("[data-pick-legend]");
+      if (b) close(b.dataset.pickLegend ? options[Number(b.dataset.pickLegend)] ?? null : null);
+    });
+    addEventListener("keydown", onKey);
+    $("#modal-root").append(el);
+  });
 }
 
 /** Figurenbogen: Ruhm, Vorteile, Narben, Erbstück. */
@@ -85,7 +117,7 @@ export function growthSection(c: Character): Raw {
     ${limitBroken(g) ? html`<div class="limit-box">
       <div class="limit-badge">LIMIT BREAK</div>
       ${g.legend ? html`<div class="legend-ab"><b>${icon("crown")} ${g.legend.name}</b> <small class="chip gold">legendär · ${({ einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag" } as Record<string, string>)[g.legend.uses]}</small><p>${g.legend.beginnerText}</p><details><summary>Genaue Regel</summary><p class="rule-text">${g.legend.text}</p></details></div>`
-        : html`<p class="small">Das Limit ist gebrochen – erwecke die legendäre Fähigkeit von ${c.name}. Der Spielleiter entwirft sie aus der Geschichte der Figur (kostet etwa 1 Cent).</p><button class="btn btn-sm glow-border" data-legend>${icon("crown")} Legendäre Fähigkeit erwecken</button>`}
+        : html`<p class="small">Das Limit ist gebrochen – erwecke die legendäre Fähigkeit von ${c.name}. Der Spielleiter entwirft zwei Vorschläge aus der Geschichte der Figur, du wählst einen (kostet etwa 1–2 Cent).</p><button class="btn btn-sm glow-border" data-legend>${icon("crown")} Legendäre Fähigkeit erwecken</button>`}
       <button class="btn btn-ghost btn-sm" data-limit-replay>${icon("play")} Limit Break noch einmal ansehen</button>
     </div>` : html`<p class="muted small">${icon("lock")} Limit Break nach ${LIMIT_AFTER} bestandenen Abenteuern (bisher ${g.earned.length}): Vorteile über die Obergrenze, legendäre Fähigkeit, Meisterschaft III.</p>`}
     <div class="perks">${PERK_IDS.map((p) => {
