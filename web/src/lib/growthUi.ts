@@ -247,8 +247,9 @@ document.addEventListener("click", (e) => {
   if (!c || !k?.name) return;
   const old = growthOf(c).companion;
   if (old?.name === k.name) {
-    setCompanion(c.id, null);
-    toast(`${k.name} bleibt hier zurück.`, "success");
+    // Kein Antippen-zum-Entfernen: das würde die gemeinsamen Reisen löschen (ziehen lassen geht auf dem Figurenbogen)
+    toast(`${k.name} ist schon ${c.name}s Gefährte fürs Leben. Ziehen lassen kannst du ${k.name} auf dem Figurenbogen.`, "info", 6000);
+    return;
   } else {
     // Dieses Abenteuer zählt schon als erste gemeinsame Reise
     setCompanion(c.id, { name: k.name.slice(0, 60), role: k.role.slice(0, 60), skill: k.skill.slice(0, 120), ...(k.look ? { look: k.look.slice(0, 300) } : {}), ...(k.portrait ? { portrait: k.portrait } : {}), journeys: 1 });

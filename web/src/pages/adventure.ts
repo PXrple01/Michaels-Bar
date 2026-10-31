@@ -247,7 +247,7 @@ export function playPage(): Page {
       const renderWorld = () => {
         const w = save!.state.world;
         const cls = myClassDef();
-        const me: TeamMember = { id: character.id, name: fullName(character), sigil: cls?.sigil ?? "shield", className: cls?.name ?? character.classId, me: true, abilities: effectiveAbilities(cls?.abilities ?? [], w?.progress?.[character.id]) };
+        const me: TeamMember = { id: character.id, name: fullName(character), sigil: cls?.sigil ?? "shield", className: cls?.name ?? character.classId, me: true, abilities: effectiveAbilities(withLegends(cls?.abilities ?? [], character) as Ability[], w?.progress?.[character.id]) };
         fillSide(root.querySelector("#side-left"), teamSide(w, [me], data.rules));
         fillSide(root.querySelector("#side-right"), lageSide(w));
         setMapData(root, w?.map);
