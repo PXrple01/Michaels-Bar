@@ -3,7 +3,7 @@
 import { addItem, ensureInventory, findItem, itemBonuses, itemText, moneyText, rarityOf, removeItem, type InvItem, type ItemKind, type ItemStats, type Rarity } from "./inventory";
 import type { Character, Rules } from "./schema";
 import type { WorldState } from "./world";
-import { legendDiscount } from "./growth";
+import { shopDiscount } from "./growth";
 
 export type BonusTarget = "angriff" | "schaden" | "ruestung";
 export interface Ware { id: string; name: string; kind: ItemKind | "verbesserung"; price: number; note?: string; stock?: number; bonus?: { target: BonusTarget; value: number }; stats?: ItemStats }
@@ -21,8 +21,9 @@ export const gearOf = (w: WorldState | null | undefined, id: string): Gear => w?
 /** Alle Ausrüstungs-Boni auf einen Wert: Schmied plus die angelegten Stücke (für Würfe und Anzeige). */
 export function bonusParts(w: WorldState | null | undefined, id: string, target: BonusTarget): { label: string; value: number }[] {
   const smith = gearOf(w, id)[target];
-  const fame = target === "angriff" ? w?.fameBonus?.[id]?.angriff ?? 0 : 0;
-  return [...(smith ? [{ label: "Schmied", value: smith }] : []), ...(fame ? [{ label: "Kampferprobt", value: fame }] : []), ...itemBonuses(w?.inventory?.[id], target).map((i) => ({ label: i.name, value: i.value }))];
+  const fame = w?.fameBonus?.[id]?.[target] ?? 0;
+  const fameLabel = { angriff: "Kampferprobt", schaden: "Wuchtige Schläge", ruestung: "Eisenhaut" }[target];
+  return [...(smith ? [{ label: "Schmied", value: smith }] : []), ...(fame ? [{ label: fameLabel, value: fame }] : []), ...itemBonuses(w?.inventory?.[id], target).map((i) => ({ label: i.name, value: i.value }))];
 }
 export const bonusTotal = (w: WorldState | null | undefined, id: string, target: BonusTarget) => bonusParts(w, id, target).reduce((n, p) => n + p.value, 0);
 
@@ -36,7 +37,7 @@ export function sellPrice(shop: Shop, item: Pick<InvItem, "name" | "kind" | "sta
 
 /** Kaufen oder verkaufen. Gibt einen Fehlertext zurück – oder null, wenn es geklappt hat. */
 /** Preis für diese Figur: Legenden bekommen Rabatt (Ruf eilt voraus). */
-export const priceFor = (price: number, c: { growth?: Character["growth"] } | null | undefined) => Math.max(1, Math.round((price * (100 - legendDiscount(c?.growth ?? null))) / 100));
+export const priceFor = (price: number, c: { growth?: Character["growth"] } | null | undefined) => Math.max(1, Math.round((price * (100 - shopDiscount(c?.growth ?? null))) / 100));
 
 export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipment" | "money"> & { growth?: Character["growth"] }, rules: Rules, action: unknown, ref: unknown): string | null {
   const shop = w.shop;
@@ -62,7 +63,7 @@ export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipme
     }
     inv.money -= price;
     if (ware.stock !== undefined) ware.stock--;
-    shop.log.push(`${c.name} kauft ${ware.name} für ${moneyText(price)}${price < ware.price ? " (Legenden-Rabatt)" : ""}`);
+    shop.log.push(`${c.name} kauft ${ware.name} für ${moneyText(price)}${price < ware.price ? " (Rabatt)" : ""}`);
     return null;
   }
   if (action === "verkaufen") {

@@ -72,7 +72,8 @@ export function sanitizeWorld(raw: unknown, c: Character, data: GameData): World
   const scar = (Array.isArray(obj(w.scars)[src]) ? (obj(w.scars)[src] as unknown[]) : []).map(obj).find((x) => typeof x.name === "string");
   w.scars = scar ? { [c.id]: [{ name: str(scar.name, 60), text: str(scar.text, 160) }] } : {};
   const erprobt = perkCount(c, "erprobt");
-  if (erprobt) w.fameBonus = { [c.id]: { angriff: erprobt } }; else delete w.fameBonus;
+  const wucht = perkCount(c, "wucht"), eisen = perkCount(c, "eisenhaut");
+  if (erprobt || wucht || eisen) w.fameBonus = { [c.id]: { angriff: erprobt, ...(wucht ? { schaden: wucht } : {}), ...(eisen ? { ruestung: eisen } : {}) } }; else delete w.fameBonus;
   if (!["aus", "angepasst", "hart"].includes(String(w.powerScaling))) delete w.powerScaling;
   const ch = cleanChallenges(w.challenges);
   if (ch.length) w.challenges = ch; else delete w.challenges;

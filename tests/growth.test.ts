@@ -251,7 +251,7 @@ describe("Limit Break II", () => {
     const before = w.inventory![vet.id].money;
     expect(trade(w, vet, data.rules, "kaufen", "w0")).toBeNull();
     expect(before - w.inventory![vet.id].money).toBe(90);
-    expect(w.shop.log[0]).toContain("Legenden-Rabatt");
+    expect(w.shop.log[0]).toContain("(Rabatt)");
   });
 });
 
@@ -394,5 +394,24 @@ describe("Zweite Berufung", () => {
     expect(legendAbilities(c)).toContainEqual(expect.objectContaining({ id: "berufung", name: ab.name, calling: monk.name }));
     const w = initWorld([c]);
     if (ab.uses !== "beliebig") expect(useAbility(w, c, data.classes, "berufung").error).toBeFalsy();
+  });
+});
+
+describe("Weitere Ruhm-Vorteile", () => {
+  it("Wuchtige Schläge, Eisenhaut, Geschickte Hände, Feilschen wirken", async () => {
+    const { shopDiscount } = await import("../shared/growth");
+    const { priceFor } = await import("../shared/shop");
+    const c = { ...base, growth: g({ perks: { wucht: 1, eisenhaut: 1, geschick: 2, feilschen: 2 } }) };
+    expect(growthSchema.safeParse(c.growth).success).toBe(true);
+    const w = initWorld([c]);
+    expect(bonusParts(w, c.id, "schaden")).toContainEqual({ label: "Wuchtige Schläge", value: 1 });
+    expect(bonusParts(w, c.id, "ruestung")).toContainEqual({ label: "Eisenhaut", value: 1 });
+    expect(shopDiscount(c.growth)).toBe(20);
+    expect(priceFor(100, c)).toBe(80);
+    const { Narrator } = await import("../server/gm/narrator");
+    const { MemoryCounterStore, UsageGuard } = await import("../server/gm/usage");
+    const narrator = new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10) });
+    const { record } = await narrator.rollRecords({ toolUseId: "toolu_g", characterId: c.id, characterName: c.name, art: "skill", id: "wahrnehmung", sg: 10, modus: "normal", grund: "x", label: "Wahrnehmung", ziel: null }, { characters: [c], data, world: w });
+    expect(record.modifierParts).toContainEqual({ label: "Geschickte Hände", value: 2 });
   });
 });

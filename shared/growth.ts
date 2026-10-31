@@ -16,6 +16,10 @@ export const PERKS = {
   erspart: { name: "Erspartes", text: "+1 Gulden Startgeld", cost: 1, max: 5 },
   vorrat: { name: "Vorrat", text: "Ein Heiltrank mehr im Startgepäck", cost: 2, max: 1 },
   erprobt: { name: "Kampferprobt", text: "+1 auf alle Angriffswürfe", cost: 4, max: 1 },
+  wucht: { name: "Wuchtige Schläge", text: "+1 Schaden bei jedem Treffer", cost: 4, max: 1 },
+  eisenhaut: { name: "Eisenhaut", text: "+1 Rüstung – Gegner treffen schwerer", cost: 4, max: 1 },
+  geschick: { name: "Geschickte Hände", text: "+1 auf alle Proben (Fertigkeiten und Attribute, nicht Angriffe)", cost: 3, max: 2 },
+  feilschen: { name: "Feilschen", text: "Händler und Schmiede: 10 % billiger", cost: 2, max: 2 },
 } as const;
 export type PerkId = keyof typeof PERKS;
 export const PERK_IDS = Object.keys(PERKS) as PerkId[];
@@ -31,6 +35,8 @@ export const limitBroken = (g: { earned: string[] }) => g.earned.length >= LIMIT
 export const limitTier = (g: { earned: string[] } | null | undefined): 0 | 1 | 2 => (!g ? 0 : g.earned.length >= LIMIT2_AFTER ? 2 : g.earned.length >= LIMIT_AFTER ? 1 : 0);
 /** Ruf eilt voraus: Händler geben Legenden Rabatt (in Prozent). */
 export const legendDiscount = (g: { earned: string[] } | null | undefined) => (limitTier(g) >= 1 ? 10 : 0);
+/** Gesamtrabatt beim Händler: Legende plus Ruhm-Vorteil „Feilschen“ (höchstens 50 %). */
+export const shopDiscount = (g: { earned: string[]; perks?: Partial<Record<string, number>> } | null | undefined) => Math.min(50, legendDiscount(g) + (g?.perks?.feilschen ?? 0) * 10);
 /** Obergrenze eines Vorteils – nach dem Limit Break doppelt so hoch. */
 export const perkMax = (p: PerkId, g: { earned: string[] }) => PERKS[p].max * (limitBroken(g) ? 2 : 1);
 

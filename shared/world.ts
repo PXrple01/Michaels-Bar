@@ -80,7 +80,7 @@ export interface WorldState {
   /** Narben aus diesem Abenteuer je Figur. */
   scars?: Record<string, { name: string; text: string }[]>;
   /** Dauerhafte Boni aus Ruhm je Figur (zu Beginn festgelegt). */
-  fameBonus?: Record<string, { angriff: number }>;
+  fameBonus?: Record<string, { angriff: number; schaden?: number; ruestung?: number }>;
   /** Machtstufe (Einstellung): Gegner passen sich erfahrenen Figuren an. */
   powerScaling?: "aus" | "angepasst" | "hart";
   /** Limit-Angriff: in diesem Abenteuer schon benutzt bzw. für den nächsten Angriff bereit. */
@@ -153,12 +153,12 @@ export const MAX_MEMORY = 30;
 export const MAX_QUESTS = 20;
 
 export function initWorld(characters: (Pick<Character, "id" | "hp"> & { growth?: Character["growth"] })[]): WorldState {
-  const fame = characters.filter((c) => perkCount(c, "erprobt"));
+  const fame = characters.filter((c) => perkCount(c, "erprobt") || perkCount(c, "wucht") || perkCount(c, "eisenhaut"));
   return {
     id: newWorldId(),
     hp: Object.fromEntries(characters.map((c) => [c.id, c.hp.max + startHpBonus(c)])),
     maxHp: Object.fromEntries(characters.map((c) => [c.id, c.hp.max + startHpBonus(c)])),
-    ...(fame.length ? { fameBonus: Object.fromEntries(fame.map((c) => [c.id, { angriff: perkCount(c, "erprobt") }])) } : {}),
+    ...(fame.length ? { fameBonus: Object.fromEntries(fame.map((c) => [c.id, { angriff: perkCount(c, "erprobt"), ...(perkCount(c, "wucht") ? { schaden: perkCount(c, "wucht") } : {}), ...(perkCount(c, "eisenhaut") ? { ruestung: perkCount(c, "eisenhaut") } : {}) }])) } : {}),
     // Gefährten fürs Leben reisen von Anfang an mit
     ...(characters.some((c) => c.growth?.companion) ? { companions: characters.filter((c) => c.growth?.companion).slice(0, 3).map((c) => { const k = c.growth!.companion!; return { name: k.name, role: k.role, skill: `${k.skill} (Gefährten-Stufe ${companionLevel(k.journeys)})`.slice(0, 160), loyalty: 5, notes: [`Gefährte fürs Leben – schon ${k.journeys} Abenteuer dabei`], ...(k.look ? { look: k.look } : {}), ...(k.portrait ? { portrait: k.portrait } : {}) }; }) } : {}),
     xp: Object.fromEntries(characters.map((c) => [c.id, 0])),

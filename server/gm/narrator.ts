@@ -15,7 +15,7 @@ import { costUsd, LimitError, PRICES, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
 import { bonusParts } from "../../shared/shop";
-import { ABILITY_TYPES, LIMIT_ATTACK, growthOf, legendOptionSchema, LIMIT_AFTER, LIMIT2_AFTER, limitBroken, limitTier, type LegendOption } from "../../shared/growth";
+import { ABILITY_TYPES, LIMIT_ATTACK, growthOf, perkCount, legendOptionSchema, LIMIT_AFTER, LIMIT2_AFTER, limitBroken, limitTier, type LegendOption } from "../../shared/growth";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -567,6 +567,9 @@ export class Narrator {
     // Verbesserungen vom Schmied und Boni aus dem Gepäck zählen mit
     if (art === "attack" || art === "damage") spec.parts = [...spec.parts, ...bonusParts(world, c.id, art === "attack" ? "angriff" : "schaden")];
     if (extraParts.length) spec.parts = [...spec.parts, ...extraParts];
+    // Ruhm-Vorteil „Geschickte Hände“: +1 je Stufe auf Proben (nicht Angriffe)
+    const geschick = art === "skill" || art === "attribute" ? perkCount(c, "geschick") : 0;
+    if (geschick) spec.parts = [...spec.parts, { label: "Geschickte Hände", value: geschick }];
     // Narben: +1 auf Einschüchtern je Narbe (höchstens +2)
     if (art === "skill" && id === "einschuechtern") {
       const scars = growthOf(c).scars.filter((s) => s.campaign !== world?.id).length + (world?.scars?.[c.id]?.length ?? 0);
