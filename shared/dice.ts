@@ -91,6 +91,8 @@ export interface RollRecord {
   critical: "hit" | "fumble" | null;
   /** Glanzerfolg: Angriff trifft 10 oder mehr über der Rüstung (ohne natürliche 20) – +2 Schaden. */
   brilliant?: boolean;
+  /** „Glückskind“: kritisch schon ab dieser natürlichen Zahl (sichtbar im Würfelfenster). */
+  critFrom?: number;
   /** true, wenn dieselbe requestId erneut gesendet wurde – es gibt dann KEINEN neuen Wurf. */
   repeated?: boolean;
 }

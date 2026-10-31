@@ -68,7 +68,7 @@ export function resultPanel(record: RollRecord, opts: { compact?: boolean } = {}
   let verdict: Raw | null = null;
   if (record.success !== null) {
     verdict = record.success
-      ? html`<div class="result-verdict good">${crit ? "Kritischer Erfolg!" : record.brilliant ? "Glanzerfolg!" : "Geschafft!"}</div>`
+      ? html`<div class="result-verdict good">${crit ? (record.critFrom && record.natural !== 20 ? `Kritisch (Glückskind: ab ${record.critFrom})!` : "Kritischer Erfolg!") : record.brilliant ? "Glanzerfolg!" : "Geschafft!"}</div>`
       : html`<div class="result-verdict bad">${fumble ? "Patzer!" : "Nicht geschafft"}</div>`;
   } else if (crit) verdict = html`<div class="result-verdict good" style="color:var(--gold)">Natürliche 20 – kritisch!</div>`;
   else if (fumble) verdict = html`<div class="result-verdict bad">Natürliche 1 – ein Patzer!</div>`;

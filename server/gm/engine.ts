@@ -53,6 +53,9 @@ export function setPower(w: WorldState, v: unknown) {
   if (v === "aus" || v === "angepasst" || v === "hart") w.powerScaling = v;
 }
 
+/** „Glückskind“ (offen angezeigt): diese Konten treffen im Solo-Spiel schon ab einer natürlichen 19 kritisch. */
+const LUCKY: Record<string, number> = { "user:pxrple": 19 };
+
 export class GameMaster {
   readonly narrator: Narrator;
   readonly forge: UpgradeForge;
@@ -157,7 +160,7 @@ export class GameMaster {
     if (!pending) throw new GmError("Gerade ist keine Probe offen.", "state");
     // Gegnerangriffe erst nach dem eigenen Wurf (und Schaden) zeigen
     const enemyRolls: RollRecord[] = [];
-    const { record, extra, content } = await this.narrator.rollPending(pending, { characters: [ce], data, world, onRoll: (r) => enemyRolls.push(r) }, held, messages);
+    const { record, extra, content } = await this.narrator.rollPending(pending, { characters: [ce], data, world, onRoll: (r) => enemyRolls.push(r), ...(LUCKY[who] ? { critFrom: LUCKY[who] } : {}) }, held, messages);
     emit({ type: "roll", record });
     for (const r of extra) emit({ type: "roll", record: r }); // eigener Schaden – gehört zum Wurf der Figur
     for (const r of enemyRolls) emit({ type: "autoroll", record: r });

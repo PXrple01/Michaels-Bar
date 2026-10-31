@@ -27,6 +27,8 @@ export interface RollSpec {
   margins?: boolean;
   /** Angriffe: 10 über der Schwierigkeit (ohne natürliche 20) ist ein Glanzerfolg. */
   brilliant?: boolean;
+  /** Kritisch schon ab dieser natürlichen Zahl (z. B. 19 – „Glückskind“); sonst nur die 20. */
+  critFrom?: number;
 }
 
 /**
@@ -67,10 +69,11 @@ export function performRoll(spec: RollSpec, rng: RandomInt = cryptoRandomInt): R
   const natural = isSingleD20 ? keptValues[0] : null;
   const dc = natural !== null ? spec.dc ?? null : null; // Schwierigkeit nur bei einzelnen W20-Proben
   // Kritisch: natürliche 20/1 – bei Proben zusätzlich, wenn das Ergebnis die Schwierigkeit um 10 über- bzw. unterschreitet
-  const critical = natural === 20 ? "hit" : natural === 1 ? "fumble"
+  const critFrom = Math.min(20, Math.max(2, spec.critFrom ?? 20));
+  const critical = natural !== null && natural >= critFrom ? "hit" : natural === 1 ? "fumble"
     : spec.margins && dc !== null ? (total >= dc + 10 ? "hit" : total <= dc - 10 ? "fumble" : null) : null;
   let success: boolean | null = null;
-  if (dc !== null && natural !== null) success = natural === 20 ? true : natural === 1 ? false : total >= dc;
+  if (dc !== null && natural !== null) success = natural >= critFrom ? true : natural === 1 ? false : total >= dc;
 
   return {
     id: randomUUID(),
@@ -89,6 +92,7 @@ export function performRoll(spec: RollSpec, rng: RandomInt = cryptoRandomInt): R
     dc,
     success,
     critical,
+    ...(critFrom < 20 ? { critFrom } : {}),
     ...(spec.brilliant && success && critical === null && dc !== null && total >= dc + 10 ? { brilliant: true } : {}),
   };
 }

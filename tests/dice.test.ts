@@ -151,4 +151,9 @@ describe("Kritisch bei Proben: natürliche 20/1 oder 10 über/unter der Schwieri
     expect(atk(20, 9, 14)).toMatchObject({ critical: "hit" });
     expect(atk(20, 9, 14).brilliant).toBeUndefined();
   });
+  it("Glückskind: kritisch schon ab 19 (sichtbar im Ergebnis)", () => {
+    const lucky = (face: number) => performRoll({ requestId: `glueck-${face}`, kind: "check", label: "x", notation: "1W20", modifierParts: [], dc: 30, critFrom: 19 }, scripted(face));
+    expect(lucky(19)).toMatchObject({ critical: "hit", success: true, critFrom: 19 });
+    expect(lucky(18)).toMatchObject({ critical: null, success: false });
+  });
 });
