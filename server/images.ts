@@ -54,7 +54,13 @@ const IMAGEN_USD = 0.04, IMAGEN_ULTRA_USD = 0.06;
 const geminiImageUsd = (model: string) => (/pro/.test(model) ? 0.134 : 0.039);
 const IMAGEN_RATIO: Record<ImageShape, string> = { landscape_4_3: "4:3", portrait_4_3: "3:4", square: "1:1" };
 
+/** Ersatz innerhalb von Google, wenn Nano Banana Pro ausgelastet ist. */
+const FLASH_IMAGE_MODEL = "gemini-2.5-flash-image";
+const PRO_BUSY_MS = 5 * 60_000;
+
 export class ImageMaker {
+  /** Bis wann das große Bildmodell übersprungen wird (nach 429 oder Zeitüberschreitung). */
+  private proBusyUntil = 0;
   constructor(private o: { key?: string; store: ImageStore; fetch?: typeof fetch; google?: GoogleCloud | null }) {}
 
   get ready() { return !!this.o.key || !!this.o.google?.active(); }
@@ -70,8 +76,23 @@ export class ImageMaker {
     const g = this.o.google;
     if (g?.active()) {
       try {
-        const model = (await g.luxury()) ? g.cfg.luxuryImageModel : g.cfg.imageModel;
-        return model.startsWith("gemini") ? await this.paintGemini(g, model, motif, shape, id, opts.style, await this.references(opts.refs ?? [])) : await this.paintImagen(g, motif, shape, id, opts.style);
+        const wanted = (await g.luxury()) ? g.cfg.luxuryImageModel : g.cfg.imageModel;
+        if (!wanted.startsWith("gemini")) return await this.paintImagen(g, motif, shape, id, opts.style);
+        const refs = await this.references(opts.refs ?? []);
+        // Das große Modell hat ein kleines Minutenlimit: Ist es gerade erschöpft (429) oder zu langsam, malt erst
+        // Nano Banana Flash (höheres Limit, auch Google-Guthaben) – fal.ai kommt erst, wenn auch das nicht geht.
+        const busy = wanted !== FLASH_IMAGE_MODEL && Date.now() < this.proBusyUntil;
+        if (!busy) {
+          try { return await this.paintGemini(g, wanted, motif, shape, id, opts.style, refs); }
+          catch (e) {
+            const status = e instanceof GoogleError ? e.status : undefined;
+            const slow = (e as Error).name === "TimeoutError" || /aborted|timeout/i.test((e as Error).message);
+            if (wanted === FLASH_IMAGE_MODEL || !(status === 429 || slow)) throw e;
+            this.proBusyUntil = Date.now() + PRO_BUSY_MS;
+            console.warn(`[Bilder] ${wanted} ${status === 429 ? "ausgelastet (429)" : "zu langsam"} – male mit ${FLASH_IMAGE_MODEL}.`);
+          }
+        }
+        return await this.paintGemini(g, FLASH_IMAGE_MODEL, motif, shape, id, opts.style, refs);
       }
       catch (e) {
         const status = e instanceof GoogleError ? e.status : undefined;

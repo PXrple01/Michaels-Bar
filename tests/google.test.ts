@@ -64,6 +64,20 @@ describe("Google-Testphase", () => {
     expect(broke.active()).toBe(false);
   });
 
+  it("Bilder: Nano Banana Pro ausgelastet (429) → Nano Banana Flash, Google bleibt an; danach 5 Minuten gleich Flash", async () => {
+    const calls: string[] = [];
+    const base = fakeGoogle(calls);
+    const busy = (async (url: string, init?: RequestInit) => (url.includes("gemini-3-pro-image") ? (calls.push(url), new Response("RESOURCE_EXHAUSTED", { status: 429 })) : base(url, init))) as unknown as typeof fetch;
+    const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, base);
+    const maker = new ImageMaker({ key: "fal", store: new MemoryImageStore(), google: g, fetch: busy });
+    expect((await maker.make("A misty monastery", "landscape_4_3")).costUsd).toBe(0.039);
+    expect(calls.some((c) => c.includes("gemini-2.5-flash-image:generateContent"))).toBe(true);
+    expect(g.active()).toBe(true);
+    calls.length = 0;
+    await maker.make("Noch ein Bild", "square");
+    expect(calls.some((c) => c.includes("gemini-3-pro-image"))).toBe(false);
+  });
+
   it("Vorlesen: im Zeitfenster Gemini-TTS (Erzähler Charon), auf Wunsch nur Chirp 3 HD", async () => {
     const calls: string[] = [];
     const g = new GoogleCloud(googleConfig({ GOOGLE_SERVICE_ACCOUNT: sa, GOOGLE_TRIAL_START: today })!, fakeGoogle(calls));
