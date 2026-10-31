@@ -575,7 +575,7 @@ export function partyPage(): Page {
           try { await navigator.clipboard.writeText(inviteLink(code)); toast("Link kopiert – schick ihn deinen Mitspielern.", "success"); }
           catch { toast(inviteLink(code)); }
         });
-        belowEl.querySelector("#start")?.addEventListener("click", () => void stream("start", { previousOpenings: campaignStore.previousOpenings(), challenges: selectedChallenges() }));
+        belowEl.querySelector("#start")?.addEventListener("click", () => void stream("start", { previousOpenings: campaignStore.previousOpenings(), previousNames: campaignStore.previousNames(), challenges: selectedChallenges() }));
         belowEl.querySelector("#leave")?.addEventListener("click", async () => { try { await partyApi.leave(me); } catch { /* egal */ } memberships.remove(code); go("/gruppe"); });
         belowEl.querySelector("#roll-now")?.addEventListener("click", () => void doRoll());
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());

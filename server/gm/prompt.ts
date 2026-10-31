@@ -1,6 +1,7 @@
 // Systemprompt und Kampagnenstart für Claude als Spielleiter.
 // Der Systemprompt hängt nur von campaign.json ab und bleibt für alle Spieler gleich (gut für den Prompt-Cache).
 import { growthSummary } from "../../shared/growth";
+import { freshNames, namesBlock } from "../../shared/names";
 import type { Opening } from "../../shared/campaign";
 import { armorValue, attackInfo, findItem, modifier, skillBonusForLevel, trainedSkills } from "../../shared/character";
 import { formatModifier } from "../../shared/dice";
@@ -107,7 +108,8 @@ export function characterSheetText(c: Character, data: GameData): string {
 }
 
 /** Erste Nachricht einer neuen Geschichte: Figur, gewürfelter Startimpuls, frühere Einstiege. */
-export function kickoffMessage(cs: Character[], data: GameData, o: Opening, previous: string[]): string {
+/** names: Namen früherer Abenteuer (meiden) und frische Vorschläge – gegen ständig wiederkehrende Namen. */
+export function kickoffMessage(cs: Character[], data: GameData, o: Opening, previous: string[], names: { used: string[]; fresh: string[] } = { used: [], fresh: freshNames(16) }): string {
   const prev = previous.slice(-10);
   const party = cs.length > 1;
   return `Eine neue Geschichte beginnt.${party ? ` Es spielt eine Gruppe aus ${cs.length} Figuren, jede wird von einer eigenen Person gespielt.` : ""}
@@ -128,6 +130,8 @@ ${prev.map((p) => `- ${p}`).join("\n")}
 </fruehere_einstiege>
 Diese Einstiege gab es schon. Wiederhole weder ihre Situation noch ihre ersten Sätze.
 ` : ""}
+${namesBlock(names.used, names.fresh)}
+
 <kampagne>
 Plane eine lange Kampagne wie in DnD: ${ACTS.map((a) => `${a.name} ${a.chapters[0]}–${a.chapters[1]} Kapitel`).join(", ")}.
 Rufe in dieser ersten Antwort kampagne_planen auf – Ziel, Bedrohung und Kapitel passend zum Startimpuls und zu ${cs.length > 1 ? "den Figuren" : "der Figur"}.

@@ -577,7 +577,7 @@ export function playPage(): Page {
         renderWorld();
         renderStory(); renderOpening(false); renderBelow();
         retry = () => void begin(false);
-        await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings(), power: settings().powerScaling, challenges: selectedChallenges() }, (ev) => {
+        await streamGm("start", { character, previousOpenings: campaignStore.previousOpenings(), previousNames: campaignStore.previousNames(), power: settings().powerScaling, challenges: selectedChallenges() }, (ev) => {
           if (ev.type === "opening") {
             save!.opening = ev.opening;
             save!.openingSummary = ev.summary;

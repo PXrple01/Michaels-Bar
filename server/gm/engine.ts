@@ -3,6 +3,7 @@ import type { ImageMaker } from "../images";
 import { MAX_ACTION_LENGTH, type GmEvent, type RollRequest, type SignedState, type StartRequest, type TurnRequest, type UpgradeRequest, type LevelRequest, type ShopRequest, type SceneImage, type CampaignSave, type ImportRequest, type LetterRequest } from "../../shared/campaign";
 import { sanitizeOpening, sanitizeStory } from "../../shared/saveFile";
 import { armLimitAttack, cleanChallenges, limitAttackNote } from "../../shared/growth";
+import { cleanNames, freshNames } from "../../shared/names";
 import { ImportError, importedMessages, sanitizeWorld } from "./importer";
 import { trade } from "../../shared/shop";
 import { gambleRoll, itemRoll } from "../dice/engine";
@@ -112,7 +113,8 @@ export class GameMaster {
   private async start(req: StartRequest, who: string, emit: (ev: GmEvent) => void) {
     const { c, data } = this.character(req?.character);
     const previous = Array.isArray(req.previousOpenings) ? req.previousOpenings.filter((p) => typeof p === "string").map((p) => p.slice(0, 400)).slice(-10) : [];
-    const opening = rollOpening(data.openings, previous);
+    const usedNames = cleanNames((req as { previousNames?: unknown }).previousNames);
+    const opening = rollOpening(data.openings, previous, undefined, usedNames);
     emit({ type: "opening", opening, summary: openingSummary(opening) });
     const world = initWorld([c]);
     setPower(world, (req as { power?: unknown }).power);
@@ -121,7 +123,7 @@ export class GameMaster {
     world.time = initTime(opening.zeit);
     upsertPerson(world, { name: opening.npc.name, role: opening.npc.rolle, note: opening.npc.eigenschaft });
     visitPlace(world, startPlace(opening.ort));
-    await this.converse([{ role: "user", content: kickoffMessage([c], data, opening, previous) }], world, c, data, who, emit);
+    await this.converse([{ role: "user", content: kickoffMessage([c], data, opening, previous, { used: usedNames, fresh: freshNames(16, [...usedNames, opening.npc.name]) }) }], world, c, data, who, emit);
   }
 
   private async turn(req: TurnRequest, who: string, emit: (ev: GmEvent) => void) {

@@ -3,6 +3,7 @@ import type { Opening } from "../../shared/campaign";
 import type { Openings } from "../../shared/schema";
 import { createHash } from "node:crypto";
 import { cryptoRandomInt, type RandomInt } from "../dice/rng";
+import { freshNames } from "../../shared/names";
 
 const pick = <T,>(list: T[], rng: RandomInt) => list[rng(list.length) - 1];
 
@@ -11,7 +12,8 @@ export function openingSummary(o: Opening): string {
 }
 
 /** Würfelt neu, solange Ort oder Anlass schon in einem der letzten Einstiege vorkam (höchstens 12 Versuche). */
-export function rollOpening(tables: Openings, previous: string[], rng: RandomInt = cryptoRandomInt): Opening {
+/** avoidNames: Namen aus früheren Abenteuern – die wichtige Person bekommt einen frischen Namen aus dem großen Vorrat. */
+export function rollOpening(tables: Openings, previous: string[], rng: RandomInt = cryptoRandomInt, avoidNames: string[] = []): Opening {
   const recent = previous.slice(-8);
   let o: Opening;
   let tries = 0;
@@ -20,7 +22,7 @@ export function rollOpening(tables: Openings, previous: string[], rng: RandomInt
       ort: pick(tables.orte, rng),
       zeit: pick(tables.zeiten, rng),
       anlass: pick(tables.anlaesse, rng),
-      npc: { name: pick(tables.npc_namen, rng), rolle: pick(tables.npc_rollen, rng), eigenschaft: pick(tables.npc_eigenschaften, rng) },
+      npc: { name: freshNames(1, [...avoidNames, ...recent.map((p) => p.split(" · ")[3]?.split(",")[0] ?? "")], (m) => rng(m) - 1)[0] ?? pick(tables.npc_namen, rng), rolle: pick(tables.npc_rollen, rng), eigenschaft: pick(tables.npc_eigenschaften, rng) },
       konflikt: pick(tables.konflikte, rng),
       detail: pick(tables.details, rng),
     };

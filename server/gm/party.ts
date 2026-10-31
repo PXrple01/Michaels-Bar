@@ -14,6 +14,7 @@ import { gambleRoll, itemRoll } from "../dice/engine";
 import { castVote, resolveVote } from "../../shared/vote";
 import { armLimitAttack, cleanChallenges, growthOf, limitAttackNote, limitTier, withLegends } from "../../shared/growth";
 import { setPower } from "./engine";
+import { cleanNames, freshNames } from "../../shared/names";
 import { ITEM_ACTIONS, useItem, type ItemAction } from "../../shared/inventory";
 import { playGamble } from "../../shared/gamble";
 import { turnSummary } from "./summary";
@@ -506,7 +507,8 @@ export class PartyService {
         if (!me.host) throw new PartyError("Nur der Gastgeber kann das Abenteuer starten.");
         if (p.status !== "lobby") throw new PartyError("Das Abenteuer läuft schon.");
         const previous = Array.isArray(body.previousOpenings) ? (body.previousOpenings as unknown[]).filter((x): x is string => typeof x === "string").slice(-10) : [];
-        p.opening = rollOpening(data.openings, previous);
+        const usedNames = cleanNames(body.previousNames);
+        p.opening = rollOpening(data.openings, previous, undefined, usedNames);
         p.status = "playing";
         p.world = initWorld(this.characters(p));
         const challenges = cleanChallenges(body.challenges);
@@ -516,7 +518,7 @@ export class PartyService {
         visitPlace(p.world, startPlace(p.opening.ort));
         p.held = [];
         p.toolset = TOOLSET;
-        messages = [{ role: "user", content: kickoffMessage(this.characters(p), data, p.opening, previous) }];
+        messages = [{ role: "user", content: kickoffMessage(this.characters(p), data, p.opening, previous, { used: usedNames, fresh: freshNames(16, [...usedNames, p.opening.npc.name]) }) }];
       } else {
         if (openChecks(p).length) throw new PartyError(`Erst muss gewürfelt werden (${openChecks(p).map((c) => c.characterName).join(", ")}).`);
         consumed = { ...p.actions };

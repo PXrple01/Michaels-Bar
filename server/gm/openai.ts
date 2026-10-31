@@ -2,6 +2,7 @@
 // Das OpenAI-Format kennt nur Text. Deshalb würfelt der Server Proben sofort selbst (fair wie immer) und schreibt
 // den Wurf in die Antwort. Lebenspunkte, Kampf und Aufträge reisen als signierter, unsichtbarer Kommentar am Ende
 // jeder Antwort mit – die Chat-App schickt ihn beim nächsten Mal von selbst zurück.
+import { freshNames } from "../../shared/names";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { RollRecord } from "../../shared/dice";
 import type { Character } from "../../shared/schema";
@@ -138,7 +139,8 @@ export class OpenAiGateway {
     const chat = messages.filter((m) => m.role === "user" || m.role === "assistant");
     const first = chat.findIndex((m) => m.role === "user");
     const opening = rollOpening(data.openings, [], seededRng(chat[first].content));
-    const kickoff = kickoffMessage([character], data, opening, [])
+    const nameRng = seededRng(`namen:${chat[first].content}`);
+    const kickoff = kickoffMessage([character], data, opening, [], { used: [], fresh: freshNames(16, [opening.npc.name], (m) => nameRng(m) - 1) })
       + (notes ? `\n\n<hinweise_der_person>\n${notes.slice(0, 2000)}\n</hinweise_der_person>` : "")
       + `\n\nDie Person schreibt zum Start: „${chat[first].content.trim()}“`;
     const history: MessageParam[] = [{ role: "user", content: kickoff }];

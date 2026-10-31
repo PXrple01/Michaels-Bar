@@ -28,5 +28,11 @@ export const campaignStore = {
   remove(id: string) { write(KEY, read<CampaignSave[]>(KEY, []).filter((x) => x.id !== id)); },
   /** Kurzfassungen aller bisherigen Einstiege (auch verworfener), damit sich nichts wiederholt. */
   previousOpenings(): string[] { return read<string[]>(OPENINGS, []); },
+  /** Namen der Personen und Begleiter aus allen eigenen Abenteuern (neueste zuletzt) – Claude soll sie nicht wiederverwenden. */
+  previousNames(): string[] {
+    const saves = [...this.list()].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    const names = saves.flatMap((s) => [...(s.state.world?.people ?? []).map((p) => p.name), ...(s.state.world?.companions ?? []).map((k) => k.name)]);
+    return [...new Set(names.map((n) => n.trim()).filter(Boolean))].slice(-80);
+  },
   rememberOpening(summary: string) { write(OPENINGS, [...this.previousOpenings().filter((s) => s !== summary), summary].slice(-20)); },
 };

@@ -299,3 +299,18 @@ describe("Gesamtzeit eines Zugs", () => {
     expect(evs.some((e) => e.type === "image")).toBe(false);
   });
 });
+
+describe("Namen ohne Wiederholung", () => {
+  it("frische Vorschläge meiden frühere und Allerweltsnamen; die wichtige Person bekommt einen neuen Namen", async () => {
+    const { freshNames, namesBlock } = await import("../shared/names");
+    const { rollOpening } = await import("../server/gm/openings");
+    const { loadGameData } = await import("../server/rules/loader");
+    const path = await import("node:path");
+    const names = freshNames(40, ["Kilian", "Grete Rotbart"]);
+    expect(new Set(names).size).toBe(40);
+    expect(names.some((n) => /^(Kilian|Grete|Anselm|Konrad)\b/.test(n))).toBe(false);
+    expect(namesBlock(["Anselm"], names.slice(0, 3))).toContain("NICHT wiederverwenden, auch nicht leicht abgewandelt): Anselm");
+    const d = await loadGameData(path.resolve(__dirname, "../data"));
+    for (let i = 0; i < 30; i++) expect(rollOpening(d.openings, [], undefined, ["Kilian", "Grete"]).npc.name).not.toMatch(/^(Kilian|Grete|Anselm)\b/);
+  });
+});
