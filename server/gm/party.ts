@@ -21,7 +21,7 @@ import { countChapterTurn, enforceDefeat } from "./world";
 import { resolveCharacter, ValidationError } from "../characters";
 import type { GameData } from "../rules/loader";
 import { chapterMark, errorEvent, GmError, lastNarration, LEGACY_MODEL, stripThinking, TOOLSET, TURN_BUDGET_MS, userTurn, type MessageParam, type Narrator, type ToolResult } from "./narrator";
-import { openingSummary, rollOpening } from "./openings";
+import { rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import type { UpgradeForge } from "./upgrades";
 import { effectiveAbilities, emptyProgression, upgradeDue } from "../../shared/upgrades";

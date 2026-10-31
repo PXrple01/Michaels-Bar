@@ -251,7 +251,9 @@ export function heirloomItems(c: WithGrowth): InvItem[] {
 /** Gegenstand in die Truhe legen oder wieder herausnehmen. Ist sie voll, ersetzt er das älteste Stück. */
 export function toggleHeirloom(g: Growth, item: Growth["heirlooms"][number]): Growth {
   const has = g.heirlooms.some((h) => h.name === item.name);
-  const list = has ? g.heirlooms.filter((h) => h.name !== item.name) : [...g.heirlooms, { ...item, qty: 1 }].slice(-heirloomSlots(g));
+  // Auf die Grenzen der Figur kürzen – sonst würde der Server die ganze Figur ablehnen
+  const safe = { ...item, name: item.name.slice(0, 60), qty: 1, ...(item.note ? { note: item.note.slice(0, 120) } : {}) };
+  const list = has ? g.heirlooms.filter((h) => h.name !== item.name) : [...g.heirlooms, safe].slice(-heirloomSlots(g));
   return { ...g, heirlooms: list };
 }
 

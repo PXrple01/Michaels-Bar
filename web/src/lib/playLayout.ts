@@ -124,7 +124,7 @@ function arcBlock(arc: Arc): Raw {
 
 /** Kleines rundes Porträt, antippen zeigt es groß. */
 function face(url: string | undefined, name: string, fallback: string): Raw {
-  return url ? html`<button type="button" class="face" data-zoom="${url}" data-caption="${name}" aria-label="Porträt von ${name}"><img src="${url}" alt="" loading="lazy"></button>` : html`<span class="face empty">${icon(fallback)}</span>`;
+  return url ? html`<button type="button" class="face-pic" data-zoom="${url}" data-caption="${name}" aria-label="Porträt von ${name}"><img src="${url}" alt="" loading="lazy"></button>` : html`<span class="face-pic empty">${icon(fallback)}</span>`;
 }
 
 const KIND_ICON: Record<ItemKind, string> = { waffe: "sword", ruestung: "shield", schild: "shield", trank: "potion", werkzeug: "bag", schatz: "coins", gegenstand: "star" };

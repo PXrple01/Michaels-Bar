@@ -7,7 +7,7 @@ import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusFo
 import { formatModifier, type RollMode } from "../../../shared/dice";
 import type { Character, Money } from "../../../shared/schema";
 import { rollWithOverlay } from "../dice3d/roller";
-import { countUp, enhance } from "../fx/effects";
+import { enhance } from "../fx/effects";
 import { campaignStore } from "../lib/campaigns";
 import { api, loadGameData, type GameData } from "../lib/api";
 import { dataFor } from "../lib/customClasses";

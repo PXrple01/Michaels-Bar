@@ -209,7 +209,7 @@ export function homePage(): Page {
         hero.dataset.state = kind;
 
         // Probenleiste: erst der Würfel, dann schiebt der Bonus nach – reicht es bis zur Schwierigkeit?
-        const you = $(".hm-you b", meter), fill = $(".hm-fill", meter), gap = $(".hm-gap", meter);
+        const you = $(".hm-you b", meter), gap = $(".hm-gap", meter);
         $(".hm-sum", root).innerHTML = "";
         $(".hm-outcome", root).textContent = "";
         meter.style.setProperty("--x", "0%");
