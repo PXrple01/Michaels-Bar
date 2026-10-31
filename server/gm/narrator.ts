@@ -108,6 +108,7 @@ const COMPACT_AT = 80_000;
 const PORTRAIT_REFS = false;
 /** Hat die Antwort eine richtige Vorschlagszeile (mindestens zwei Ideen)? Dann ist die Szene sauber übergeben. */
 const closes = (text: string) => splitSuggestions(text).suggestions.length >= 2;
+const SILENT_NUDGE = "<hinweis>Du hast nichts erzählt – nur Vorschläge (und ggf. ein Bild). Die Spieler sehen keinen Text. Erzähle jetzt in einigen lebendigen Sätzen, was passiert (bei einer Probe: was das Ergebnis bewirkt), ohne die Vorschläge zu wiederholen, und schließe dann erneut mit „» Vorschläge: … | … | …“.</hinweis>";
 const NUDGE = "<hinweis>Deine Antwort endete mitten in der Szene. Erzähle direkt weiter, ohne Wiederholung: Was du angekündigt hast, passiert jetzt (Gegnerangriffe mit gegner_greift_an, Proben mit probe_anfordern). Übergib dann mit einer offenen Situation und schließe mit der Zeile „» Vorschläge: … | … | …“.</hinweis>";
 const COMPACT_INSTRUCTIONS =
   "Fasse die bisherige Geschichte auf Deutsch als Text zusammen (kein Werkzeugaufruf). Behalte: alle Figuren und Nichtspielerfiguren mit Namen, Rolle und Haltung zu den Figuren; " +
@@ -630,6 +631,8 @@ export class Narrator {
     const history = [...messages];
     const base = requestBase(this.model, this.o.effort ?? "low");
     let cost = 0, imageUsd = 0, paintedTurn = false, nudged = false;
+    /** Erzählter Text dieses Zugs (ohne Vorschlagszeile) – ein Zug nur aus Bild und Vorschlägen bekommt einen Nachhaker. */
+    let narrated = 0;
     const usage = { input: 0, output: 0 };
     const budget = this.o.turnBudgetMs ?? TURN_BUDGET_MS;
     const deadline = Date.now() + budget;
@@ -685,6 +688,8 @@ export class Narrator {
 
         if (msg.stop_reason === "refusal") throw new GmError("Der Spielleiter möchte diese Szene so nicht erzählen. Versuch es mit einer anderen Handlung.", "refusal");
         history.push({ role: "assistant", content: msg.content as Anthropic.Beta.BetaContentBlockParam[] });
+        narrated += msg.content.reduce((n, b) => n + (b.type === "text" ? splitSuggestions(b.text).body.trim().length : 0), 0);
+        const silent = narrated === 0 && !world.arc?.finished;
         const uses = msg.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
         if (uses.length && msg.stop_reason === "tool_use") {
           // Reihenfolge: erst Sofort-Werkzeuge (z. B. kampf_beginnen – die Gegner müssen für die Proben schon da sein),
@@ -721,6 +726,13 @@ export class Narrator {
           const told = msg.content.some((b) => b.type === "text" && closes(b.text));
           // Abstimmung: Die Spieler antworten per Knopf – der Zug endet hier immer
           const ended = (uses.some((b) => b.name === "abenteuer_beenden") && !!world.arc?.finished) || (uses.some((b) => b.name === "abstimmung") && !!world.vote && !world.vote.result);
+          // Nur Bild + Vorschläge, aber keine Erzählung: nicht beenden, sondern einmal nachhaken (unten über die Ergebnisse)
+          if (told && silent && !ended && !nudged && deadline - Date.now() >= MIN_CALL_MS) {
+            nudged = true;
+            console.warn("[Claude] Zug ohne Erzählung (nur Werkzeuge/Vorschläge) – hake einmal nach.");
+            history.push({ role: "user", content: [...results, { type: "text", text: SILENT_NUDGE }] });
+            continue;
+          }
           if ((told || ended) && uses.every((b) => QUIET_TOOLS.has(b.name)) && results.every((r) => !r.is_error)) return await finish({ history, pending: null, pendings: [], held: results, costUsd: cost, imageUsd, painted: paintedTurn, usage });
           // Reicht die Zeit nicht mehr für einen weiteren Aufruf, endet der Zug hier: Die Ergebnisse gehen mit der nächsten Handlung an Claude.
           if (deadline - Date.now() < MIN_CALL_MS) {
@@ -734,12 +746,12 @@ export class Narrator {
         // Endet die Antwort mitten in der Szene (statt Vorschlägen nur eine Ankündigung wie „» Ozula greift an“, oder abgeschnitten),
         // einmal nachhaken: Claude erzählt zu Ende und führt Angekündigtes mit Werkzeugen aus.
         const said = msg.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("\n");
-        const broken = msg.stop_reason === "max_tokens" || (/^[ \t*_]*»[ \t]+[^\n«]*$/m.test(said) && !closes(said));
+        const broken = msg.stop_reason === "max_tokens" || silent || (/^[ \t*_]*»[ \t]+[^\n«]*$/m.test(said) && !closes(said));
         if (!nudged && broken && !world.arc?.finished && deadline - Date.now() >= MIN_CALL_MS) {
           nudged = true;
           console.warn(`[Claude] Antwort ohne Abschluss (${msg.stop_reason}) – hake einmal nach.`);
           if (said.trim()) onText("\n\n");
-          const hint = { type: "text" as const, text: NUDGE };
+          const hint = { type: "text" as const, text: silent ? SILENT_NUDGE : NUDGE };
           const last = history[history.length - 1];
           if (last?.role === "user") last.content = [...(typeof last.content === "string" ? [{ type: "text" as const, text: last.content }] : last.content), hint];
           else history.push({ role: "user", content: [hint] });

@@ -81,6 +81,17 @@ describe("Spielleiter", () => {
     expect(splitSuggestions(said)).toEqual({ body: "Ozula stürmt heran.\n\nIhr Hieb trifft.", suggestions: ["Ausweichen", "Kontern"] });
   });
 
+  it("nur Vorschläge ohne Erzählung: der Server hakt einmal nach", async () => {
+    const llm = new FakeLlm([text("» Vorschläge: Warten | Gehen"), text("Der Nebel lichtet sich.\n» Vorschläge: Warten | Gehen")]);
+    const { run } = setup(llm);
+    const evs = await run("start", { character, previousOpenings: [] });
+    expect(llm.calls).toHaveLength(2);
+    expect(JSON.stringify(llm.calls[1].messages.at(-1))).toContain("nichts erzählt");
+    const said = evs.filter((e) => e.type === "text").map((e) => (e as { text: string }).text).join("");
+    const out = splitSuggestions(said);
+    expect([out.body.trim(), out.suggestions]).toEqual(["Der Nebel lichtet sich.", ["Warten", "Gehen"]]);
+  });
+
   it("Probe: Claude fordert an, der Server würfelt, Neuwürfeln ist unmöglich", async () => {
     const llm = new FakeLlm([
       probe({ art: "skill", id: "athletik", sg: 13, modus: "normal", grund: "Über die Mauer klettern" }),
