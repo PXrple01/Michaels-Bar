@@ -1,0 +1,218 @@
+{
+ "format": "the-last-ember-spielstand",
+ "version": 1,
+ "exportedAt": "2026-10-31T12:09:26.082Z",
+ "character": null,
+ "characterName": "",
+ "campaign": {
+  "id": "fehde-hohenbrueck",
+  "characterId": "",
+  "title": "Die Fehde von Hohenbrück",
+  "opening": {
+   "ort": "die Brücke von Hohenbrück zwischen den Gütern zweier verfeindeter Familien",
+   "zeit": "ein kalter Herbstabend mit Nieselregen",
+   "anlass": "angeheuert als Söldner in einer alten Familienfehde",
+   "npc": {
+    "name": "Wiborada Strelin",
+    "rolle": "Witwe und Oberhaupt der Strelins",
+    "eigenschaft": "zahlt gut, verlangt Härte"
+   },
+   "konflikt": "die Familien Strelin und Rabeneck stehen kurz vor offener Schlacht",
+   "detail": "im Nebel über dem Fluss blitzen Fackeln am anderen Ufer"
+  },
+  "openingSummary": "Brücke von Hohenbrück · als Söldner in einer Familienfehde angeheuert · Strelin gegen Rabeneck",
+  "state": {
+   "messages": [],
+   "characterHash": "",
+   "sig": "",
+   "world": {
+    "id": "w-mvwcyy4i-0cfg8hym",
+    "hp": {},
+    "maxHp": {},
+    "xp": {
+     "fehde-figur": 0
+    },
+    "combat": null,
+    "quests": [
+     {
+      "id": "q-fehde",
+      "title": "Die Fehde für die Strelins entscheiden",
+      "description": "Ihr seid als Söldner angeheuert: Schützt Haus Strelin und brecht die Macht der Rabenecks – Sold: 5 Gulden, dazu Beute.",
+      "status": "offen",
+      "notes": []
+     }
+    ],
+    "memory": [
+     "Die Figur wurde von Wiborada Strelin als Söldner angeheuert – 5 Gulden Sold für die ganze Fehde, dazu ein Anteil an der Beute.",
+     "Die Fehde zwischen Strelin und Rabeneck dauert schon drei Generationen; zuletzt starb Wiboradas Mann bei einem Überfall."
+    ],
+    "critPending": {},
+    "arc": {
+     "plan": {
+      "ziel": "Die Fehde zwischen Strelin und Rabeneck auf dem Schlachtfeld entscheiden – oder herausfinden, wem der Krieg wirklich nützt",
+      "bedrohung": "Tankred von Rabeneck sammelt Ritter und Söldner für einen großen Schlag gegen Haus Strelin. Doch Arbogast Krummfinger lässt sich heimlich auch von den Rabenecks bezahlen und will die Strelins in der entscheidenden Schlacht verraten: Er öffnet das Tor. VIEL KAMPF: jedes Kapitel enthält mindestens einen richtigen Kampf (kampf_beginnen) mit mehreren Gegnern; erzähle die Gefechte wuchtig und abwechslungsreich (Gelände, Wetter, Hinterhalte, Pferde, Feuer, Bogenschützen)."
+     },
+     "chapters": [
+      {
+       "titel": "Blut an der Brücke",
+       "ziel": "Rabeneck-Reiter überfallen in der ersten Nacht den Zoll an der Brücke von Hohenbrück – Kampf im Regen und Fackelschein; ein Gefangener verrät, dass Tankred ein Heer sammelt.",
+       "act": 0,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Der Überfall auf den Wagenzug",
+       "ziel": "Die Rabenecks erwarten einen Wagenzug mit Waffen aus der Stadt – die Söldner legen einen Hinterhalt im Hohlweg. Schwerer Kampf gegen Bewaffnete und Wagenknechte.",
+       "act": 0,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Die brennende Mühle",
+       "ziel": "Rache der Rabenecks: Sie stecken die Strelin-Mühle in Brand. Kampf zwischen Flammen und Rauch, Bauern retten; Hinweise, dass jemand im eigenen Lager Pläne verrät.",
+       "act": 1,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Der Verräter",
+       "ziel": "Arbogasts Doppelspiel aufdecken – Zweikampf gegen ihn und seine eingeweihten Söldner, oder ihn überlisten und seine Pläne gegen die Rabenecks wenden.",
+       "act": 1,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Die Schlacht in der Wernau",
+       "ziel": "Die große Feldschlacht in den nebligen Flussauen: Schildwall, Reiterangriff, Bogenschützen, Durchbruch zu Tankred von Rabeneck und Entscheidungskampf gegen ihn.",
+       "act": 2,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      },
+      {
+       "titel": "Sold und Asche",
+       "ziel": "Nach der Schlacht: Beute, Sold, das Schicksal der Besiegten – Gnade oder Härte – und was aus der Fehde wird.",
+       "act": 2,
+       "detour": false,
+       "rueckweg": null,
+       "done": false,
+       "rueckblick": null
+      }
+     ],
+     "current": 0,
+     "detoursUsed": [
+      0,
+      0,
+      0
+     ],
+     "turnsInChapter": 0,
+     "finished": false,
+     "epilog": null,
+     "known": {
+      "kern": "Entscheide die Fehde für die Strelins",
+      "aufgabe": "Verteidige die Brücke von Hohenbrück"
+     }
+    },
+    "time": {
+     "day": 1,
+     "phase": "abend",
+     "weather": "kalter Nieselregen, Nebel in den Flussauen"
+    },
+    "map": {
+     "places": [
+      {
+       "name": "Hohenbrück",
+       "kind": "stadt",
+       "x": 0,
+       "y": 0,
+       "visits": 1,
+       "day": 1,
+       "note": "Kleine Brückenstadt am Fluss Wern – zwischen den Gütern der Familien Strelin und Rabeneck"
+      },
+      {
+       "name": "Haus Strelin",
+       "kind": "burg",
+       "x": -0.96,
+       "y": 0.28,
+       "visits": 1,
+       "day": 1,
+       "note": "Befestigter Gutshof der Strelins am Nordufer – euer Auftraggeber"
+      }
+     ],
+     "roads": [
+      [
+       "Hohenbrück",
+       "Haus Strelin"
+      ]
+     ],
+     "current": "Haus Strelin"
+    },
+    "people": [
+     {
+      "name": "Wiborada Strelin",
+      "role": "Witwe und Oberhaupt der Familie Strelin, eure Auftraggeberin",
+      "attitude": "freund",
+      "notes": [
+       "Zahlt gut, verlangt Härte. Ihr Mann starb vor einem Jahr bei einem Überfall der Rabenecks"
+      ],
+      "met": 1,
+      "seen": 1,
+      "look": "A gaunt widow in her fifties, black veil, iron-grey braid, a heavy signet ring and cold grey eyes"
+     },
+     {
+      "name": "Arbogast Krummfinger",
+      "role": "Söldnerhauptmann der Strelins",
+      "attitude": "neutral",
+      "notes": [
+       "Alter Haudegen, führt die angeheuerten Klingen; trinkt zu viel, kämpft aber wie ein Bär"
+      ],
+      "met": 1,
+      "seen": 1,
+      "look": "A broad, bald mercenary captain with a crooked broken finger, a grey stubble beard and a dented brigandine"
+     },
+     {
+      "name": "Tankred von Rabeneck",
+      "role": "Ritter, Erbe der Familie Rabeneck",
+      "attitude": "feind",
+      "notes": [
+       "Hochmütig und gefährlich mit dem Langschwert; schwört, die Strelins bis zum letzten Knecht auszulöschen"
+      ],
+      "met": 1,
+      "seen": 1,
+      "look": "A young knight with long black hair, a raven crest on his surcoat and blackened plate armor"
+     },
+     {
+      "name": "Swanhild",
+      "role": "Bogenschützin bei den Söldnern",
+      "attitude": "freund",
+      "notes": [
+       "Wortkarg, trifft eine Krähe auf hundert Schritt; hat eigene Rechnung mit den Rabenecks offen"
+      ],
+      "met": 1,
+      "seen": 1,
+      "look": "A tall young woman with ash-blond braids, a longbow over her shoulder and a scar across her lip"
+     }
+    ]
+   }
+  },
+  "pending": null,
+  "story": [
+   {
+    "type": "gm",
+    "text": "Der Regen hat Hohenbrück in Grau getaucht. Vom Wachhaus an der Brücke aus siehst du den Fluss Wern schwarz und schnell unter den Bögen dahinziehen – und am anderen Ufer, zwischen den Weiden, wandern Fackeln durch den Nebel.\n\n„Rabenecks“, knurrt Arbogast Krummfinger neben dir und spuckt in den Matsch. Der kahle Söldnerhauptmann hat dich vor drei Tagen angeworben: fünf Gulden für die ganze Fehde, dazu ein Anteil an allem, was man den Rabenecks abnimmt. „Die zählen uns. Heute Nacht kommen sie.“\n\nHinter euch, unter dem Vordach des Zollhauses, steht eure Auftraggeberin: Wiborada Strelin, schwarz verschleiert, den schweren Siegelring an der knochigen Hand. „Mein Mann ist an dieser Brücke gestorben“, sagt sie, ohne die Stimme zu heben. „Kein Rabeneck setzt heute einen Fuß auf mein Ufer. Für jeden Kopf eines Reiters zahle ich einen Groschen extra.“\n\nAuf dem Dach des Wachhauses spannt Swanhild, die wortkarge Bogenschützin, schon die Sehne. „Sechs Reiter“, ruft sie leise herunter. „Nein – acht. Und sie haben Fackeln für das Zollhaus.“\n\nHufschlag dröhnt auf den nassen Planken der Brücke.\n\n» Vorschläge: Mich mitten auf der Brücke aufstellen | Die Reiter mit einem Hinterhalt am Zollhaus erwarten | Swanhild Deckung geben und die Fackelträger zuerst angreifen"
+   }
+  ],
+  "started": true,
+  "createdAt": "2026-10-31T12:09:26.082Z",
+  "updatedAt": "2026-10-31T12:09:26.082Z"
+ }
+}
