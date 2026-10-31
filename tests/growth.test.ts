@@ -162,7 +162,14 @@ describe("Erwachende Erbstücke", () => {
     let sword: Growth["heirlooms"][number] = { name: "Altes Schwert", qty: 1, kind: "waffe" };
     const steps: string[] = [];
     for (let i = 0; i < 7; i++) { sword = awakenHeirloom(sword); steps.push(`${sword.stats?.angriff ?? 0}/${sword.stats?.schaden ?? 0}:${sword.stats?.seltenheit}`); }
-    expect(steps).toEqual(["1/0:gewoehnlich", "1/1:ungewoehnlich", "2/1:selten", "2/2:sagenhaft", "3/2:sagenhaft", "3/3:sagenhaft", "3/3:sagenhaft"]);
+    expect(steps).toEqual(["1/0:gewoehnlich", "1/1:ungewoehnlich", "2/1:selten", "2/2:sagenhaft", "3/2:sagenhaft", "3/3:sagenhaft", "4/3:sagenhaft"]);
+    // keine Obergrenze: wächst weiter, auch im Startgepäck ungekürzt
+    for (let i = 0; i < 10; i++) sword = awakenHeirloom(sword);
+    expect(sword.stats).toMatchObject({ angriff: 9, schaden: 8 });
+    expect(growthSchema.safeParse(g({ earned: ["a", "b", "c"], heirlooms: [sword] })).success).toBe(true);
+    const wi = initWorld([base]);
+    ensureInventory(wi, [{ ...base, growth: g({ heirlooms: [sword] }) }], data.rules, data.classes);
+    expect(wi.inventory![base.id].items.find((x) => x.name === "Altes Schwert")?.stats).toMatchObject({ angriff: 9, schaden: 8 });
     expect(awakenHeirloom({ name: "Krug", qty: 1, kind: "schatz" })).toEqual({ name: "Krug", qty: 1, kind: "schatz" });
     // Am Ende eines Abenteuers wacht das Erbstück in der Truhe auf
     const w = initWorld([base]);

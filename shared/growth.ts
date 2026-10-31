@@ -104,10 +104,12 @@ const USES_TEXT: Record<string, string> = { zweimal_pro_kampf: "2× pro Kampf", 
 
 /* ── Speicherform an der Figur ── */
 
+/** Erwachte Erbstücke wachsen ohne spielerische Obergrenze (die Zahl ist nur ein Schutz gegen kaputte Daten). */
+export const HEIRLOOM_STAT_MAX = 999;
 const heirloomSchema = z.object({
   name: z.string().min(1).max(60), qty: z.number().int().min(1).max(1), kind: z.enum(["waffe", "ruestung", "schild", "trank", "werkzeug", "schatz", "gegenstand"]),
   note: z.string().max(120).optional(),
-  stats: z.object({ angriff: z.number().int().min(1).max(3).optional(), schaden: z.number().int().min(1).max(3).optional(), ruestung: z.number().int().min(1).max(3).optional(), heilung: z.string().max(12).optional(), seltenheit: z.enum(["gewoehnlich", "ungewoehnlich", "selten", "sagenhaft"]).optional() }).optional(),
+  stats: z.object({ angriff: z.number().int().min(1).max(HEIRLOOM_STAT_MAX).optional(), schaden: z.number().int().min(1).max(HEIRLOOM_STAT_MAX).optional(), ruestung: z.number().int().min(1).max(HEIRLOOM_STAT_MAX).optional(), heilung: z.string().max(12).optional(), seltenheit: z.enum(["gewoehnlich", "ungewoehnlich", "selten", "sagenhaft"]).optional() }).optional(),
 });
 export const growthSchema = z.object({
   fame: z.number().int().min(0).max(FAME_MAX).default(0),
@@ -294,14 +296,14 @@ export const limitAttackNote = (name: string) => `⚡ LIMIT-ANGRIFF: ${name} ent
 /* ── Erwachende Erbstücke ── */
 
 const RARITY_ORDER = ["gewoehnlich", "ungewoehnlich", "selten", "sagenhaft"] as const;
-/** Nach jedem Abenteuer, das ein Erbstück mitgemacht hat: +1 auf einen Wert (Waffe: Angriff/Schaden, Rüstung/Schild:
- * Rüstung), höchstens 3 je Wert. Die Seltenheit steigt mit der Stärke. Andere Gegenstände erwachen nicht. */
+/** Nach jedem Abenteuer, das ein Erbstück mitgemacht hat: +1 auf einen Wert (Waffe abwechselnd Angriff/Schaden,
+ * Rüstung/Schild: Rüstung) – ohne Obergrenze. Die Seltenheit steigt mit der Stärke. Andere Gegenstände erwachen nicht. */
 export function awakenHeirloom<H extends Growth["heirlooms"][number]>(h: H): H {
   if (!["waffe", "ruestung", "schild"].includes(h.kind)) return h;
   const s = { ...h.stats };
   const a = s.angriff ?? 0, d = s.schaden ?? 0, r = s.ruestung ?? 0;
-  if (h.kind === "waffe") { if (a <= d && a < 3) s.angriff = a + 1; else if (d < 3) s.schaden = d + 1; else if (a < 3) s.angriff = a + 1; else return h; }
-  else if (r < 3) s.ruestung = r + 1; else return h;
+  if (h.kind === "waffe") { if (a <= d) s.angriff = Math.min(HEIRLOOM_STAT_MAX, a + 1); else s.schaden = Math.min(HEIRLOOM_STAT_MAX, d + 1); }
+  else s.ruestung = Math.min(HEIRLOOM_STAT_MAX, r + 1);
   const sum = (s.angriff ?? 0) + (s.schaden ?? 0) + (s.ruestung ?? 0);
   const earnedRarity = sum >= 4 ? "sagenhaft" : sum === 3 ? "selten" : sum === 2 ? "ungewoehnlich" : "gewoehnlich";
   const was = s.seltenheit ?? "gewoehnlich";

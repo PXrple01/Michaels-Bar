@@ -76,7 +76,8 @@ export function ensureInventory(w: WorldState, characters: (Pick<Character, "id"
     if (potion && !noPotions) addItem({ items, money: 0 }, potion);
     // Ruhm-Vorteil „Vorrat“ und das Erbstück aus der Truhe
     if (perkCount(c, "vorrat") && !noPotions) addItem({ items, money: 0 }, { ...START_POTION });
-    for (const heir of heirloomItems(c)) { const stats = cleanStats(heir.stats as Record<string, unknown> | undefined); addItem({ items, money: 0 }, { ...heir, ...(stats ? { stats } : { stats: undefined }) }); }
+    // Erbstücke: Werte schon an der Figur geprüft – nicht auf die normalen Gegenstands-Grenzen kürzen (erwachte wachsen weiter)
+    for (const heir of heirloomItems(c)) addItem({ items, money: 0 }, { ...heir });
     for (const slot of SLOTS) fillSlot({ items, money: 0 }, slot);
     w.inventory[c.id] = { items, money: toPfennig(c.money ?? {}) + startMoneyBonus(c) };
   }
