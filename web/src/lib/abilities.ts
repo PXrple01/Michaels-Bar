@@ -7,7 +7,7 @@ import { html, type Raw } from "./dom";
 import { masteryBar, usesWithMastery } from "./growthUi";
 import { icon } from "./icons";
 
-export type AbilityInfo = Pick<Ability, "id" | "name" | "type" | "uses" | "text" | "beginnerText"> & { upgraded?: unknown; legendary?: boolean };
+export type AbilityInfo = Pick<Ability, "id" | "name" | "type" | "uses" | "text" | "beginnerText"> & { upgraded?: unknown; legendary?: boolean; calling?: string };
 
 /** Zustand einer Fähigkeit in dieser Kampagne – für Rand, Ausgrauen und Hinweis. */
 function state(a: AbilityInfo, w: WorldState | null | undefined, characterId: string) {
@@ -48,7 +48,7 @@ export function abilityList(name: string, abilities: AbilityInfo[], w?: WorldSta
       ${abilities.map((a, i) => { const st = state(a, w, characterId); const uses = who ? usesWithMastery(a.uses, who, w, a.id) : a.uses; return html`<div class="ab ${a.upgraded ? "upgraded" : ""} ${a.legendary ? "legendary" : ""} ${st.active ? "active" : ""} ${st.used ? "used" : ""}" style="--i:${i}" data-ab-card>
         <div class="ab-top">
           <span class="ab-icon t-${a.type}">${abilityIcon(a.type)}</span>
-          <span class="ab-title"><b>${a.name}${a.upgraded ? html` <span class="chip gold ab-up">${icon("star")} verbessert</span>` : ""}${a.legendary ? html` <span class="chip gold ab-up">${icon("crown")} legendär</span>` : ""}</b><small>${TYPES[a.type] ?? a.type}</small></span>
+          <span class="ab-title"><b>${a.name}${a.upgraded ? html` <span class="chip gold ab-up">${icon("star")} verbessert</span>` : ""}${a.legendary ? html` <span class="chip gold ab-up">${icon("crown")} legendär</span>` : ""}${a.calling ? html` <span class="chip ab-up">${icon("scroll")} ${a.calling}</span>` : ""}</b><small>${TYPES[a.type] ?? a.type}</small></span>
           <span class="chip ab-uses ${uses !== a.uses ? "gold" : ""}" title="${uses !== a.uses ? "Durch Meisterschaft häufiger einsetzbar" : ""}">${usesLabel(uses)}</span>
         </div>
         ${st.used ? html`<span class="ab-state">${icon("lock")} ${st.text}</span>` : ""}

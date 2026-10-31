@@ -189,7 +189,7 @@ export class PartyService {
       players: party.players.map((p) => {
         const cls = data.classes.find((c) => c.id === p.character.classId);
         return { id: p.id, host: p.host, characterId: p.character.id, name: p.character.name, classId: p.character.classId, className: cls?.name ?? p.character.classId, sigil: cls?.sigil ?? "shield", tier: limitTier(growthOf(p.character)), acted: p.id in party.actions,
-          abilities: effectiveAbilities(withLegends(cls?.abilities ?? [], p.character) as Ability[], party.world?.progress?.[p.character.id]).map((x) => ({ id: x.id, name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded, ...((x as { legendary?: boolean }).legendary ? { legendary: true } : {}) })) };
+          abilities: effectiveAbilities(withLegends(cls?.abilities ?? [], p.character) as Ability[], party.world?.progress?.[p.character.id]).map((x) => ({ id: x.id, name: x.name, type: x.type, uses: x.uses, text: x.text, beginnerText: x.beginnerText, upgraded: !!x.upgraded, ...((x as { legendary?: boolean }).legendary ? { legendary: true } : {}), ...((x as { calling?: string }).calling ? { calling: (x as { calling?: string }).calling } : {}) })) };
       }),
       opening: party.opening,
       story: party.story,

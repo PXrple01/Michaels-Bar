@@ -329,3 +329,53 @@ describe("Gefährte fürs Leben", () => {
     expect(growthOf(syncGrowth(c, w)).companion?.journeys).toBe(3);
   });
 });
+
+describe("Ruf eilt voraus", () => {
+  it("abgeschlossene Abenteuer werden zu Taten, von denen Claude erfährt", async () => {
+    const { reputationText } = await import("../shared/growth");
+    const w = initWorld([base]);
+    w.arc = { ...w.arc!, finished: true, outcome: "sieg", epilog: "Das Moor schweigt wieder. Niemand vergisst es." };
+    w.legacy = [{ characterId: base.id, title: "Bezwinger des Moors", heirloom: "Moorlaterne" }];
+    const c = syncGrowth(base, w)!;
+    expect(growthOf(c).deeds).toEqual([{ title: "Bezwinger des Moors", outcome: "sieg", line: "Das Moor schweigt wieder." }]);
+    expect(reputationText(c)).toContain("Bezwinger des Moors");
+    expect(reputationText(base)).toBe("");
+    expect(growthSchema.safeParse(growthOf(c)).success).toBe(true);
+  });
+});
+
+describe("Blutlinie", () => {
+  it("Nachfahre erbt Ruhm, ein Erbstück und den Ruf; die Ahnin ruht", async () => {
+    const { inherit, canBeAncestor, reputationText } = await import("../shared/growth");
+    const anc = { ...base, growth: g({ fame: 8, earned: ["a", "b"], deeds: [{ title: "Retter von Ach", outcome: "sieg" }, { title: "Flucht aus dem Turm", outcome: "niederlage" }], heirlooms: [{ name: "Morgenrot", qty: 1, kind: "waffe", stats: { angriff: 2 } }] }) };
+    expect(canBeAncestor(base)).toBe(false);
+    expect(canBeAncestor(anc)).toBe(true);
+    const heir = { ...base, id: "heir", name: "Hagen der Jüngere" };
+    const r = inherit(anc, heir, { heirloom: "Morgenrot", epitaph: "Er fiel nie.", now: "2026-10-31T10:00:00Z" });
+    expect(r.heir).toMatchObject({ fame: 6, heirlooms: [{ name: "Morgenrot" }], lineage: { ancestorId: base.id, generation: 2, deeds: ["Retter von Ach"] } });
+    expect(r.ancestor).toMatchObject({ heirlooms: [], resting: { epitaph: "Er fiel nie.", heirId: "heir" } });
+    expect(growthSchema.safeParse(r.heir).success).toBe(true);
+    expect(growthSchema.safeParse(r.ancestor).success).toBe(true);
+    expect(canBeAncestor({ ...anc, growth: r.ancestor })).toBe(false);
+    expect(reputationText({ ...heir, growth: r.heir })).toContain("Retter von Ach");
+    // nächste Generation zählt weiter
+    const r2 = inherit({ ...heir, growth: { ...r.heir, earned: ["c"] } }, { id: "x", name: "Enkel" }, { epitaph: "", now: "2026-11-01T00:00:00Z" });
+    expect(r2.heir.lineage?.generation).toBe(3);
+    expect(r2.ancestor.resting?.epitaph).toContain("Hier ruht");
+  });
+});
+
+describe("Zweite Berufung", () => {
+  it("ab 5 Abenteuern eine Fähigkeit einer anderen Klasse – einsetzbar wie eine eigene", async () => {
+    const { legendAbilities } = await import("../shared/growth");
+    const monk = data.classes.find((c) => c.id === "moench")!;
+    const ab = monk.abilities.find((a) => a.level === 1 && a.uses !== "passiv")!;
+    const calling = { classId: monk.id, className: monk.name, name: ab.name, type: ab.type, uses: ab.uses as "einmal_pro_tag", text: ab.text, beginnerText: ab.beginnerText };
+    expect(growthSchema.safeParse(g({ earned: ["a", "b"], calling })).success).toBe(false);
+    const c = { ...base, growth: g({ earned: ["a", "b", "c", "d", "e"], calling }) };
+    expect(growthSchema.safeParse(c.growth).success).toBe(true);
+    expect(legendAbilities(c)).toContainEqual(expect.objectContaining({ id: "berufung", name: ab.name, calling: monk.name }));
+    const w = initWorld([c]);
+    if (ab.uses !== "beliebig") expect(useAbility(w, c, data.classes, "berufung").error).toBeFalsy();
+  });
+});

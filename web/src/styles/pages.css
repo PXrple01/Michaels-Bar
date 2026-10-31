@@ -1763,3 +1763,30 @@ body.fal-on .read-btn { display: inline-flex; }
 .ch-opt small { color: var(--muted); font-size: 0.78rem; }
 .ch-opt.on { border-color: #ff8a3c; box-shadow: 0 0 0 1px #ff8a3c, 0 0 16px rgba(255, 110, 20, 0.25); background: rgba(255, 110, 20, 0.1); }
 .end-challenges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; font-size: 0.9rem; }
+
+/* Blutlinie, Ruf, Zweite Berufung */
+.lineage { margin-top: 28px; }
+.lineage-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.lineage-opt { display: grid; gap: 2px; text-align: left; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line, rgba(255,255,255,.12)); background: rgba(255,255,255,.03); color: var(--text); cursor: pointer; }
+.lineage-opt small { opacity: .7; font-size: .8rem; }
+.lineage-opt.small { padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; }
+.lineage-opt.on { border-color: var(--accent, #e8833a); background: rgba(232,131,58,.14); box-shadow: 0 0 0 1px var(--accent, #e8833a) inset; }
+.lineage-detail { padding: 14px 16px; display: grid; gap: 6px; }
+.lineage-note, .resting-note { font-size: .9rem; margin: 0 0 10px; }
+.resting-note { opacity: .85; }
+.char-wrap.resting .char-card { filter: grayscale(.7); opacity: .8; }
+.tombstone { margin: 10px 0; padding: 14px 16px 12px; max-width: 420px; text-align: center; border-radius: 60px 60px 10px 10px; background: linear-gradient(180deg, #4a4a52, #2c2c33); border: 1px solid #6a6a74; color: #e9e6df; display: grid; gap: 4px; box-shadow: inset 0 2px 8px rgba(0,0,0,.4); }
+.tombstone .ts-cross { font-size: 1.4rem; opacity: .8; }
+.tombstone q { font-family: var(--font-display, serif); font-style: italic; }
+.tombstone small { opacity: .75; font-size: .78rem; }
+.tombstone a { color: inherit; }
+.deeds { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 6px; }
+.deeds li { display: grid; gap: 2px; padding-left: 10px; border-left: 2px solid #e0a930; }
+.deeds li.niederlage { border-left-color: #8a6a6a; opacity: .8; }
+.deeds li small { opacity: .75; font-size: .8rem; }
+.calling-box { margin: 14px 0; }
+.calling-pick summary { cursor: pointer; margin-bottom: 8px; }
+.calling-class h4 { margin: 10px 0 6px; font-size: .9rem; }
+.calling-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.calling-opt { display: grid; gap: 3px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line, rgba(255,255,255,.12)); background: rgba(255,255,255,.03); color: var(--text); cursor: pointer; }
+.calling-opt:hover { border-color: var(--accent, #e8833a); }

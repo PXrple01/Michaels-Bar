@@ -54,6 +54,33 @@ export const companionLevel = (journeys: number) => Math.min(5, 1 + Math.floor(j
 const companionSchema = z.object({ name: z.string().min(1).max(60), role: z.string().max(60), skill: z.string().max(120), look: z.string().max(300).optional(), portrait: z.string().max(200).optional(), journeys: z.number().int().min(0).max(999) });
 export type LifeCompanion = z.infer<typeof companionSchema>;
 
+/* ── Ruf: Taten, von denen man sich erzählt ── */
+
+export const DEEDS_MAX = 12;
+const deedSchema = z.object({ title: z.string().min(1).max(80), outcome: z.enum(["sieg", "niederlage"]), line: z.string().max(200).optional() });
+export type Deed = z.infer<typeof deedSchema>;
+
+/* ── Blutlinie ── */
+
+/** Am Nachfahren: von wem er abstammt (und dessen Taten – der Ruf der Familie). */
+const lineageSchema = z.object({ ancestorId: z.string().max(80), name: z.string().min(1).max(90), generation: z.number().int().min(2).max(99), deeds: z.array(z.string().max(80)).max(5).default([]) });
+/** An der Ahnin: ruht seit … – spielt nicht mehr, hat aber einen Grabstein in der Heldenhalle. */
+const restingSchema = z.object({ since: z.string().max(40), epitaph: z.string().max(160), heirId: z.string().max(80), heirName: z.string().max(60) });
+/** Was ein Nachfahre erbt: die Hälfte des übrigen Ruhms plus 1 je bestandenem Abenteuer der Ahnin (höchstens 30). */
+export const inheritedFame = (g: { fame: number; earned: string[] }) => Math.min(30, Math.floor(g.fame / 2) + g.earned.length);
+
+/* ── Zweite Berufung ── */
+
+/** Ab so vielen bestandenen Abenteuern lernt die Figur eine Fähigkeit einer anderen Klasse. */
+export const CALLING_AFTER = 5;
+const callingSchema = z.object({
+  classId: z.string().max(60), className: z.string().max(60),
+  name: z.string().min(1).max(60), type: z.string().max(30),
+  uses: z.enum(["passiv", "beliebig", "einmal_pro_kampf", "einmal_pro_rast", "einmal_pro_tag"]),
+  text: z.string().min(1).max(600), beginnerText: z.string().min(1).max(300),
+});
+export type Calling = z.infer<typeof callingSchema>;
+
 /* ── Narben ── */
 
 export const SCARS_MAX = 3;
@@ -105,11 +132,18 @@ export const growthSchema = z.object({
   kills: z.record(z.string().max(80), z.number().int().min(0).max(9999)).default({}),
   /** Beiname nach dem Limit Break, z. B. „der Unbändige“. */
   epithet: z.string().min(3).max(40).optional(),
+  /** Bestandene Abenteuer, von denen man sich erzählt (Ruf). */
+  deeds: z.array(deedSchema).max(DEEDS_MAX).optional(),
+  lineage: lineageSchema.optional(),
+  resting: restingSchema.optional(),
+  /** Zweite Berufung: eine Fähigkeit einer anderen Klasse. */
+  calling: callingSchema.nullable().optional(),
 }).refine((g) => g.heirlooms.length <= heirloomSlots(g), "Zu viele Erbstücke für die Truhe")
   .refine((g) => Object.keys(g.perks).every((p) => p in PERKS && (g.perks[p as PerkId] ?? 0) <= perkMax(p as PerkId, g)), "Unbekannter oder zu oft gewählter Vorteil")
   .refine((g) => !g.legend || limitBroken(g), "Eine legendäre Fähigkeit gibt es erst nach dem Limit Break")
   .refine((g) => !g.epithet || limitBroken(g), "Einen Beinamen gibt es erst nach dem Limit Break")
-  .refine((g) => !g.legend2 || limitTier(g) >= 2, "Die zweite legendäre Fähigkeit gibt es erst nach dem Limit Break II");
+  .refine((g) => !g.legend2 || limitTier(g) >= 2, "Die zweite legendäre Fähigkeit gibt es erst nach dem Limit Break II")
+  .refine((g) => !g.calling || g.earned.length >= CALLING_AFTER, `Die zweite Berufung gibt es erst nach ${CALLING_AFTER} bestandenen Abenteuern`);
 export type Growth = z.infer<typeof growthSchema>;
 
 type WithGrowth = { id: string; growth?: Growth | null };
@@ -192,12 +226,14 @@ export function withLegends<A extends { id: string }>(base: A[], c: WithGrowth):
   return [...base, ...legendAbilities(c).map((l) => ({ ...l, level: 1, scope: "breit" as const, magic: false }))];
 }
 
-/** Legendäre Fähigkeiten als normale Fähigkeiten (für Liste, Einsatz und Meisterschaft). */
+/** Legendäre Fähigkeiten und die zweite Berufung als normale Fähigkeiten (für Liste, Einsatz und Meisterschaft). */
 export function legendAbilities(c: WithGrowth) {
   const g = growthOf(c), tier = limitTier(g);
-  const out: { id: string; name: string; type: Legend["type"]; uses: Legend["uses"]; text: string; beginnerText: string; legendary: true }[] = [];
+  const out: { id: string; name: string; type: string; uses: string; text: string; beginnerText: string; legendary?: true; calling?: string }[] = [];
   if (g.legend && tier >= 1) out.push({ id: "legende", ...g.legend, legendary: true });
   if (g.legend2 && tier >= 2) out.push({ id: "legende2", ...g.legend2, legendary: true });
+  // Zweite Berufung: Fähigkeit einer anderen Klasse (wird wie eine eigene geführt, zählt für Meisterschaft und Verbesserungen)
+  if (g.calling && g.earned.length >= CALLING_AFTER) out.push({ id: "berufung", name: g.calling.name, type: g.calling.type, uses: g.calling.uses, text: g.calling.text, beginnerText: g.calling.beginnerText, calling: g.calling.className });
   return out;
 }
 
@@ -279,7 +315,7 @@ export function powerScore(c: WithGrowth): number {
   const g = growthOf(c);
   const perks = Object.values(g.perks).reduce((n: number, v) => n + (v ?? 0), 0);
   const items = g.heirlooms.reduce((n, h) => n + (h.stats?.angriff ?? 0) + (h.stats?.schaden ?? 0) + (h.stats?.ruestung ?? 0), 0);
-  return g.earned.length + perks + items + (g.legend ? 3 : 0) + (g.legend2 ? 3 : 0) + (limitBroken(g) ? 3 : 0) + (g.companion ? companionLevel(g.companion.journeys) : 0);
+  return g.earned.length + perks + items + (g.legend ? 3 : 0) + (g.legend2 ? 3 : 0) + (limitBroken(g) ? 3 : 0) + (g.companion ? companionLevel(g.companion.journeys) : 0) + (g.calling ? 2 : 0);
 }
 /** Für Claude: wie stark die Gegner sein sollen. Leer, wenn ausgeschaltet oder die Figuren frisch sind. */
 export function powerHint(characters: (WithGrowth & { name: string })[], scaling: PowerScaling | undefined): string {
@@ -292,6 +328,16 @@ export function powerHint(characters: (WithGrowth & { name: string })[], scaling
   return `Machtstufe: ${scores.map((x) => `${x.name} ${x.score}`).join(", ")} (${tier}). Gestalte Gegner ${push}.`;
 }
 
+/** Die Tat eines abgeschlossenen Abenteuers: Vermächtnis-Titel, sonst der Kernauftrag oder das Ziel; dazu der erste Satz des Epilogs. */
+export function deedOf(w: WorldState, characterId: string): Deed | null {
+  const arc = w.arc;
+  if (!arc?.finished) return null;
+  const raw = w.legacy?.find((l) => l.characterId === characterId)?.title ?? arc.known?.kern ?? arc.plan?.ziel ?? null;
+  if (!raw?.trim()) return null;
+  const line = arc.epilog?.split(/(?<=[.!?])\s/)[0]?.trim();
+  return { title: raw.trim().slice(0, 80), outcome: arc.outcome === "niederlage" ? "niederlage" : "sieg", ...(line ? { line: line.slice(0, 200) } : {}) };
+}
+
 /* ── Nach jedem Zug (im Browser): Stand aus dem Spielstand an die Figur übernehmen ── */
 
 export function syncGrowth<C extends WithGrowth>(c: C, w: WorldState | null | undefined): C | null {
@@ -301,7 +347,7 @@ export function syncGrowth<C extends WithGrowth>(c: C, w: WorldState | null | un
   const mine = w.abilityUses?.[c.id];
   if (mine && Object.keys(mine).length) uses[w.id] = { ...mine };
   const scars = [...g.scars.filter((s) => s.campaign !== w.id), ...(w.scars?.[c.id] ?? []).map((s) => ({ ...s, campaign: w.id! }))].slice(-SCARS_MAX);
-  let { fame, earned, heirlooms, companion } = g;
+  let { fame, earned, heirlooms, companion, deeds } = g;
   const kills = { ...(g.kills ?? {}) };
   if (w.kills?.[c.id]) kills[w.id] = w.kills[c.id];
   if (w.arc?.finished && !earned.includes(w.id)) {
@@ -312,8 +358,11 @@ export function syncGrowth<C extends WithGrowth>(c: C, w: WorldState | null | un
     heirlooms = heirlooms.map(awakenHeirloom);
     // Der Gefährte fürs Leben war dabei: eine Reise mehr
     if (companion && w.companions?.some((x) => x.name === companion!.name)) companion = { ...companion, journeys: companion.journeys + 1 };
+    // Ruf: Davon erzählt man sich künftig
+    const deed = deedOf(w, c.id);
+    if (deed) deeds = [...(deeds ?? []), deed].slice(-DEEDS_MAX);
   }
-  const next: Growth = { ...g, uses, scars, fame, earned, heirlooms, kills, ...(companion ? { companion } : {}) };
+  const next: Growth = { ...g, uses, scars, fame, earned, heirlooms, kills, ...(companion ? { companion } : {}), ...(deeds ? { deeds } : {}) };
   if (JSON.stringify(next) === JSON.stringify(g)) return null;
   return { ...c, growth: next };
 }
@@ -330,6 +379,44 @@ export function growthSummary(c: WithGrowth & { name: string }): string {
   if (g.legend && limitBroken(g)) parts.push(`legendäre Fähigkeit „${g.legend.name}“ (${g.legend.uses.replace(/_/g, " ")}): ${g.legend.text}`);
   if (g.legend2 && limitTier(g) >= 2) parts.push(`zweite legendäre Fähigkeit „${g.legend2.name}“ (${g.legend2.uses.replace(/_/g, " ")}): ${g.legend2.text}`);
   if (g.companion) parts.push(`Gefährte fürs Leben: ${g.companion.name} (${g.companion.role}), schon ${g.companion.journeys} ${g.companion.journeys === 1 ? "Abenteuer" : "Abenteuer"} an ${c.name}s Seite – Gefährten-Stufe ${companionLevel(g.companion.journeys)} von 5, entsprechend erfahren, treu und fähig`);
+  if (g.calling && g.earned.length >= CALLING_AFTER) parts.push(`zweite Berufung (${g.calling.className}): beherrscht zusätzlich „${g.calling.name}“ (${g.calling.uses.replace(/_/g, " ")}): ${g.calling.text}`);
+  const rep = reputationText(c);
+  if (rep) parts.push(rep);
   if (limitBroken(g)) parts.push(`Der Ruf eilt ${c.name} voraus: Viele erkennen ${c.name}${g.epithet ? ` als „${c.name} ${g.epithet}“` : ""} – manche bitten um Hilfe, andere fordern ${c.name} heraus, Händler geben ${legendDiscount(g)} % Rabatt (wird beim Kauf schon abgezogen). Lass das gelegentlich in Begegnungen einfließen`);
   return parts.join(". ");
+}
+
+/** Ruf in der Welt: Leute haben von früheren Taten (auch der Vorfahren) gehört. Leer bei unbekannten Figuren. */
+export function reputationText(c: WithGrowth & { name: string }): string {
+  const g = growthOf(c);
+  const deeds = (g.deeds ?? []).slice(-4);
+  const kills = totalKills(c);
+  const bits: string[] = [];
+  if (deeds.length) bits.push(`Man erzählt sich von ${c.name}: ${deeds.map((d) => `„${d.title}“${d.outcome === "niederlage" ? " (gescheitert)" : ""}`).join(", ")}`);
+  if (kills >= 5) bits.push(`${kills} besiegte Gegner gehen auf ${c.name}s Konto`);
+  if (g.lineage) bits.push(`${c.name} stammt von ${g.lineage.name} ab (${g.lineage.generation}. Generation)${g.lineage.deeds.length ? ` – die Familie ist bekannt für ${g.lineage.deeds.map((d) => `„${d}“`).join(", ")}` : ""}; manche erkennen das Familienerbe, alte Freunde und alte Feinde der Familie tauchen auf`);
+  if (!bits.length) return "";
+  return `Ruf: ${bits.join(". ")}. Lass das ab und zu in Begegnungen einfließen – Wirte und Barden kennen Lieder darüber, einfache Leute bitten um Hilfe, Gefolgsleute besiegter Feinde sinnen auf Rache, Neider fordern heraus`;
+}
+
+/* ── Blutlinie: das Erbe an einen Nachfahren weitergeben ── */
+
+export const canBeAncestor = (c: WithGrowth | null | undefined) => !!c && growthOf(c).earned.length >= 1 && !growthOf(c).resting;
+export const isResting = (c: WithGrowth | null | undefined) => !!c?.growth?.resting;
+
+/** Neue Entwicklung für den Nachfahren und die zur Ruhe gelegte Ahnin. */
+export function inherit(ancestor: WithGrowth & { name: string }, heir: { id: string; name: string }, o: { heirloom?: string | null; epitaph: string; now: string }): { heir: Growth; ancestor: Growth } {
+  const ag = growthOf(ancestor);
+  const item = o.heirloom ? ag.heirlooms.find((h) => h.name === o.heirloom) : undefined;
+  const deeds = [...(ag.deeds ?? []).filter((d) => d.outcome === "sieg").map((d) => d.title).reverse(), ...(ag.lineage?.deeds ?? [])];
+  const fresh = growthOf(null);
+  return {
+    heir: {
+      ...fresh,
+      fame: inheritedFame(ag),
+      heirlooms: item ? [{ ...item, qty: 1, note: `Erbstück von ${ancestor.name}` }] : [],
+      lineage: { ancestorId: ancestor.id, name: fullName(ancestor).slice(0, 90), generation: Math.min(99, (ag.lineage?.generation ?? 1) + 1), deeds: [...new Set(deeds)].slice(0, 5) },
+    },
+    ancestor: { ...ag, heirlooms: ag.heirlooms.filter((h) => h !== item), resting: { since: o.now, epitaph: o.epitaph.trim().slice(0, 160) || `Hier ruht ${fullName(ancestor)}.`, heirId: heir.id, heirName: heir.name.slice(0, 60) } },
+  };
 }

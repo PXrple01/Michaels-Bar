@@ -1,6 +1,6 @@
 import { legacyOf } from "../lib/legacy";
 import { fullName, type PerkId } from "../../../shared/growth";
-import { forgeLegend, growthSection, masteryBar, maybeLimitBreak, redeemPerk, setCompanion, usesWithMastery } from "../lib/growthUi";
+import { forgeLegend, growthSection, masteryBar, maybeLimitBreak, redeemPerk, setCompanion, chooseCalling, usesWithMastery } from "../lib/growthUi";
 import { costText } from "../../../shared/campaign";
 import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
 import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusForLevel, trainedSkills, type CharacterRollType } from "../../../shared/character";
@@ -166,7 +166,7 @@ export function sheetPage(): Page {
             </div>
           </section>
 
-          <div id="growth-box" data-reveal>${growthSection(c)}</div>
+          <div id="growth-box" data-reveal>${growthSection(c, data.classes)}</div>
 
           <div class="sheet-cols">
             <section class="sheet-section card" data-reveal>
@@ -242,7 +242,18 @@ export function sheetPage(): Page {
         const lg = t.closest<HTMLButtonElement>("[data-legend], [data-legend2]");
         if (lg) {
           lg.disabled = true;
-          void forgeLegend(c.id, (nc) => { c = nc; $("#growth-box", root).innerHTML = growthSection(c).value; }, lg.hasAttribute("data-legend2") ? 2 : 1).finally(() => { lg.disabled = false; });
+          void forgeLegend(c.id, (nc) => { c = nc; $("#growth-box", root).innerHTML = growthSection(c, data.classes).value; }, lg.hasAttribute("data-legend2") ? 2 : 1).finally(() => { lg.disabled = false; });
+          return;
+        }
+        const cb = t.closest<HTMLElement>("[data-calling]");
+        if (cb) {
+          const name = cb.querySelector("b")?.textContent ?? "";
+          void confirmDialog("Zweite Berufung", `Soll ${c.name} „${name}“ lernen? Die Wahl gilt für immer.`, "Lernen").then((ok) => {
+            const next = ok && chooseCalling(c, data.classes, cb.dataset.calling ?? "");
+            if (!next) return;
+            c = next;
+            $("#growth-box", root).innerHTML = growthSection(c, data.classes).value;
+          });
           return;
         }
         if (t.closest("[data-companion-drop]")) {
@@ -251,7 +262,7 @@ export function sheetPage(): Page {
           if (!next) return;
           c = next;
           toast(`${k.name} geht fortan eigene Wege.`, "success");
-          $("#growth-box", root).innerHTML = growthSection(c).value;
+          $("#growth-box", root).innerHTML = growthSection(c, data.classes).value;
           return;
         }
         const b = t.closest<HTMLButtonElement>("[data-perk]");
@@ -259,7 +270,7 @@ export function sheetPage(): Page {
         const next = redeemPerk(c, b.dataset.perk as PerkId);
         if (!next) return;
         c = next;
-        $("#growth-box", root).innerHTML = growthSection(c).value;
+        $("#growth-box", root).innerHTML = growthSection(c, data.classes).value;
       });
 
       $("#copy-char", root).addEventListener("click", async () => {

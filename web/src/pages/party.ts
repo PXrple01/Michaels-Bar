@@ -12,6 +12,7 @@ import { openSheet } from "../lib/sheetModal";
 import { MAX_ACTION_LENGTH, splitSuggestions, stripMarkers } from "../../../shared/campaign";
 import { characterRoll } from "../../../shared/character";
 import { formatModifier, type RollRecord } from "../../../shared/dice";
+import { isResting } from "../../../shared/growth";
 import { MAX_PARTY_SIZE, type PartyEvent, type PartyOverview, type PartyStoryEntry, type PartyView } from "../../../shared/party";
 import type { Character } from "../../../shared/schema";
 import { getStage, rollWithOverlay } from "../dice3d/roller";
@@ -43,7 +44,7 @@ const inviteLink = (code: string) => `${location.origin}${location.pathname}#/gr
 
 function characterPicker(chars: Character[], data: GameData, action: string): Raw {
   if (!chars.length) return html`<div class="card empty"><p>Du brauchst zuerst eine Figur.</p><a class="btn magnetic" href="#/figur/neu">${icon("sparkles")} Figur erschaffen</a></div>`;
-  return html`<div class="char-grid">${chars.map((c, i) => {
+  return html`<div class="char-grid">${chars.filter((c) => !isResting(c)).map((c, i) => {
     const cls = data.classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
     return html`<button class="card char-card tilt start-card" data-${action}="${c.id}" style="--i:${i}">
       <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>

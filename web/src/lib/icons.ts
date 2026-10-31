@@ -22,6 +22,7 @@ const P: Record<string, string> = {
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   sparkles: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  candle: '<path d="M9 21h6M9.5 21V11h5v10"/><path d="M12 11V9"/><path d="M12 2.5c1.8 2 1.8 3.6 0 5-1.8-1.4-1.8-3 0-5z"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>',
   scroll: '<path d="M8 21h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H6"/><path d="M4 7a2 2 0 1 1 4 0v12a2 2 0 0 1-4 0"/><path d="M12 8h5M12 12h5M12 16h3"/>',
   sword: '<path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6M16 16l4 4M19 21l2-2"/>',

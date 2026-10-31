@@ -3,9 +3,9 @@
 import { legacyOf } from "./legacy";
 import { streamGm } from "./gm";
 import { imagesEnabled, paintPortrait, portraitOf } from "./portraits";
-import { canLimitAttack, fullName, LIMIT2_AFTER, limitTier, LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, companionLevel, type Growth, type LifeCompanion, type PerkId } from "../../../shared/growth";
+import { canLimitAttack, fullName, LIMIT2_AFTER, limitTier, LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, companionLevel, CALLING_AFTER, type Growth, type LifeCompanion, type PerkId } from "../../../shared/growth";
 import { rarityOf, statsText, type InvItem } from "../../../shared/inventory";
-import type { Character } from "../../../shared/schema";
+import type { Character, ClassDef } from "../../../shared/schema";
 import type { LegendOption } from "../../../shared/growth";
 import type { WorldState } from "../../../shared/world";
 import { $, fragment, html, type Raw } from "./dom";
@@ -142,10 +142,39 @@ export async function runLimitAttack(c: Character, typed: string): Promise<strin
 }
 
 /** Figurenbogen: Ruhm, Vorteile, Narben, Erbstück. */
-export function growthSection(c: Character): Raw {
+const USES_LABEL: Record<string, string> = { passiv: "immer aktiv", beliebig: "beliebig oft", einmal_pro_kampf: "1× pro Kampf", einmal_pro_rast: "1× pro Rast", einmal_pro_tag: "1× pro Tag" };
+
+/** Zweite Berufung: anzeigen oder (ab CALLING_AFTER Abenteuern) aus den Fähigkeiten anderer Klassen wählen. */
+function callingBox(c: Character, g: Growth, classes: ClassDef[]): Raw {
+  if (g.calling) return html`<div class="calling-box"><h3 class="small-head">${icon("scroll")} Zweite Berufung <small class="chip">${g.calling.className}</small></h3><p class="small"><b>${g.calling.name}</b> <small class="muted">${USES_LABEL[g.calling.uses] ?? g.calling.uses}</small><br>${g.calling.beginnerText}</p></div>`;
+  if (g.earned.length < CALLING_AFTER) return html`<p class="muted small">${icon("lock")} Zweite Berufung nach ${CALLING_AFTER} bestandenen Abenteuern (bisher ${g.earned.length}): ${c.name} lernt eine Fähigkeit einer anderen Klasse.</p>`;
+  const others = classes.filter((k) => k.id !== c.classId);
+  return html`<details class="calling-box calling-pick" open>
+    <summary><b>${icon("scroll")} Zweite Berufung wählen</b> <small class="muted">– eine Fähigkeit einer anderen Klasse, für immer</small></summary>
+    ${others.map((k) => html`<div class="calling-class"><h4>${k.name}</h4><div class="calling-list">${k.abilities.filter((a) => a.level === 1).map((a) => html`<button class="calling-opt" data-calling="${k.id}:${a.id}"><b>${a.name}</b><small class="muted">${USES_LABEL[a.uses] ?? a.uses}</small><span class="small">${a.beginnerText}</span></button>`)}</div></div>`)}
+  </details>`;
+}
+
+/** Zweite Berufung festlegen (einmalig). Gibt die neue Figur zurück. */
+export function chooseCalling(c: Character, classes: ClassDef[], ref: string): Character | null {
+  const [classId, abilityId] = ref.split(":");
+  const k = classes.find((x) => x.id === classId);
+  const a = k?.abilities.find((x) => x.id === abilityId);
+  const g = growthOf(c);
+  if (!k || !a || g.calling || g.earned.length < CALLING_AFTER) return null;
+  const uses = (["passiv", "beliebig", "einmal_pro_kampf", "einmal_pro_rast", "einmal_pro_tag"] as const).find((u) => u === a.uses) ?? "einmal_pro_tag";
+  const next = { ...c, growth: { ...g, calling: { classId: k.id, className: k.name, name: a.name, type: a.type, uses, text: a.text, beginnerText: a.beginnerText } }, updatedAt: new Date().toISOString() };
+  characterStore.save(next);
+  toast(`${c.name} beherrscht jetzt auch „${a.name}“ (${k.name}).`, "success");
+  return next;
+}
+
+export function growthSection(c: Character, classes: ClassDef[] = []): Raw {
   const g = growthOf(c);
   return html`<section class="sheet-section card growth">
     <h2 class="sec-title">${icon("crown")} Ruhm &amp; Entwicklung</h2>
+    ${g.resting ? html`<p class="resting-note">${icon("candle")} ${c.name} ruht seit ${new Date(g.resting.since).toLocaleDateString("de-DE")}. Das Erbe trägt <a href="#/figur/${g.resting.heirId}">${g.resting.heirName}</a> weiter.</p>` : ""}
+    ${g.lineage ? html`<p class="lineage-note">${icon("users")} Nachfahre von <a href="#/figur/${g.lineage.ancestorId}">${g.lineage.name}</a> · ${g.lineage.generation}. Generation</p>` : ""}
     <p class="muted small">Was ${c.name} von Abenteuer zu Abenteuer mitnimmt. Ruhm gibt es am Ende jedes Abenteuers (Sieg +${FAME_FOR.sieg}, Niederlage +${FAME_FOR.niederlage}). Vorteile gelten ab dem nächsten Abenteuer.</p>
     <div class="fame-purse">${icon("crown")} <b>${g.fame}</b> Ruhm verfügbar</div>
     ${limitBroken(g) ? html`<div class="limit-box ${limitTier(g) >= 2 ? "gold" : ""}">
@@ -164,7 +193,9 @@ export function growthSection(c: Character): Raw {
         <button class="btn btn-sm ${full ? "btn-ghost" : ""}" data-perk="${p}" ${full || g.fame < perk.cost ? "disabled" : ""}>${full ? "voll" : `${perk.cost} Ruhm`}</button>
       </div>`;
     })}</div>
+    ${callingBox(c, g, classes)}
     <div class="growth-cols">
+      <div><h3 class="small-head">${icon("feather")} Ruf <small class="muted">${(g.deeds ?? []).length} Taten</small></h3>${g.deeds?.length ? html`<ul class="deeds">${[...g.deeds].reverse().map((d) => html`<li class="${d.outcome}"><b>${d.title}</b>${d.line ? html`<small>${d.line}</small>` : ""}</li>`)}</ul><small class="muted">Davon hat man in künftigen Abenteuern gehört.</small>` : html`<p class="muted small">Noch unbekannt. Jedes abgeschlossene Abenteuer wird zur Geschichte, die man sich erzählt – Wirte, Barden und alte Feinde kennen sie.</p>`}</div>
       <div><h3 class="small-head">${icon("star")} Erbstück-Truhe <small class="muted">${g.heirlooms.length}/${heirloomSlots(g)}</small></h3>
         ${g.heirlooms.length ? html`<ul class="heirlooms">${g.heirlooms.map((h) => html`<li class="heirloom r-${rarityOf(h as InvItem)}"><b>${h.name}</b>${h.stats ? html` <small>${statsText(h.stats as InvItem["stats"])}</small>` : ""}</li>`)}</ul><small class="muted">Reist in jedes neue Abenteuer mit.</small>` : html`<p class="muted small">Leer. Am Ende eines Abenteuers kannst du einen Gegenstand hineinlegen.</p>`}
         <p class="muted small">${heirloomSlots(g) > 2 ? "Drei Plätze – freigeschaltet durch den Limit Break II." : heirloomSlots(g) > 1 ? `Zwei Plätze – ab ${LIMIT2_AFTER} bestandenen Abenteuern drei.` : `Ab ${HEIRLOOM_TWO_AFTER} bestandenen Abenteuern fasst die Truhe zwei Gegenstände (bisher ${g.earned.length}).`}</p></div>

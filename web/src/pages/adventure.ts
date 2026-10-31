@@ -2,7 +2,7 @@ import { settings } from "../lib/settings";
 import { challengePicker, selectedChallenges } from "../lib/challengesUi";
 import { letterStore, offerLetters } from "../lib/letters";
 import { companionPicker, heirloomPicker, limitAttackButton, runLimitAttack, syncCharacterGrowth } from "../lib/growthUi";
-import { fullName, withLegends } from "../../../shared/growth";
+import { fullName, isResting, withLegends } from "../../../shared/growth";
 import type { Ability } from "../../../shared/schema";
 import { exportSave, importSaveFile } from "../lib/saveTransfer";
 import type { ItemAction } from "../../../shared/inventory";
@@ -124,7 +124,7 @@ export function adventuresPage(): Page {
                   <h3>${s.title}</h3>
                   <p class="muted">${c?.name ?? "Figur fehlt"} · ${s.story.filter((e) => e.type === "player").length} Züge${s.costUsd ? ` · Claude ${costText(s.costUsd)}` : ""}${s.imageUsd ? ` · Bilder ${costText(s.imageUsd)}` : ""}${s.state.world?.arc?.finished ? html` · <span class="chip good">abgeschlossen</span>` : ""}</p>
                   <div class="adv-actions">
-                    ${c ? html`<a class="btn btn-sm" href="#/abenteuer/${s.id}">${icon("play")} ${s.state.world?.arc?.finished ? "Nachlesen" : "Weiter"}</a>` : ""}
+                    ${c ? html`<a class="btn btn-sm" href="#/abenteuer/${s.id}">${icon("play")} ${s.state.world?.arc?.finished || isResting(c) ? "Nachlesen" : "Weiter"}</a>` : ""}
                     ${s.started ? html`<a class="btn btn-ghost btn-sm" href="#/chronik/${s.id}" title="Als Buch lesen und als PDF speichern">${icon("book")} Chronik</a>` : ""}
                   </div>
                   <div class="adv-corner">
@@ -144,7 +144,7 @@ export function adventuresPage(): Page {
                 <p class="muted">Zufällige Figur, sofort spielbereit</p>
                 <span class="link-arrow">Würfeln und losziehen ${icon("arrowRight")}</span>
               </button>
-              ${chars.map((c, i) => {
+              ${chars.filter((c) => !isResting(c)).map((c, i) => {
                 const cls = data.classes.find((x) => x.id === c.classId) ?? c.customClass?.cls;
                 return html`<button class="card char-card tilt start-card" data-start="${c.id}" data-reveal="scale" style="--i:${i}">
                   <div class="char-sigil">${sigil(cls?.sigil ?? "shield", "draw")}</div>

@@ -10,6 +10,8 @@ import { modsChips } from "../lib/attrMods";
 import { icon, sigil } from "../lib/icons";
 import { go, type Page } from "../lib/router";
 import { toast } from "../lib/ui";
+import { characterStore } from "../lib/store";
+import { canBeAncestor, fullName, growthOf, inherit, inheritedFame } from "../../../shared/growth";
 
 const NAMES = ["Adelheid", "Albrecht", "Agnes", "Berthold", "Brunhild", "Konrad", "Kunigunde", "Dietrich", "Elsbeth", "Eberhard", "Friedrich", "Gisela", "Gottfried", "Hedwig", "Hagen", "Irmgard", "Jakob", "Liutgard", "Lambert", "Mechthild", "Mattes", "Notburga", "Ortwin", "Richza", "Rupert", "Sieglinde", "Ulrich", "Walburga", "Wolfram", "Ysolde", "Gerlind", "Rapunzel von Ach", "Kaspar der Rote", "Gret Wolfsmilch", "Henner Ohnefurcht", "Jutta vom Moor"];
 const SUGGEST = {
@@ -21,7 +23,9 @@ const SUGGEST = {
 const STEP_TITLES = ["Herkunft", "Klasse", "Attribute", "Fertigkeiten", "Persönlichkeit", "Fertig"];
 const DRAFT_KEY = "wus.draft.v1";
 
-interface Draft { step: number; c: Required<Omit<CharacterInput, "personality" | "appearance" | "customClass" | "statsVersion">> & { personality: { trait: string; ideal: string; bond: string; flaw: string }; appearance: string } }
+/** Blutlinie (freiwillig): Nachfahre einer eigenen Figur – erbt Ruhm, ein Erbstück und den Ruf der Familie. */
+interface Line { ancestorId: string; heirloom: string | null; epitaph: string }
+interface Draft { step: number; line?: Line | null; c: Required<Omit<CharacterInput, "personality" | "appearance" | "customClass" | "statsVersion">> & { personality: { trait: string; ideal: string; bond: string; flaw: string }; appearance: string } }
 
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const DIFF = ["", "Einsteigerfreundlich", "Etwas Übung", "Für Erfahrene"];
@@ -101,7 +105,39 @@ export function createPage(): Page {
             <p class="feature">${s.feature}</p>
             <span class="check-badge">${icon("check")}</span>
           </button>`)}
-      </div>`;
+      </div>
+      ${lineageBlock()}`;
+  }
+
+  const lineAncestor = () => (d.line ? characterStore.list().filter(canBeAncestor).find((a) => a.id === d.line!.ancestorId) ?? null : null);
+
+  function lineageBlock(): Raw | "" {
+    const ancestors = characterStore.list().filter(canBeAncestor);
+    if (!ancestors.length) return "";
+    const line = d.line ?? null;
+    const anc = line ? ancestors.find((a) => a.id === line.ancestorId) : undefined;
+    const ag = anc ? growthOf(anc) : null;
+    return html`<div class="lineage" id="lineage">
+      <h3 class="sub">${icon("users")} Blutlinie <small class="muted">freiwillig</small></h3>
+      <p class="muted small">Deine Figur kann von einer deiner bisherigen Figuren abstammen. Sie erbt einen Teil des Ruhms, ein Erbstück und den Ruf der Familie. Die Vorfahrin oder der Vorfahr wird dafür zur Ruhe gelegt: Die Figur spielt nicht mehr mit und bekommt einen Grabstein in der Heldenhalle.</p>
+      <div class="lineage-list">
+        <button class="lineage-opt ${line ? "" : "on"}" data-action="line" data-id="">${icon("sparkles")} <b>Neue Blutlinie</b><small>Niemand ist dir vorausgegangen</small></button>
+        ${ancestors.map((a) => html`<button class="lineage-opt ${line?.ancestorId === a.id ? "on" : ""}" data-action="line" data-id="${a.id}">${icon("crown")} <b>${fullName(a)}</b><small>${growthOf(a).earned.length} Abenteuer · erbt ${inheritedFame(growthOf(a))} Ruhm</small></button>`)}
+      </div>
+      ${anc && ag ? html`<div class="lineage-detail card">
+        <p class="small">Du erbst <b>${inheritedFame(ag)} Ruhm</b>${ag.lineage ? html` und wirst die <b>${ag.lineage.generation + 1}. Generation</b>` : ""}. ${(ag.deeds ?? []).length ? html`Man kennt die Familie für: ${(ag.deeds ?? []).filter((x) => x.outcome === "sieg").slice(-3).map((x) => `„${x.title}“`).join(", ") || "– noch nichts Ruhmreiches –"}.` : ""}</p>
+        ${ag.heirlooms.length ? html`<p class="small"><b>Erbstück wählen:</b></p><div class="lineage-list">${[null, ...ag.heirlooms.map((h) => h.name)].map((n) => html`<button class="lineage-opt small ${line!.heirloom === n ? "on" : ""}" data-action="line-item" data-id="${n ?? ""}">${n ? html`${icon("star")} ${n}` : "keines"}</button>`)}</div>` : html`<p class="muted small">${fullName(anc)} hat keine Erbstücke in der Truhe.</p>`}
+        <label class="small" for="line-epitaph">Grabinschrift</label>
+        <input class="input" id="line-epitaph" maxlength="160" placeholder="Hier ruht ${fullName(anc)} – ..." value="${line!.epitaph}">
+      </div>` : ""}
+    </div>`;
+  }
+
+  function rerenderLineage() {
+    const box = root.querySelector("#lineage");
+    const block = lineageBlock();
+    if (box) box.outerHTML = block ? block.value : "";
+    root.querySelector<HTMLInputElement>("#line-epitaph")?.addEventListener("input", (e) => { if (d.line) { d.line.epitaph = (e.target as HTMLInputElement).value; save(); } });
   }
 
   function stepKlasse(): Raw {
@@ -288,6 +324,7 @@ export function createPage(): Page {
           <div>
             <h2 class="sum-name">${d.c.name}</h2>
             <p>${c.name} · ${stand.name} · Stufe 1</p>
+            ${lineAncestor() ? html`<p class="small">${icon("users")} Nachfahre von <b>${fullName(lineAncestor()!)}</b> · erbt ${inheritedFame(growthOf(lineAncestor()))} Ruhm${d.line?.heirloom ? ` und „${d.line.heirloom}“` : ""}</p>` : ""}
           </div>
           <div class="sum-hp"><span>${term("tp", "TP")}</span><b>${hp}</b></div>
         </div>
@@ -340,6 +377,7 @@ export function createPage(): Page {
   function bindInputs() {
     root.querySelector<HTMLInputElement>("#c-name")?.addEventListener("input", (e) => { d.c.name = (e.target as HTMLInputElement).value; save(); refreshFoot(); });
     $$<HTMLInputElement>("[data-p]", root).forEach((el) => el.addEventListener("input", () => { d.c.personality[el.dataset.p as "trait"] = el.value; save(); }));
+    root.querySelector<HTMLInputElement>("#line-epitaph")?.addEventListener("input", (e) => { if (d.line) { d.line.epitaph = (e.target as HTMLInputElement).value; save(); } });
     root.querySelector<HTMLTextAreaElement>("#p-look")?.addEventListener("input", (e) => { d.c.appearance = (e.target as HTMLTextAreaElement).value; save(); });
     root.querySelector<HTMLInputElement>("#c-name")?.addEventListener("keydown", (e) => { if (e.key === "Enter" && !blocker(0)) { direction = 1; d.step = 1; save(); render(); } });
   }
@@ -377,6 +415,16 @@ export function createPage(): Page {
             save(); refreshFoot();
             break;
           }
+          case "line": {
+            const anc = id ? characterStore.get(id) : null;
+            const best = anc ? [...growthOf(anc).heirlooms].sort((x, y) => Object.values(y.stats ?? {}).length - Object.values(x.stats ?? {}).length)[0]?.name ?? null : null;
+            d.line = anc ? { ancestorId: anc.id, heirloom: best, epitaph: "" } : null;
+            save(); rerenderLineage();
+            break;
+          }
+          case "line-item":
+            if (d.line) { d.line.heirloom = id || null; save(); rerenderLineage(); }
+            break;
           case "stand":
             d.c.stand = id; save();
             $$(".option-card", root).forEach((x) => x.classList.toggle("selected", x.dataset.id === id));
@@ -420,7 +468,16 @@ export function createPage(): Page {
             (a as HTMLButtonElement).disabled = true;
             try {
               const own = classStore.get(d.c.classId);
-              const created = await api.createCharacter(own ? { ...d.c, customClass: own } : d.c);
+              let created = await api.createCharacter(own ? { ...d.c, customClass: own } : d.c);
+              // Blutlinie: Erbe übernehmen, die Ahnin zur Ruhe legen
+              const anc = d.line ? characterStore.get(d.line.ancestorId) : null;
+              if (d.line && anc && canBeAncestor(anc)) {
+                const now = new Date().toISOString();
+                const r = inherit(anc, created, { heirloom: d.line.heirloom, epitaph: d.line.epitaph, now });
+                created = { ...created, growth: r.heir, updatedAt: now };
+                characterStore.save(created);
+                characterStore.save({ ...anc, growth: r.ancestor, updatedAt: now });
+              }
               try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* egal */ }
               toast(`${created.name} ist bereit für das Abenteuer!`, "success");
               go(`/figur/${created.id}?neu`);

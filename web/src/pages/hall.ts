@@ -135,9 +135,11 @@ export function hallPage(): Page {
               <a class="hp-portrait" href="#/figur/${h.c.id}" title="Figurenbogen öffnen">${avatar(h.c.id, cls?.sigil ?? "shield", { draw: true })}</a>
               <div class="hp-id">
                 ${i === 0 && h.fame > 0 && heroes.length > 1 ? html`<span class="hp-rank">${icon("crown")} Ruhmreichste Figur</span>` : ""}
-                <h2>${h.c.name}</h2>
+                <h2>${fullName(h.c)}${growthOf(h.c).resting ? html` <span class="chip">${icon("candle")} ruht</span>` : ""}</h2>
                 <small class="muted">${cls?.name ?? h.c.classId}${stand ? ` · ${stand.name}` : ""} · ${levelTitle(h.level, data.rules)} (Stufe ${h.level})</small>
                 ${legacyOf(h.c.id).length ? html`<div class="hp-titles">${legacyOf(h.c.id).map((l) => html`<span class="chip legacy-chip" title="${l.heirloom} – aus „${l.campaignTitle}“">${icon("crown")} ${l.title}</span>`)}</div>` : ""}
+                ${growthOf(h.c).lineage ? html`<p class="small">${icon("users")} Nachfahre von ${growthOf(h.c).lineage!.name} · ${growthOf(h.c).lineage!.generation}. Generation</p>` : ""}
+                ${growthOf(h.c).resting ? html`<div class="tombstone"><span class="ts-cross">✝</span><q>${growthOf(h.c).resting!.epitaph}</q><small>zur Ruhe gelegt am ${date(growthOf(h.c).resting!.since)} · das Erbe trägt <a href="#/figur/${growthOf(h.c).resting!.heirId}">${growthOf(h.c).resting!.heirName}</a></small></div>` : ""}
                 ${h.c.appearance ? html`<p class="hp-look">${h.c.appearance}</p>` : ""}
                 ${legacyOf(h.c.id).length ? html`<ul class="hp-heirlooms">${legacyOf(h.c.id).map((l) => html`<li>${icon("star")} <b>${l.heirloom}</b> <small class="muted">– aus „${l.campaignTitle}“</small></li>`)}</ul>` : ""}
                 <div class="hp-fame">
