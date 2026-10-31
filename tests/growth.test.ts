@@ -45,6 +45,16 @@ describe("Ruhm", () => {
     expect(growthOf(once).fame).toBe(3);
     expect(syncGrowth(once, w)).toBeNull();
   });
+
+  it("auch ältere Abenteuer ohne eigene Kennung geben Ruhm (Spielstand-ID als Ersatz) – nur einmal", () => {
+    const w = initWorld([base]);
+    delete w.id;
+    w.arc = { ...w.arc!, finished: true, outcome: "sieg" };
+    expect(syncGrowth(base, w)).toBeNull();
+    const once = syncGrowth(base, w, "spielstand-1")!;
+    expect(growthOf(once)).toMatchObject({ fame: 3, earned: ["spielstand-1"] });
+    expect(syncGrowth(once, w, "spielstand-1")).toBeNull();
+  });
 });
 
 describe("Meisterschaft", () => {

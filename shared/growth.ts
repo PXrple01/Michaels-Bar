@@ -342,8 +342,11 @@ export function deedOf(w: WorldState, characterId: string): Deed | null {
 
 /* ── Nach jedem Zug (im Browser): Stand aus dem Spielstand an die Figur übernehmen ── */
 
-export function syncGrowth<C extends WithGrowth>(c: C, w: WorldState | null | undefined): C | null {
-  if (!w?.id) return null;
+/** fallbackId: Kennung für ältere Abenteuer ohne eigene (vor dem Ruhm-System begonnen) – z. B. die Spielstand-ID. */
+export function syncGrowth<C extends WithGrowth>(c: C, world: WorldState | null | undefined, fallbackId?: string): C | null {
+  const id = world?.id ?? fallbackId;
+  if (!world || !id) return null;
+  const w = { ...world, id };
   const g = growthOf(c);
   const uses = { ...g.uses };
   const mine = w.abilityUses?.[c.id];

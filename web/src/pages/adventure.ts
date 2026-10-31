@@ -256,6 +256,8 @@ export function playPage(): Page {
         setMusic(w ?? null);
         setVoiceCast(w, [character.name]);
         noteLegacy(w, save!.id, save!.title);
+        // Auch beim Öffnen: Ruhm für ein abgeschlossenes Abenteuer nachtragen, falls er noch fehlt
+        if (w?.arc?.finished) character = syncCharacterGrowth(character.id, w, save!.id) ?? character;
         renderAbilities();
       };
 
@@ -550,7 +552,7 @@ export function playPage(): Page {
           save!.imageUsd = (save!.imageUsd ?? 0) + (ev.turnImageUsd ?? 0);
           persist();
           // Entwicklung über Abenteuer hinweg (Meisterschaft, Narben, Ruhm am Ende) an die Figur übernehmen
-          character = syncCharacterGrowth(character.id, ev.state.world) ?? character;
+          character = syncCharacterGrowth(character.id, ev.state.world, save!.id) ?? character;
           renderWorld();
           renderAbilities();
           prepareRead(storyEl); // Vorlesen schon vorbereiten – ▶ spielt dann sofort

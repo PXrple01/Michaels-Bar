@@ -477,7 +477,7 @@ export function partyPage(): Page {
         const invBefore = myChar ? view?.world?.inventory?.[myChar.id] : undefined;
         const worldBefore = view?.world;
         view = v;
-        if (myChar) syncCharacterGrowth(myChar.id, v.world);
+        if (myChar) syncCharacterGrowth(myChar.id, v.world, `gruppe-${v.code}`);
         if (myChar && worldBefore) void offerLetters(`gruppe-${code}`, myChar.name, worldBefore, v.world, (chapter) => partyApi.letter(me, chapter));
         if (myChar) { const loot = lootText(invBefore, v.world?.inventory?.[myChar.id]); if (loot) toast(loot, "success", 5000); }
         if (myChar && levelBefore !== undefined) announceLevel(levelBefore, v.world?.levels?.[myChar.id]?.level ?? levelBefore, data.rules);

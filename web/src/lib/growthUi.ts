@@ -14,10 +14,10 @@ import { characterStore } from "./store";
 import { toast } from "./ui";
 
 /** Nach einem Zug: Einsätze, Narben und (am Ende) Ruhm an die gespeicherte Figur übernehmen. Gibt die neue Figur zurück. */
-export function syncCharacterGrowth(characterId: string, w: WorldState | null | undefined): Character | null {
+export function syncCharacterGrowth(characterId: string, w: WorldState | null | undefined, fallbackId?: string): Character | null {
   const c = characterStore.get(characterId);
   if (!c || !w) return null;
-  const next = syncGrowth(c, w);
+  const next = syncGrowth(c, w, fallbackId);
   if (!next) return null;
   const before = growthOf(c), after = growthOf(next);
   characterStore.save({ ...next, updatedAt: new Date().toISOString() });
