@@ -33,6 +33,20 @@ export function syncCharacterGrowth(characterId: string, w: WorldState | null | 
   return next;
 }
 
+/** Ruf & Vermächtnis in einer Liste: Taten (an der Figur) plus Ehrentitel und Vermächtnis-Erbstücke, neueste zuerst. */
+export function renown(c: { id: string; growth?: Growth | null }) {
+  const legacy = legacyOf(c.id);
+  const deeds = (growthOf(c).deeds ?? []).map((d) => ({ ...d, legacy: legacy.find((l) => l.title === d.title) }));
+  // Ältere Vermächtnisse ohne passende Tat (vor dem Ruf-System) nicht verlieren
+  const extra = legacy.filter((l) => !deeds.some((d) => d.legacy === l)).map((l) => ({ title: l.title, outcome: "sieg" as const, line: undefined as string | undefined, legacy: l }));
+  return [...extra, ...deeds].reverse();
+}
+export function renownList(c: { id: string; growth?: Growth | null }): Raw {
+  const list = renown(c);
+  if (!list.length) return html`<p class="muted small">Noch unbekannt. Jedes abgeschlossene Abenteuer wird zur Geschichte, die man sich erzählt – Wirte, Barden und alte Feinde kennen sie. Nach einem Sieg gibt es dazu einen Ehrentitel und ein Erbstück.</p>`;
+  return html`<ul class="deeds">${list.map((d) => html`<li class="${d.outcome}"><b>${d.legacy ? html`${icon("crown")} ` : ""}${d.title}</b>${d.line ? html`<small>${d.line}</small>` : ""}${d.legacy ? html`<small>${icon("star")} Erbstück: ${d.legacy.heirloom} – aus „${d.legacy.campaignTitle}“</small>` : ""}</li>`)}</ul><small class="muted">Davon hat man in künftigen Abenteuern gehört.</small>`;
+}
+
 /** Meisterschafts-Leiste einer Fähigkeit (Einsätze über alle Abenteuer). */
 export function masteryBar(baseUses: string, c: { id: string; growth?: Growth | null }, w: WorldState | null | undefined, abilityId: string): Raw {
   const info = masteryInfo(baseUses, masteryUses(c, w, abilityId), limitBroken(growthOf(c)));
@@ -195,7 +209,7 @@ export function growthSection(c: Character, classes: ClassDef[] = []): Raw {
     })}</div>
     ${callingBox(c, g, classes)}
     <div class="growth-cols">
-      <div><h3 class="small-head">${icon("feather")} Ruf <small class="muted">${(g.deeds ?? []).length} Taten</small></h3>${g.deeds?.length ? html`<ul class="deeds">${[...g.deeds].reverse().map((d) => html`<li class="${d.outcome}"><b>${d.title}</b>${d.line ? html`<small>${d.line}</small>` : ""}</li>`)}</ul><small class="muted">Davon hat man in künftigen Abenteuern gehört.</small>` : html`<p class="muted small">Noch unbekannt. Jedes abgeschlossene Abenteuer wird zur Geschichte, die man sich erzählt – Wirte, Barden und alte Feinde kennen sie.</p>`}</div>
+      <div><h3 class="small-head">${icon("feather")} Ruf &amp; Vermächtnis <small class="muted">${renown(c).length} Taten</small></h3>${renownList(c)}</div>
       <div><h3 class="small-head">${icon("star")} Erbstück-Truhe <small class="muted">${g.heirlooms.length}/${heirloomSlots(g)}</small></h3>
         ${g.heirlooms.length ? html`<ul class="heirlooms">${g.heirlooms.map((h) => html`<li class="heirloom r-${rarityOf(h as InvItem)}"><b>${h.name}</b>${h.stats ? html` <small>${statsText(h.stats as InvItem["stats"])}</small>` : ""}</li>`)}</ul><small class="muted">Reist in jedes neue Abenteuer mit.</small>` : html`<p class="muted small">Leer. Am Ende eines Abenteuers kannst du einen Gegenstand hineinlegen.</p>`}
         <p class="muted small">${heirloomSlots(g) > 2 ? "Drei Plätze – freigeschaltet durch den Limit Break II." : heirloomSlots(g) > 1 ? `Zwei Plätze – ab ${LIMIT2_AFTER} bestandenen Abenteuern drei.` : `Ab ${HEIRLOOM_TWO_AFTER} bestandenen Abenteuern fasst die Truhe zwei Gegenstände (bisher ${g.earned.length}).`}</p></div>

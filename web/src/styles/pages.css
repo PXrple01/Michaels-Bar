@@ -1790,3 +1790,4 @@ body.fal-on .read-btn { display: inline-flex; }
 .calling-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 .calling-opt { display: grid; gap: 3px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line, rgba(255,255,255,.12)); background: rgba(255,255,255,.03); color: var(--text); cursor: pointer; }
 .calling-opt:hover { border-color: var(--accent, #e8833a); }
+.hp-renown { margin: 8px 0; } .hp-renown summary { cursor: pointer; font-size: .9rem; margin-bottom: 6px; }

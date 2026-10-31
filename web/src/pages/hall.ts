@@ -1,4 +1,5 @@
 import { legacyOf } from "../lib/legacy";
+import { renown, renownList } from "../lib/growthUi";
 // Heldenhalle: alle Figuren mit ihren Sagen – Kampagnen allein und in der Gruppe, Ausgang, Epilog, erstes Szenenbild –
 // dazu Ruhmeszahlen, die Bestenliste und die freigeschalteten Erfolge.
 import { ACHIEVEMENTS } from "../../../shared/achievements";
@@ -141,7 +142,7 @@ export function hallPage(): Page {
                 ${growthOf(h.c).lineage ? html`<p class="small">${icon("users")} Nachfahre von ${growthOf(h.c).lineage!.name} · ${growthOf(h.c).lineage!.generation}. Generation</p>` : ""}
                 ${growthOf(h.c).resting ? html`<div class="tombstone"><span class="ts-cross">✝</span><q>${growthOf(h.c).resting!.epitaph}</q><small>zur Ruhe gelegt am ${date(growthOf(h.c).resting!.since)} · das Erbe trägt <a href="#/figur/${growthOf(h.c).resting!.heirId}">${growthOf(h.c).resting!.heirName}</a></small></div>` : ""}
                 ${h.c.appearance ? html`<p class="hp-look">${h.c.appearance}</p>` : ""}
-                ${legacyOf(h.c.id).length ? html`<ul class="hp-heirlooms">${legacyOf(h.c.id).map((l) => html`<li>${icon("star")} <b>${l.heirloom}</b> <small class="muted">– aus „${l.campaignTitle}“</small></li>`)}</ul>` : ""}
+                ${renown(h.c).length ? html`<details class="hp-renown"><summary>${icon("feather")} Ruf &amp; Vermächtnis (${renown(h.c).length})</summary>${renownList(h.c)}</details>` : ""}
                 <div class="hp-fame">
                   <span title="Vollendete Kampagnen">${icon("crown")} ${h.won}</span>
                   <span title="Niederlagen">${icon("moon")} ${h.lost}</span>
