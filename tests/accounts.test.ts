@@ -105,7 +105,7 @@ describe("Figuren aus Gruppen zurückholen (nur Betreiber)", () => {
     const ritter = data.classes.find((c) => c.id === "ritter")!;
     const hagen = buildCharacter({ name: "Hagen", stand: "bauer", classId: "ritter", attributes: ritter.recommendedAttributes, chosenSkills: ["reiten", "wahrnehmung"] }, data);
     const parties = new MemoryPartyStore();
-    const guard = new UsageGuard(new MemoryCounterStore(), 10, 100);
+    const guard = new UsageGuard(new MemoryCounterStore(), 10);
     const party = new PartyService({ data: () => data, narrator: new Narrator({ llm: null, rolls: new RollLog(), guard }), guard, store: parties, secret: SECRET });
     const host = await party.create({ character: hagen });
 

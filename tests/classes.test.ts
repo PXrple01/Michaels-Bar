@@ -109,7 +109,7 @@ describe("Gutachten durch Claude (Schein-Modell)", () => {
         content: [{ type: "text", text: JSON.stringify({ ...assessment, klasse }), citations: null }] } as unknown as Anthropic.Beta.BetaMessage;
     },
   };
-  const reviewer = new ClassReviewer({ data: () => data, llm, guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET });
+  const reviewer = new ClassReviewer({ data: () => data, llm, guard: new UsageGuard(new MemoryCounterStore(), 10), secret: SECRET });
   const run = async (body: unknown) => {
     const evs: ReviewEvent[] = [];
     await reviewer.run(body, "tester", (e) => evs.push(e));
@@ -138,7 +138,7 @@ describe("Gutachten durch Claude (Schein-Modell)", () => {
           content: [{ type: "text", text: "```json\n" + JSON.stringify({ ...assessment, gegenvorschlag: "", klasse: sloppy }) + "\n```", citations: null }] } as unknown as Anthropic.Beta.BetaMessage;
       },
     };
-    const r2 = new ClassReviewer({ data: () => data, llm: llm2, guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET });
+    const r2 = new ClassReviewer({ data: () => data, llm: llm2, guard: new UsageGuard(new MemoryCounterStore(), 10), secret: SECRET });
     const evs: ReviewEvent[] = [];
     await r2.run({ draftId: "draft-abcdefgh", round: 1, token: null, input }, "tester", (e) => evs.push(e));
     expect(calls).toEqual([{ format: true }, { format: false }]);

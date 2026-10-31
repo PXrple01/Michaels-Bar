@@ -53,7 +53,6 @@ npx netlify-cli deploy --build --prod
 | `ADMIN_USER` | optional | Dein Benutzername – nur dieses Konto darf Figuren aus Gruppen wiederherstellen |
 | `ACCESS_CODE` | dringend empfohlen | Einladungscode: Wer ein Konto erstellen will, braucht ihn einmal – sonst kann jeder ein Konto anlegen und auf deine Kosten spielen. Angemeldete brauchen ihn danach nicht mehr. |
 | `MONTHLY_BUDGET_USD` | nein (keine Grenze) | Optionale harte Kostengrenze pro Monat |
-| `TURNS_PER_HOUR` | nein (60) | Züge pro Stunde und Besucher |
 | `GM_EFFORT` | nein (`low`) | Denktiefe: `low`, `medium`, `high` (höher = langsamer und teurer) |
 | `GM_MODEL` | nein (`claude-opus-5-5`) | Modell des Spielleiters |
 | `REVIEW_MODEL` | nein (wie `GM_MODEL`) | Modell für die Klassenbewertung |

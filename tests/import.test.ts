@@ -24,7 +24,7 @@ class FakeLlm implements LlmClient {
   }
 }
 const setup = (llm: LlmClient | null = null) => {
-  const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: "test-secret-0123456789" });
+  const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: "test-secret-0123456789" });
   const run = async (kind: "import" | "letter", body: unknown) => { const evs: GmEvent[] = []; await gm.run(kind, body, "tester", (e) => evs.push(e)); return evs; };
   return { gm, run };
 };

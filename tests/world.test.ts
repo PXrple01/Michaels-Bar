@@ -36,7 +36,7 @@ const tools = (t: string, ...uses: { id: string; name: string; input: object }[]
 
 function setup(replies: Partial<Anthropic.Beta.BetaMessage>[]) {
   const llm = new FakeLlm(replies);
-  const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET });
+  const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: SECRET });
   const run = async (kind: "start" | "turn" | "roll", body: unknown) => {
     const evs: GmEvent[] = [];
     await gm.run(kind, body, "t", (e) => evs.push(e));
@@ -177,7 +177,7 @@ describe("Modellwechsel", () => {
     const state = signState(SECRET, { messages: [{ role: "user", content: "Start" }, thinking], world: initWorld([character]), held: [], toolset: TOOLSET }, characterHash(character));
     const sentTypes = async (model: "claude-opus-5-5" | "claude-sonnet-5-5", s: SignedState) => {
       const llm = new FakeLlm([text("Weiter.")]);
-      const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET, model });
+      const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: SECRET, model });
       const evs: GmEvent[] = [];
       await gm.run("turn", { character, state: s, action: "Ich gehe." }, "t", (e) => evs.push(e));
       return { types: (llm.calls[0].messages[1].content as { type: string }[]).map((b) => b.type), done: done(evs) };
@@ -276,7 +276,7 @@ describe("Bilder im Hintergrund", () => {
       text("Das Tor steht offen.\n» Vorschläge: Eintreten | Umkehren"),
     ]);
     const images = { ready: true, make: async () => { await new Promise((r) => setTimeout(r, 300)); return { url: "/api/images/x", costUsd: 0.134 }; } };
-    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET, images: images as never, turnBudgetMs: 200 });
+    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: SECRET, images: images as never, turnBudgetMs: 200 });
     const evs: GmEvent[] = [];
     await gm.run("start", { character, previousOpenings: [] }, "t", (e) => evs.push(e));
     expect(evs.find((e) => e.type === "error")).toBeUndefined();
@@ -290,7 +290,7 @@ describe("Gesamtzeit eines Zugs", () => {
   it("zu langsame Bilder werden übersprungen – der Zug endet trotzdem rechtzeitig", async () => {
     const llm = new FakeLlm([tools("Die Burg.\n» Vorschläge: Eintreten | Umkehren", { id: "toolu_b2", name: "bild", input: { motiv: "A castle", titel: "Burg" } })]);
     const images = { ready: true, make: async () => { await new Promise((r) => setTimeout(r, 3000)); return { url: "/api/images/y", costUsd: 0.134 }; } };
-    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET, images: images as never, wallMs: 300 });
+    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: SECRET, images: images as never, wallMs: 300 });
     const evs: GmEvent[] = [];
     const t0 = Date.now();
     await gm.run("start", { character, previousOpenings: [] }, "t", (e) => evs.push(e));

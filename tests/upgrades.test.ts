@@ -106,7 +106,7 @@ describe("Verbesserungen im Solo-Spiel", () => {
 
   function setup(replies: Partial<Anthropic.Beta.BetaMessage>[]) {
     const llm = new FakeLlm(replies);
-    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: SECRET });
+    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: SECRET });
     const run = async (kind: "turn" | "upgrade" | "choose", body: unknown) => { const evs: GmEvent[] = []; await gm.run(kind, body, "t", (e) => evs.push(e)); return evs.at(-1)!; };
     return { llm, run };
   }
@@ -204,7 +204,7 @@ describe("Verbesserungen in der Gruppe", () => {
         { name: "Ruhige Hände", text: "Wundversorgung heilt 1W8+4 und ist einmal pro Kampf einsetzbar.", beginnerText: "Du verbindest Wunden schneller.", uses: "einmal_pro_kampf", scope: "breit", passtZurLage: false, ...none, heal: "1W8+3" },
       ] }),
     ]);
-    const guard = new UsageGuard(new MemoryCounterStore(), 10, 100);
+    const guard = new UsageGuard(new MemoryCounterStore(), 10);
     const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard, secret: SECRET });
     const store = new MemoryPartyStore();
     const svc = new PartyService({ data: () => data, narrator: gm.narrator, forge: gm.forge, guard, store, secret: SECRET });

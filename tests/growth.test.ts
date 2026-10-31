@@ -189,7 +189,7 @@ describe("Legendäre Fähigkeit erwecken", () => {
     ] });
     const calls: unknown[] = [];
     const llm = { stream: async (p: unknown) => { calls.push(p); return { id: "m", type: "message", role: "assistant", model: "fake", stop_reason: "end_turn", usage: { input_tokens: 500, output_tokens: 100 }, content: [{ type: "text", text: reply }] }; } };
-    const gm = new GameMaster({ data: () => data, llm: llm as never, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: "s".repeat(20) });
+    const gm = new GameMaster({ data: () => data, llm: llm as never, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: "s".repeat(20) });
     const run = async (c: unknown) => { const evs: { type: string; options?: { name: string }[]; message?: string }[] = []; await gm.run("legend", { character: c, titles: ["Retter von Falkenstein"] }, "t", (e) => evs.push(e as never)); return evs; };
     expect((await run(base))[0]).toMatchObject({ type: "error" });
     expect(calls).toHaveLength(0);
@@ -252,7 +252,7 @@ describe("Limit-Angriff", () => {
     expect(armLimitAttack(w, vet)).toBeNull();
     expect(canLimitAttack(w, vet)).toBe(false);
     expect(armLimitAttack(w, vet)).toMatch(/schon verbraucht/);
-    const narrator = new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 60) });
+    const narrator = new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10) });
     const pending = { toolUseId: "toolu_la", characterId: vet.id, characterName: vet.name, art: "attack" as const, id: "waffe", sg: 30, modus: "normal" as const, grund: "Limit", label: "Angriff", ziel: "Oger" };
     const scene = { characters: [vet], data, world: w };
     const { record, damage } = await narrator.rollRecords(pending, scene);

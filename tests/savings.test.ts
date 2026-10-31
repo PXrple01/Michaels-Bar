@@ -52,7 +52,7 @@ describe("Weniger Modellaufrufe im Kampf (Solo)", () => {
       tools("Ein Räuber springt hervor – du hebst das Schwert.", fight([{ name: "Räuber", trefferpunkte: 30, ruestung: 8 }]), attack("Räuber"), enemyHits("Räuber", undefined, "toolu_enemy")),
       text("Die Runde ist erzählt. » Vorschläge: Nachsetzen | Ausweichen"),
     ]);
-    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100), secret: "s".repeat(20) });
+    const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: "s".repeat(20) });
     const run = async (kind: "start" | "turn" | "roll", body: unknown) => { const evs: GmEvent[] = []; await gm.run(kind, body, "t", (e) => evs.push(e)); return evs; };
     const done = (evs: GmEvent[]) => evs.find((e) => e.type === "done") as Extract<GmEvent, { type: "done" }>;
     const start = done(await run("start", { character: hagen, previousOpenings: [] }));
@@ -80,7 +80,7 @@ describe("Weniger Modellaufrufe im Kampf (Solo)", () => {
   });
 
   it("ein besiegter Gegner greift nicht mehr an", async () => {
-    const narrator = new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100) });
+    const narrator = new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10) });
     const world = initWorld([hagen]);
     await runAutoTool({ id: "toolu_kk", name: "kampf_beginnen", input: { gegner: [{ name: "Wolf", trefferpunkte: 5, ruestung: 10 }, { name: "Bär", trefferpunkte: 30, ruestung: 10 }] } }, { data, characters: [hagen], world, rolls: new RollLog(), onRoll: () => {} });
     world.combat!.enemies[0].hp = 0;
@@ -94,7 +94,7 @@ describe("Weniger Modellaufrufe im Kampf (Solo)", () => {
 
 function party(replies: Reply[]) {
   const llm = new FakeLlm(replies);
-  const guard = new UsageGuard(new MemoryCounterStore(), 10, 100);
+  const guard = new UsageGuard(new MemoryCounterStore(), 10);
   const svc = new PartyService({ data: () => data, narrator: new Narrator({ llm, rolls: new RollLog(), guard }), guard, store: new MemoryPartyStore(), secret: "s".repeat(20) });
   const run = async (op: "start" | "action" | "roll", body: Record<string, unknown>) => { const evs: PartyEvent[] = []; await svc.run(op, body, "t", (e) => evs.push(e)); return evs; };
   return { llm, svc, run };

@@ -49,7 +49,7 @@ describe("Porträt-Beschreibung durch Claude", async () => {
   it("schickt Aussehen und Klasse an Claude und nimmt dessen Beschreibung", async () => {
     let asked = "";
     const llm = { stream: async (p: { messages: { content: string }[] }) => { asked = p.messages[0].content; return { content: [{ type: "text", text: "A weathered knight in his forties with fiery red hair and a scar across his brow, stubborn frown." }], usage: { input_tokens: 400, output_tokens: 60 } }; } };
-    const r = await portraitPrompt({ llm: llm as never, guard: new UsageGuard(new MemoryCounterStore(), 10, 60) }, c, data);
+    const r = await portraitPrompt({ llm: llm as never, guard: new UsageGuard(new MemoryCounterStore(), 10) }, c, data);
     expect(asked).toContain("rotes Haar, Narbe");
     expect(asked).toContain("Ritter");
     expect(r.prompt).toContain("fiery red hair");
@@ -57,7 +57,7 @@ describe("Porträt-Beschreibung durch Claude", async () => {
   });
 
   it("ohne Claude oder bei Fehler: einfache Beschreibung", async () => {
-    const guard = new UsageGuard(new MemoryCounterStore(), 10, 60);
+    const guard = new UsageGuard(new MemoryCounterStore(), 10);
     expect((await portraitPrompt({ llm: null, guard }, c, data)).prompt).toContain("rotes Haar");
     const broken = { stream: async () => { throw new Error("weg"); } };
     expect(await portraitPrompt({ llm: broken as never, guard }, c, data)).toMatchObject({ claudeUsd: 0 });
@@ -79,7 +79,7 @@ describe("Bild am Anfang von Kampagne und Kapitel, gemalter Kartenhintergrund", 
   const llm = { stream: async () => ({ content: [{ type: "text", text: "CAPTION: Nebel am Galgen\nPROMPT: A muddy crossroads at dawn with a gallows, fog rising over the fields." }], usage: { input_tokens: 300, output_tokens: 40 } }) };
   let sizes: unknown[] = [];
   const fal = (async (_u: string, init: RequestInit) => { sizes.push(JSON.parse(String(init.body)).image_size); return (falReply(1024, 768) as unknown as () => Promise<Response>)(); }) as unknown as typeof fetch;
-  const narrator = new Narrator({ llm: llm as never, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 60), images: new ImageMaker({ key: "k", store: new MemoryImageStore(), fetch: fal }) });
+  const narrator = new Narrator({ llm: llm as never, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), images: new ImageMaker({ key: "k", store: new MemoryImageStore(), fetch: fal }) });
   const narration = "Nebel liegt über der Wegkreuzung, und am Galgen knarrt ein Seil im Wind. Ein Mann wartet dort.";
 
   it("malt am Anfang und beim Kapitelwechsel – sonst entscheidet Claude", async () => {
@@ -163,7 +163,7 @@ describe("Gegner-Porträts in der Google-Testphase", () => {
     const made: string[] = [];
     const images = { make: async (motif: string) => { made.push(motif); return { url: `/api/images/p${made.length}`, costUsd: 0.134 }; } };
     const world = () => ({ combat: { round: 1, enemies: [{ id: "a", name: "Räuber 1", hp: 5, maxHp: 5, armor: 11 }, { id: "b", name: "Räuber 2", hp: 5, maxHp: 5, armor: 11 }, { id: "c", name: "Wolf", hp: 4, maxHp: 4, armor: 10 }] } }) as never as import("../shared/world").WorldState;
-    const mk = (all: boolean) => new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 60), images: images as never, allEnemyPortraits: () => all });
+    const mk = (all: boolean) => new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), images: images as never, allEnemyPortraits: () => all });
     const w = world();
     const cost = await (mk(true) as unknown as { npcPortraits(w: unknown): Promise<number> }).npcPortraits(w);
     expect(made).toHaveLength(2); // Räuber + Wolf

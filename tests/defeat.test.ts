@@ -39,7 +39,7 @@ const tools = (t: string, ...uses: { name: string; input: object }[]) => ({
 
 function setup(replies: Reply[], turnBudgetMs?: number) {
   const llm = new FakeLlm(replies);
-  const guard = new UsageGuard(new MemoryCounterStore(), 10, 100);
+  const guard = new UsageGuard(new MemoryCounterStore(), 10);
   const narrator = new Narrator({ llm, rolls: new RollLog(), guard, turnBudgetMs });
   const store = new MemoryPartyStore();
   const svc = new PartyService({ data: () => data, narrator, guard, store, secret: "s".repeat(20) });

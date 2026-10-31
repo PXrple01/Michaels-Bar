@@ -25,6 +25,8 @@ export interface RollSpec {
   dc?: number | null;
   /** Proben (nicht Angriffe): 10 über der Schwierigkeit zählt als kritischer Erfolg, 10 darunter als Patzer. */
   margins?: boolean;
+  /** Angriffe: 10 über der Schwierigkeit (ohne natürliche 20) ist ein Glanzerfolg. */
+  brilliant?: boolean;
 }
 
 /**
@@ -87,6 +89,7 @@ export function performRoll(spec: RollSpec, rng: RandomInt = cryptoRandomInt): R
     dc,
     success,
     critical,
+    ...(spec.brilliant && success && critical === null && dc !== null && total >= dc + 10 ? { brilliant: true } : {}),
   };
 }
 

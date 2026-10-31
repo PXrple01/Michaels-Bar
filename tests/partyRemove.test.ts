@@ -21,7 +21,7 @@ const llm: LlmClient = {
   },
 };
 function setup() {
-  const guard = new UsageGuard(new MemoryCounterStore(), 10, 100);
+  const guard = new UsageGuard(new MemoryCounterStore(), 10);
   const store = new MemoryPartyStore();
   const svc = new PartyService({ data: () => data, narrator: new Narrator({ llm, rolls: new RollLog(), guard }), guard, store, secret: "s".repeat(20) });
   const start = (code: string, token: string) => svc.run("start", { code, token }, "t", () => {});

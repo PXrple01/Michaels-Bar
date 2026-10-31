@@ -53,21 +53,18 @@ export class MemoryCounterStore implements CounterStore {
 }
 
 export const monthKey = (d = new Date()) => `budget-${d.toISOString().slice(0, 7)}`;
-export const hourKey = (who: string, d = new Date()) => `rate-${d.toISOString().slice(0, 13)}-${who.replace(/[^A-Za-z0-9.:-]/g, "_").slice(0, 64)}`;
 
 export class LimitError extends Error {
   constructor(message: string, public code: "budget" | "rate") { super(message); }
 }
 
 export class UsageGuard {
-  constructor(private store: CounterStore, private limitUsd: number, private turnsPerHour: number) {}
+  constructor(private store: CounterStore, private limitUsd: number) {}
 
-  /** Prüft vor jedem Aufruf. Wirft, wenn Budget oder Stundenlimit erreicht sind. */
-  async check(who: string): Promise<void> {
+  /** Prüft vor jedem Aufruf. Wirft, wenn das Monatsbudget aufgebraucht ist (keine Stundengrenze mehr). */
+  async check(_who: string): Promise<void> {
     const spent = await this.store.get(monthKey());
     if (this.limitUsd > 0 && spent >= this.limitUsd) throw new LimitError(`Das Monatsbudget von ${this.limitUsd.toFixed(2)} $ ist aufgebraucht. Ab dem nächsten Monat geht es weiter.`, "budget");
-    const turns = await this.store.add(hourKey(who), 1);
-    if (turns > this.turnsPerHour) throw new LimitError(`Zu viele Züge in dieser Stunde (höchstens ${this.turnsPerHour}). Gönn dem Spielleiter eine Pause.`, "rate");
   }
 
   async record(u: TokenUsage, model?: string): Promise<number> {

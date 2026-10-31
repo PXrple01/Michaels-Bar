@@ -20,7 +20,6 @@ export interface GmEnv extends GoogleEnv {
   GAME_SECRET?: string;
   ACCESS_CODE?: string;
   MONTHLY_BUDGET_USD?: string;
-  TURNS_PER_HOUR?: string;
   GM_EFFORT?: string;
   GM_MODEL?: string;
   REVIEW_MODEL?: string;
@@ -63,7 +62,7 @@ export function createClaude(env: GmEnv, data: () => GameData, rolls: RollLog, c
   // Claude über Google nur auf ausdrücklichen Wunsch (GOOGLE_CLAUDE=1) – das Startguthaben deckt Marketplace-Modelle meist nicht
   const llm = google && env.GOOGLE_CLAUDE === "1" ? new SwitchingLlm(google, anthropic) : anthropic;
   // Monatsbudget nur, wenn MONTHLY_BUDGET_USD gesetzt ist (0 oder leer = ohne Grenze)
-  const guard = new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD) || 0, Number(env.TURNS_PER_HOUR ?? 60) || 60);
+  const guard = new UsageGuard(counters, Number(env.MONTHLY_BUDGET_USD) || 0);
   const model = pickModel(env.GM_MODEL, "claude-opus-5-5");
   const images = new ImageMaker({ key: env.FAL_KEY?.trim() || undefined, store: imageStore, google });
   const moreImages = async () => !!google?.active() && (await google.luxury());

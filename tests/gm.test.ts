@@ -37,7 +37,7 @@ const probe = (input: object, id = "toolu_01ABC") => () => ({
 
 function setup(llm: LlmClient, budget = 10) {
   const counters = new MemoryCounterStore();
-  const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(counters, budget, 100), secret: "test-secret-0123456789" });
+  const gm = new GameMaster({ data: () => data, llm, rolls: new RollLog(), guard: new UsageGuard(counters, budget), secret: "test-secret-0123456789" });
   const run = async (kind: "start" | "turn" | "roll", body: unknown) => {
     const events: GmEvent[] = [];
     await gm.run(kind, body, "tester", (e) => events.push(e));
@@ -140,7 +140,7 @@ describe("Spielleiter", () => {
   });
 
   it("ohne API-Schlüssel kommt eine verständliche Meldung", async () => {
-    const gm = new GameMaster({ data: () => data, llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 10), secret: "s".repeat(20) });
+    const gm = new GameMaster({ data: () => data, llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10), secret: "s".repeat(20) });
     const evs: GmEvent[] = [];
     await gm.run("start", { character, previousOpenings: [] }, "x", (e) => evs.push(e));
     expect(evs[0]).toMatchObject({ type: "error", code: "no_api_key" });

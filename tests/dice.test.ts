@@ -144,4 +144,11 @@ describe("Kritisch bei Proben: natürliche 20/1 oder 10 über/unter der Schwieri
     expect(roll(16, 6, 12, false).critical).toBeNull();
     expect(roll(20, 0, 12, false).critical).toBe("hit");
   });
+  it("Angriffe: 10 über der Rüstung ist ein Glanzerfolg (natürliche 20 bleibt kritisch)", () => {
+    const atk = (face: number, mod: number, dc: number) => performRoll({ requestId: `glanz-${face}-${mod}-${dc}`, kind: "check", label: "x", notation: "1W20", modifierParts: [{ label: "Bonus", value: mod }], dc, brilliant: true }, scripted(face));
+    expect(atk(19, 9, 14)).toMatchObject({ total: 28, success: true, critical: null, brilliant: true });
+    expect(atk(14, 9, 14).brilliant).toBeUndefined();
+    expect(atk(20, 9, 14)).toMatchObject({ critical: "hit" });
+    expect(atk(20, 9, 14).brilliant).toBeUndefined();
+  });
 });

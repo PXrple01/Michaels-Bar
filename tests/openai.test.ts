@@ -32,7 +32,7 @@ const tools = (t: string, ...uses: { id: string; name: string; input: object }[]
 
 function setup(replies: Partial<Anthropic.Beta.BetaMessage>[], apiKey: string | undefined = KEY) {
   const llm = new FakeLlm(replies);
-  const guard = new UsageGuard(new MemoryCounterStore(), 10, 100);
+  const guard = new UsageGuard(new MemoryCounterStore(), 10);
   const narrator = new Narrator({ llm, rolls: new RollLog(), guard });
   const gw = new OpenAiGateway({ data: () => data, narrator, guard, secret: SECRET, apiKey });
   const chat = (body: object) => gw.handle("POST", "/v1/chat/completions", `Bearer ${KEY}`, { model: "michaels-bar", ...body }, "t") as Promise<{ status: number; json: any }>;

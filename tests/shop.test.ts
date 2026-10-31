@@ -53,7 +53,7 @@ describe("Händler und Schmied", () => {
     expect(trade(w, hagen, data.rules, "kaufen", "w0")).toMatch(/\+2/);
     expect(gearOf(w, hagen.id).schaden).toBe(2);
     // Schaden mit Schmied-Bonus
-    const narrator = new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10, 100) });
+    const narrator = new Narrator({ llm: null, rolls: new RollLog(), guard: new UsageGuard(new MemoryCounterStore(), 10) });
     const { record } = await narrator.rollRecords({ toolUseId: "toolu_d", characterId: hagen.id, characterName: "Hagen", art: "damage", id: "waffe", sg: null, modus: "normal", grund: "x", label: "Schaden", ziel: null }, { characters: [hagen], data, world: w });
     expect(record.modifierParts.some((p) => p.label === "Schmied" && p.value === 2)).toBe(true);
     // Rüstung +1 erschwert Gegnerangriffe

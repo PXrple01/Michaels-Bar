@@ -34,7 +34,7 @@ const probe = (figur: string) => ({
 
 function setup(replies: Partial<Anthropic.Beta.BetaMessage>[]) {
   const llm = new FakeLlm(replies);
-  const guard = new UsageGuard(new MemoryCounterStore(), 10, 100);
+  const guard = new UsageGuard(new MemoryCounterStore(), 10);
   const narrator = new Narrator({ llm, rolls: new RollLog(), guard });
   const svc = new PartyService({ data: () => data, narrator, guard, store: new MemoryPartyStore(), secret: "s".repeat(20) });
   const run = async (op: "start" | "action" | "roll", body: Record<string, unknown>) => {

@@ -535,7 +535,7 @@ export class Narrator {
     // Garantiert: auch eine gewürfelte 1 trifft, und es ist immer ein kritischer Treffer
     const record: RollRecord = limit ? { ...rolled, success: true, critical: "hit", label: `${rolled.label} – Limit-Angriff` } : rolled;
     const damage = pending.art === "attack" && pending.ziel && record.success
-      ? await this.rollCheck(c, data, "damage", "waffe", `${base}-d`, "normal", null, record.critical === "hit" || limit, world, limit ? [{ label: "Limit-Angriff", value: LIMIT_ATTACK.damage }] : []) : null;
+      ? await this.rollCheck(c, data, "damage", "waffe", `${base}-d`, "normal", null, record.critical === "hit" || limit, world, [...(limit ? [{ label: "Limit-Angriff", value: LIMIT_ATTACK.damage }] : []), ...(record.brilliant ? [{ label: "Glanzerfolg", value: 2 }] : [])]) : null;
     return { record, damage };
   }
 
@@ -580,7 +580,7 @@ export class Narrator {
     return this.o.rolls.roll({
       requestId, kind: "check",
       label: `${c.name}: ${spec.label}${notation !== spec.notation ? " (kritisch)" : ""}`,
-      notation, mode, modifierParts: spec.parts, dc, margins: art === "attribute" || art === "skill",
+      notation, mode, modifierParts: spec.parts, dc, margins: art === "attribute" || art === "skill", brilliant: art === "attack",
     });
   }
 
@@ -756,6 +756,7 @@ export function describeRoll(r: RollRecord): string {
   let text = `${r.label}: ${dice}${parts ? `, ${parts}` : ""} = ${r.total}.`;
   if (r.dc !== null) text += ` SG ${r.dc}: ${r.success ? "ERFOLG" : "FEHLSCHLAG"}.`;
   if (r.critical === "hit") text += r.natural === 20 ? " Natürliche 20 – kritischer Erfolg!" : " 10 oder mehr über dem SG – kritischer Erfolg!";
+  if (r.brilliant) text += " 10 oder mehr über der Rüstung – Glanzerfolg (+2 Schaden): ein besonders sauberer, eindrucksvoller Treffer!";
   if (r.critical === "fumble") text += r.natural === 1 ? " Natürliche 1 – Patzer!" : " 10 oder mehr unter dem SG – Patzer!";
   if (r.natural === null) text += " (Schadenswurf)";
   return text;

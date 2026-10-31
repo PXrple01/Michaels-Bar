@@ -89,6 +89,8 @@ export interface RollRecord {
   dc: number | null;
   success: boolean | null;
   critical: "hit" | "fumble" | null;
+  /** Glanzerfolg: Angriff trifft 10 oder mehr über der Rüstung (ohne natürliche 20) – +2 Schaden. */
+  brilliant?: boolean;
   /** true, wenn dieselbe requestId erneut gesendet wurde – es gibt dann KEINEN neuen Wurf. */
   repeated?: boolean;
 }
