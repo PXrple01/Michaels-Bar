@@ -415,3 +415,12 @@ describe("Weitere Ruhm-Vorteile", () => {
     expect(record.modifierParts).toContainEqual({ label: "Geschickte Hände", value: 2 });
   });
 });
+
+describe("Ruhmesstufe", () => {
+  it("abgeschlossene Kampagnen ergeben Stufe und Titel (nur Anzeige)", async () => {
+    const { fameRank } = await import("../shared/growth");
+    expect(fameRank(base)).toEqual({ level: 0, title: "Neuling", next: 1 });
+    expect(fameRank({ ...base, growth: g({ earned: ["a", "b", "c", "d"] }) })).toEqual({ level: 4, title: "Veteran", next: 5 });
+    expect(fameRank({ ...base, growth: g({ earned: Array.from({ length: 30 }, (_, i) => String(i)) }) })).toMatchObject({ title: "Gottgleich", next: null });
+  });
+});

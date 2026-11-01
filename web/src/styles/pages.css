@@ -1793,3 +1793,4 @@ body.fal-on .read-btn { display: inline-flex; }
 .hp-renown { margin: 8px 0; } .hp-renown summary { cursor: pointer; font-size: .9rem; margin-bottom: 6px; }
 .tm-lives { display: block; color: #f43f5e; letter-spacing: 2px; font-size: .78rem; }
 .loot-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; } .loot-foot .hint { margin: 0; }
+.rank-line { margin: 4px 0 0; font-size: .9rem; color: var(--text-2, #cbb); } .rank-line b { color: var(--gold, #f5d68a); font-family: var(--font-head, serif); letter-spacing: .02em; }

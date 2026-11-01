@@ -1,4 +1,4 @@
-import { fullName, isResting } from "../../../shared/growth";
+import { fameRank, fullName, isResting } from "../../../shared/growth";
 import { avatar } from "../lib/portraits";
 import { ACHIEVEMENTS } from "../../../shared/achievements";
 import { unlockedAchievements } from "../lib/achievements";
@@ -49,7 +49,8 @@ export function charactersPage(): Page {
                 <a class="card char-card tilt" href="#/figur/${c.id}">
                   <div class="char-sigil">${avatar(c.id, cls?.sigil ?? "shield", { draw: true })}</div>
                   <h3>${fullName(c)}</h3>
-                  <p class="muted">${cls?.name ?? c.classId} · ${stand?.name ?? c.stand} · Stufe ${c.level}</p>
+                  <p class="muted">${cls?.name ?? c.classId} · ${stand?.name ?? c.stand} </p>
+                  <p class="rank-line" title="${fameRank(c).next !== null ? `Nächster Titel nach ${fameRank(c).next} abgeschlossenen Kampagnen` : "Höchster Titel erreicht"}">Stufe ${fameRank(c).level} · <b>${fameRank(c).title}</b></p>
                   ${isResting(c) ? html`<span class="chip">${icon("candle")} ruht</span>` : ""}
                   <div class="mini-hp" title="${c.hp.current} von ${c.hp.max} Trefferpunkten"><i style="width:${hpPct}%"></i></div>
                   <span class="link-arrow">Bogen öffnen ${icon("arrowRight")}</span>

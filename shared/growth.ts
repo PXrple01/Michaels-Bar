@@ -433,3 +433,13 @@ export function inherit(ancestor: WithGrowth & { name: string }, heir: { id: str
     ancestor: { ...ag, heirlooms: ag.heirlooms.filter((h) => h !== item), resting: { since: o.now, epitaph: o.epitaph.trim().slice(0, 160) || `Hier ruht ${fullName(ancestor)}.`, heirId: heir.id, heirName: heir.name.slice(0, 60) } },
   };
 }
+
+/* ── Ruhmesstufe: abgeschlossene Kampagnen als Stufe mit Titel (nur Anzeige, keine Spielwirkung) ── */
+
+const RANKS: [number, string][] = [[0, "Neuling"], [1, "Abenteurer"], [2, "Bewährt"], [3, "Veteran"], [5, "Held"], [7, "Legende"], [10, "Mythos"], [15, "Unsterblich"], [25, "Gottgleich"]];
+export function fameRank(c: WithGrowth | null | undefined): { level: number; title: string; next: number | null } {
+  const level = growthOf(c).earned.length;
+  let i = 0;
+  while (i + 1 < RANKS.length && level >= RANKS[i + 1][0]) i++;
+  return { level, title: RANKS[i][1], next: RANKS[i + 1]?.[0] ?? null };
+}

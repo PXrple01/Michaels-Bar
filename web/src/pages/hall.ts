@@ -5,8 +5,7 @@ import { renown, renownList } from "../lib/growthUi";
 import { ACHIEVEMENTS } from "../../../shared/achievements";
 import type { CampaignSave } from "../../../shared/campaign";
 import type { Character } from "../../../shared/schema";
-import { levelTitle } from "../../../shared/levels";
-import { fullName, growthOf, powerScore, totalKills } from "../../../shared/growth";
+import { fameRank, fullName, growthOf, powerScore, totalKills } from "../../../shared/growth";
 import { enhance } from "../fx/effects";
 import { partyRuns, unlockedAchievements } from "../lib/achievements";
 import { api, loadGameData } from "../lib/api";
@@ -137,7 +136,7 @@ export function hallPage(): Page {
               <div class="hp-id">
                 ${i === 0 && h.fame > 0 && heroes.length > 1 ? html`<span class="hp-rank">${icon("crown")} Ruhmreichste Figur</span>` : ""}
                 <h2>${fullName(h.c)}${growthOf(h.c).resting ? html` <span class="chip">${icon("candle")} ruht</span>` : ""}</h2>
-                <small class="muted">${cls?.name ?? h.c.classId}${stand ? ` · ${stand.name}` : ""} · ${levelTitle(h.level, data.rules)} (Stufe ${h.level})</small>
+                <small class="muted">${cls?.name ?? h.c.classId}${stand ? ` · ${stand.name}` : ""} · Stufe ${fameRank(h.c).level} · ${fameRank(h.c).title}</small>
                 ${legacyOf(h.c.id).length ? html`<div class="hp-titles">${legacyOf(h.c.id).map((l) => html`<span class="chip legacy-chip" title="${l.heirloom} – aus „${l.campaignTitle}“">${icon("crown")} ${l.title}</span>`)}</div>` : ""}
                 ${growthOf(h.c).lineage ? html`<p class="small">${icon("users")} Nachfahre von ${growthOf(h.c).lineage!.name} · ${growthOf(h.c).lineage!.generation}. Generation</p>` : ""}
                 ${growthOf(h.c).resting ? html`<div class="tombstone"><span class="ts-cross">✝</span><q>${growthOf(h.c).resting!.epitaph}</q><small>zur Ruhe gelegt am ${date(growthOf(h.c).resting!.since)} · das Erbe trägt <a href="#/figur/${growthOf(h.c).resting!.heirId}">${growthOf(h.c).resting!.heirName}</a></small></div>` : ""}

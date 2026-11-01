@@ -1,3 +1,4 @@
+import { fameRank } from "../../../shared/growth";
 import { legacyOf } from "../lib/legacy";
 import { fullName, type PerkId } from "../../../shared/growth";
 import { forgeLegend, growthSection, masteryBar, maybeLimitBreak, redeemPerk, setCompanion, chooseCalling, usesWithMastery } from "../lib/growthUi";
@@ -62,7 +63,7 @@ export function sheetPage(): Page {
               <h1>${fullName(c)}</h1>
               ${legacyOf(c.id).length ? html`<div class="hp-titles">${legacyOf(c.id).map((l) => html`<span class="chip legacy-chip" title="Erbstück: ${l.heirloom} – aus „${l.campaignTitle}“">${icon("crown")} ${l.title}</span>`)}</div>` : ""}
               <div class="sh-chips">
-                <span class="chip">${term("stufe", `Stufe ${c.level}`)}</span>
+                <span class="chip gold" title="Abgeschlossene Kampagnen – nur ein Ehrentitel">Stufe ${fameRank(c).level} · ${fameRank(c).title}</span>
                 <span class="chip">${c.xp} EP</span>
                 <span class="chip">${term("trefferwuerfel", `W${cls.hitDie}`)}</span>
                 <span class="chip">${term("koennen", `Können ${formatModifier(sb)}`)}</span>
