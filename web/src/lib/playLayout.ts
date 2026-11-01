@@ -78,6 +78,7 @@ export function teamSide(w: WorldState | null | undefined, members: TeamMember[]
             <div class="tm-line"><button type="button" class="tm-name" data-sheet="${m.id}" title="Figurenblatt von ${m.name} ansehen">${m.name}</button>${m.host ? icon("crown") : ""}<span class="tm-lv" title="Stufe ${lv} · ${levelTitle(lv, rules)}">St. ${lv}</span></div>
             <small class="tm-sub">${m.className}${m.status ? ` · ${m.status}` : ""}</small>
             ${w ? html`<div class="tm-hp">${bar(hp, max)}<small>${hp}/${max} TP</small></div>` : ""}
+            ${w?.lives !== undefined && m.me ? html`<small class="tm-lives" title="Solo: zwei Leben – beim zweiten Mal bewusstlos ist die Kampagne vorbei">${"❤".repeat(w.lives)}${"♡".repeat(Math.max(0, 2 - w.lives))} Leben</small>` : ""}
             ${down ? html`<small class="tm-down">${allDown ? "gefallen" : "bewusstlos – kann gerettet werden"}</small>` : ""}
             ${abilityChips(m.abilities, w, m.id)}
           </div>

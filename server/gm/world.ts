@@ -229,6 +229,19 @@ function addScar(w: WorldState, c: Character, enemyName: string): string | null 
   return scar.name;
 }
 
+/** Solo: zwei Leben. Beim ersten Mal bewusstlos rafft sich die Figur wieder auf (halbe TP), beim zweiten Mal ist die Kampagne vorbei. */
+export const SOLO_LIVES = 2;
+function loseLife(w: WorldState, c: Character): string {
+  if (w.lives === undefined || arcOf(w).finished) return "";
+  w.lives = Math.max(0, w.lives - 1);
+  if (w.lives > 0) {
+    w.hp[c.id] = Math.max(1, Math.ceil(w.maxHp[c.id] / 2));
+    return `${c.name} geht zu Boden – und kommt wieder hoch! Ein Leben verbraucht (noch ${w.lives} von ${SOLO_LIVES}): ${c.name} hat wieder ${w.hp[c.id]}/${w.maxHp[c.id]} TP. Erzähle dramatisch, wie ${c.name} sich mit letzter Kraft aufrafft. Beim nächsten Mal bewusstlos ist die Kampagne vorbei – sag das deutlich als Warnung.`;
+  }
+  finishDefeat(w, defaultDefeatEpilog(true));
+  return `${c.name} geht zum zweiten Mal zu Boden – das letzte Leben ist verbraucht. DIE KAMPAGNE IST VORBEI (Niederlage, vom Server beendet). Erzähle jetzt ein kurzes, würdiges Ende mit Epilog – ohne Vorschlagszeile, keine weiteren Werkzeuge.`;
+}
+
 /** Führt ein automatisches Werkzeug aus und liefert den Text für Claude. Fehler kommen als is_error zurück. */
 export async function runAutoTool(block: { id: string; name: string; input: unknown }, ctx: ToolContext): Promise<{ content: string; is_error?: boolean }> {
   const w = ctx.world;
@@ -284,7 +297,8 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       const amount = Math.max(1, dmg.total);
       w.hp[target.id] = Math.max(0, w.hp[target.id] - amount);
       const scar = w.hp[target.id] === 0 ? addScar(w, target, enemy.name) : null;
-      return { content: `${enemy.name} trifft ${target.name}${atk.critical === "hit" ? " kritisch (doppelte Schadenswürfel)" : ""}: ${atk.total} gegen Rüstung ${ac}, Schaden ${dmgExpr} = ${amount}. ${hpLine(ctx, target)}${scar ? ` Dieser Treffer hinterlässt eine bleibende Narbe („${scar}“) – erwähne sie kurz.` : ""}${allDown(w, ctx.characters) ? ` ${DEFEAT_WARNING}` : ""}` };
+      const life = w.hp[target.id] === 0 ? loseLife(w, target) : "";
+      return { content: `${enemy.name} trifft ${target.name}${atk.critical === "hit" ? " kritisch (doppelte Schadenswürfel)" : ""}: ${atk.total} gegen Rüstung ${ac}, Schaden ${dmgExpr} = ${amount}. ${life || hpLine(ctx, target)}${scar ? ` Dieser Treffer hinterlässt eine bleibende Narbe („${scar}“) – erwähne sie kurz.` : ""}${allDown(w, ctx.characters) ? ` ${DEFEAT_WARNING}` : ""}` };
     }
     case "heilen": {
       const target = findCharacter(ctx, input.ziel);

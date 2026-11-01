@@ -26,7 +26,7 @@ import { openingSummary, rollOpening } from "./openings";
 import { kickoffMessage } from "./prompt";
 import { characterHash, signState, verifyState } from "./state";
 import { UpgradeForge } from "./upgrades";
-import { countChapterTurn, enforceDefeat } from "./world";
+import { countChapterTurn, enforceDefeat, SOLO_LIVES } from "./world";
 import type { UsageGuard } from "./usage";
 
 export { AnthropicLlm, describeRoll, type LlmClient } from "./narrator";
@@ -120,6 +120,7 @@ export class GameMaster {
     const opening = rollOpening(data.openings, previous, undefined, usedNames);
     emit({ type: "opening", opening, summary: openingSummary(opening) });
     const world = initWorld([c]);
+    world.lives = SOLO_LIVES;
     setPower(world, (req as { power?: unknown }).power);
     const challenges = cleanChallenges((req as { challenges?: unknown }).challenges);
     if (challenges.length) world.challenges = challenges;
@@ -133,6 +134,7 @@ export class GameMaster {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
     setPower(world, (req as { power?: unknown }).power);
+    world.lives ??= SOLO_LIVES; // ältere Solo-Spielstände bekommen ihre zwei Leben nachträglich
     if (this.pendingFrom(messages, effectiveCharacter(c, world), data, world)) throw new GmError("Erst muss die verlangte Probe gewürfelt werden.", "state");
     if (world.arc?.finished) throw new GmError("Dieses Abenteuer ist abgeschlossen. Beginne ein neues!", "state");
     const action = typeof req.action === "string" ? req.action.trim() : "";
@@ -154,6 +156,7 @@ export class GameMaster {
     const { c, data } = this.character(req?.character);
     const { messages, world, held } = this.verified(req.state, c);
     setPower(world, (req as { power?: unknown }).power);
+    world.lives ??= SOLO_LIVES;
     const ce = effectiveCharacter(c, world);
     if (world.arc?.finished) throw new GmError("Dieses Abenteuer ist abgeschlossen. Beginne ein neues!", "state");
     const pending = this.pendingFrom(messages, ce, data, world);

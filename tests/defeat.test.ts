@@ -165,3 +165,26 @@ describe("Kein Hängenbleiben bei „Der Spielleiter erzählt …“", () => {
   });
 });
 
+
+describe("Zwei Leben im Solo-Spiel", () => {
+  it("erstes Mal bewusstlos: wieder auf (halbe TP); zweites Mal: Kampagne vorbei", async () => {
+    const path = await import("node:path");
+    const { loadGameData } = await import("../server/rules/loader");
+    const { buildCharacter } = await import("../server/characters");
+    const { initWorld } = await import("../shared/world");
+    const { runAutoTool } = await import("../server/gm/world");
+    const { RollLog } = await import("../server/dice/log");
+    const data = await loadGameData(path.resolve(__dirname, "../data"));
+    const c = buildCharacter({ name: "Hagen", stand: "bauer", classId: "ritter", attributes: data.classes.find((k) => k.id === "ritter")!.recommendedAttributes, chosenSkills: ["reiten", "wahrnehmung"] }, data);
+    const w = initWorld([c]);
+    w.lives = 2;
+    const ctx = { data, characters: [c], world: w, rolls: new RollLog(), onRoll: () => {} };
+    await runAutoTool({ id: "toolu_k", name: "kampf_beginnen", input: { gegner: [{ name: "Oger", trefferpunkte: 80, ruestung: 14 }] } }, ctx);
+    const texts: string[] = [];
+    for (let i = 0; i < 40 && !w.arc?.finished; i++) texts.push((await runAutoTool({ id: `toolu_a${i}`, name: "gegner_greift_an", input: { gegner: "Oger", angriffsbonus: 8, schaden: "2W12+5", modus: "advantage" } }, ctx)).content);
+    expect(texts.some((t) => t.includes("kommt wieder hoch"))).toBe(true);
+    expect(w.lives).toBe(0);
+    expect(w.arc).toMatchObject({ finished: true, outcome: "niederlage" });
+    expect(texts.at(-1)).toContain("KAMPAGNE IST VORBEI");
+  });
+});

@@ -88,6 +88,8 @@ export interface WorldState {
   limitArmed?: Record<string, boolean>;
   /** Gewählte Herausforderungen (doppelter Ruhm). */
   challenges?: ("keine_traenke" | "harte_gegner")[];
+  /** Solo: verbleibende Leben (2 zu Beginn). Beim letzten Bewusstlos-Werden endet die Kampagne. Fehlt in Gruppen. */
+  lives?: number;
   /** Besiegte Gegner je Figur in diesem Abenteuer. */
   kills?: Record<string, number>;
 }
@@ -174,6 +176,7 @@ export function initWorld(characters: (Pick<Character, "id" | "hp"> & { growth?:
 export function worldSummary(w: WorldState, characters: Pick<Character, "id" | "name">[], rules?: Rules, opts: { arc?: boolean } = {}): string {
   const hp = characters.map((c) => `${c.name} ${w.hp[c.id] ?? 0}/${w.maxHp[c.id] ?? 0} TP${(w.hp[c.id] ?? 0) <= 0 ? " (kampfunfähig – bewusstlos, aber rettbar)" : ""}`).join(", ");
   const lines = [`Lebenspunkte: ${hp}`];
+  if (w.lives !== undefined) lines.push(`Leben (Solo): noch ${w.lives} von 2 – wird die Figur bewusstlos, kostet das ein Leben; ist keines mehr übrig, endet die Kampagne.`);
   if (w.time) lines.push(`Zeit: ${timeLine(w.time)}`);
   if (w.combat && allDown(w, characters)) lines.push(DEFEAT_WARNING);
   if (w.combat) lines.push(`Kampf (Runde ${w.combat.round}): ${w.combat.enemies.map((e) => `${e.name} ${e.hp}/${e.maxHp} TP, Rüstung ${e.armor}${e.hp <= 0 ? " – besiegt" : ""}`).join("; ")}`);
