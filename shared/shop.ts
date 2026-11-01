@@ -4,6 +4,7 @@ import { addItem, ensureInventory, findItem, itemBonuses, itemText, moneyText, r
 import type { Character, Rules } from "./schema";
 import type { WorldState } from "./world";
 import { shopDiscount } from "./growth";
+import { lootAction } from "./loot";
 
 export type BonusTarget = "angriff" | "schaden" | "ruestung";
 export interface Ware { id: string; name: string; kind: ItemKind | "verbesserung"; price: number; note?: string; stock?: number; bonus?: { target: BonusTarget; value: number }; stats?: ItemStats }
@@ -40,6 +41,8 @@ export function sellPrice(shop: Shop, item: Pick<InvItem, "name" | "kind" | "sta
 export const priceFor = (price: number, c: { growth?: Character["growth"] } | null | undefined) => Math.max(1, Math.round((price * (100 - shopDiscount(c?.growth ?? null))) / 100));
 
 export function trade(w: WorldState, c: Pick<Character, "id" | "name" | "equipment" | "money"> & { growth?: Character["growth"] }, rules: Rules, action: unknown, ref: unknown): string | null {
+  // Beute mitnehmen oder liegen lassen (läuft über denselben Weg, kostet nichts)
+  if (action === "nehmen" || action === "liegenlassen") return lootAction(w, c, rules, action, ref);
   const shop = w.shop;
   if (!shop) return "Gerade ist kein Laden offen.";
   ensureInventory(w, [c], rules);

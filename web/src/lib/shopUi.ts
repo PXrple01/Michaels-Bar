@@ -47,3 +47,26 @@ export function bindShop(root: HTMLElement, send: (action: "kaufen" | "verkaufen
   root.querySelectorAll<HTMLButtonElement>("[data-buy]").forEach((b) => b.addEventListener("click", () => { b.disabled = true; send("kaufen", b.dataset.buy!); }));
   root.querySelectorAll<HTMLButtonElement>("[data-sell]").forEach((b) => b.addEventListener("click", () => { b.disabled = true; send("verkaufen", b.dataset.sell!); }));
 }
+
+/** Beute zum Mitnehmen: jedes Stück einzeln oder den Rest liegen lassen. Ohne Claude, sofort. */
+export function lootCard(w: WorldState | null | undefined): Raw {
+  const loot = w?.loot;
+  if (!loot?.items.length) return html``;
+  return html`<div class="card shop-card loot-card glow-border">
+    <div class="shop-head">
+      <span class="shop-icon">${icon("bag")}</span>
+      <div><div class="eyebrow">Beute</div><h3>${loot.source}</h3></div>
+    </div>
+    <div class="shop-wares">${loot.items.map((x, i) => html`<div class="ware k-${x.kind} r-${rarityOf(x)}">
+      <span class="ware-icon">${icon(KIND_ICON[x.kind] ?? "star")}</span>
+      <span class="ware-text"><b>${x.qty > 1 ? `${x.qty}× ` : ""}${x.name}</b><small>${[statsText(x.stats), x.note].filter(Boolean).join(" · ")}</small></span>
+      <button class="btn btn-sm" data-take="${i}">Mitnehmen</button>
+    </div>`)}</div>
+    <div class="loot-foot"><button class="btn btn-ghost btn-sm" data-leave-loot>${icon("x")} Rest liegen lassen</button><p class="hint">Du entscheidest selbst – der Spielleiter erfährt es mit deiner nächsten Handlung.</p></div>
+  </div>`;
+}
+
+export function bindLoot(root: HTMLElement, send: (action: "nehmen" | "liegenlassen", ref: string) => void) {
+  root.querySelectorAll<HTMLButtonElement>("[data-take]").forEach((b) => b.addEventListener("click", () => { b.disabled = true; send("nehmen", b.dataset.take!); }));
+  root.querySelector<HTMLButtonElement>("[data-leave-loot]")?.addEventListener("click", (e) => { (e.currentTarget as HTMLButtonElement).disabled = true; send("liegenlassen", ""); });
+}

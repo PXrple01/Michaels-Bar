@@ -79,7 +79,7 @@ export function sanitizeWorld(raw: unknown, c: Character, data: GameData): World
   if (ch.length) w.challenges = ch; else delete w.challenges;
   delete w.kills;
   // Offene Läden, Spiele, Abstimmungen und Protokolle gehören zur alten Sitzung
-  w.shop = null; w.gamble = null; w.vote = null; delete w.itemLog; delete w.drank; delete w.sent; w.sinceImage = 0;
+  w.shop = null; w.loot = null; w.gamble = null; w.vote = null; delete w.itemLog; delete w.drank; delete w.sent; w.sinceImage = 0;
   try { turnSummary(structuredClone(w), [c], data.rules); } catch { throw new ImportError("Die Spielwelt in der Datei ist beschädigt."); }
   return w;
 }

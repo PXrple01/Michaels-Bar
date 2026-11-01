@@ -65,3 +65,23 @@ describe("Händler und Schmied", () => {
     expect(ac).toBeGreaterThan(0);
   });
 });
+
+describe("Beute zum Mitnehmen", () => {
+  it("Claude legt Ausrüstung bereit, die Figur wählt selbst, Claude erfährt es", async () => {
+    const { lootSummary } = await import("../shared/loot");
+    const w = initWorld([hagen]);
+    const ctx = { data, characters: [hagen], world: w, rolls: new RollLog(), onRoll: () => {} };
+    const r = await runAutoTool({ id: "toolu_b", name: "beute", input: { herkunft: "Ausrüstung der Reiter", gegenstaende: [{ name: "Reiterschwert", art: "waffe", angriff: 1 }, { name: "Kettenhemd", art: "ruestung" }, { name: "Geldbeutel", art: "schatz" }] } }, ctx);
+    expect(r.is_error).toBeFalsy();
+    expect(w.loot?.items).toHaveLength(3);
+    expect(trade(w, hagen, data.rules, "nehmen", "0")).toBeNull();
+    expect(w.inventory![hagen.id].items.some((i) => i.name === "Reiterschwert")).toBe(true);
+    expect(w.loot?.items.map((i) => i.name)).toEqual(["Kettenhemd", "Geldbeutel"]);
+    expect(trade(w, hagen, data.rules, "liegenlassen", "")).toBeNull();
+    const told = lootSummary(w);
+    expect(told).toContain("nimmt Reiterschwert");
+    expect(told).toContain("lässt den Rest liegen");
+    expect(w.loot).toBeNull();
+    expect(trade(w, hagen, data.rules, "nehmen", "0")).toMatch(/nichts mehr/);
+  });
+});

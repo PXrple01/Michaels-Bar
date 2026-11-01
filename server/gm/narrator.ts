@@ -98,7 +98,7 @@ const LETTER_MODEL: ModelId = "claude-haiku-5-5";
 export const chapterMark = (w: WorldState) => (w.arc?.plan ? `${w.arc.current}:${w.arc.chapters[w.arc.current]?.titel ?? ""}` : "");
 const MIN_CALL_MS = 15_000;
 /** Buchführungs-Werkzeuge: Claude braucht ihr Ergebnis nicht sofort. Ist die Erzählung fertig, gehen die Ergebnisse erst mit der nächsten Handlung zurück – das spart einen ganzen Modellaufruf. */
-const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "begleiter", "geruecht", "ort", "person", "laden", "gluecksspiel", "abstimmung", "gegenstand", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
+const QUIET_TOOLS = new Set(["bild", "ruf", "schicksal", "begleiter", "geruecht", "ort", "person", "laden", "gluecksspiel", "abstimmung", "gegenstand", "beute", "geld", "zeit", "faehigkeit_einsetzen", "merken", "auftrag", "erfahrung", "kampf_beginnen", "kampf_beenden", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"]);
 const COMPACT_AT = 80_000;
 /** Höchstens so viele Züge hintereinander ohne Szenenbild. */
 /**

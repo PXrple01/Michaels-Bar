@@ -13,7 +13,8 @@ import { GAMBLE_MAX } from "../../shared/gamble";
 import { openVote } from "../../shared/vote";
 import { ATTITUDE_NAME, ATTITUDES, upsertPerson } from "../../shared/people";
 import { PLACE_KINDS, PLACE_NAME, visitPlace } from "../../shared/map";
-import { addItem, cleanStats, ensureInventory, ITEM_KINDS, RARITIES, itemText, kindOf, moneyText, removeItem, statsText, toPfennig } from "../../shared/inventory";
+import { addItem, cleanStats, ensureInventory, ITEM_KINDS, RARITIES, itemText, kindOf, moneyText, removeItem, statsText, toPfennig, type InvItem } from "../../shared/inventory";
+import { MAX_LOOT } from "../../shared/loot";
 import { growthOf, SCARS_MAX } from "../../shared/growth";
 import { newWorldId } from "../../shared/world";
 import { ACTS, allDown, currentChapter, DEFEAT_WARNING, initArc, isArc, MAX_MEMORY, MAX_QUESTS, type ActIndex, type Arc, type Chapter, type WorldState } from "../../shared/world";
@@ -21,7 +22,7 @@ import type { RollLog } from "../dice/log";
 import type { GameData } from "../rules/loader";
 import { addFate, addRumor, changeStanding, companionAction, standingName } from "../../shared/standing";
 
-export const AUTO_TOOLS = ["ruf", "schicksal", "begleiter", "geruecht", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "gluecksspiel", "abstimmung", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
+export const AUTO_TOOLS = ["ruf", "schicksal", "begleiter", "geruecht", "kampf_beginnen", "kampf_beenden", "gegner_greift_an", "heilen", "rast", "faehigkeit_einsetzen", "zeit", "gegenstand", "geld", "laden", "beute", "gluecksspiel", "abstimmung", "person", "ort", "auftrag", "merken", "erfahrung", "kampagne_planen", "kapitel_abschliessen", "abzweigung", "abenteuer_beenden"] as const;
 
 const LIMITS = { enemies: 6, enemyHp: 80, armorMin: 8, armorMax: 20, attackBonus: 8, dieMax: 12, diceMax: 2, flatMax: 5, healDieMax: 8, xpMax: 100 };
 
@@ -95,6 +96,13 @@ export function autoToolDefs(characters: Character[]): Anthropic.Beta.BetaTool[]
       gulden: { type: "integer" }, groschen: { type: "integer" }, pfennig: { type: "integer" },
       grund: { type: "string" },
     }, [...(party ? ["figur"] : []), "aktion", "grund"]),
+    tool("beute", "Legt Beute zum Mitnehmen bereit: die Ausrüstung besiegter Gegner (Schwert, Kettenhemd, Schild, Geldbeutel …) oder Fundstücke aus Truhen, Verstecken, Leichen. Nutze das IMMER, wenn die Figuren gefallene Gegner oder einen Ort durchsuchen – statt Gegenstände direkt zu geben. Die Spieler entscheiden selbst per Knopf, was sie mitnehmen; im nächsten <spielstand> steht, was genommen wurde. Gib Werten (angriff/schaden/ruestung, seltenheit) nur besonderen Stücken; schlichte Waffen und Rüstungen der Gegner ohne Werte oder gewöhnlich. 1–6 Dinge.", {
+      herkunft: { type: "string", description: "Woher, z. B. „Ausrüstung der Rabeneck-Reiter“ oder „Truhe im Turm“" },
+      gegenstaende: { type: "array", items: { type: "object", properties: {
+        name: { type: "string" }, art: { type: "string", enum: [...ITEM_KINDS] }, anzahl: { type: "integer" },
+        notiz: { type: "string", description: "Kurz, z. B. „blutverschmiert, aber scharf“" }, ...statProps,
+      }, required: ["name", "art"] } },
+    }, ["herkunft", "gegenstaende"]),
     tool("laden", "Öffnet einen Laden (Händler auf dem Markt, Krämer, Schmied …) mit 3–8 Waren und Preisen, passend zur Welt (Brot 1 Pfennig, Heiltrank etwa 2 Groschen, Langschwert 1 Gulden). Ein Schmied bietet zusätzlich Verbesserungen an (art verbesserung, bonus auf angriff, schaden oder ruestung, je +1; je Figur höchstens +2, Preis etwa 1–3 Gulden). Die Spieler kaufen und verkaufen selbst über die Oberfläche; was sie gekauft haben, steht im nächsten <spielstand>. schliessen, sobald die Figuren weitergehen.", {
       aktion: { type: "string", enum: ["oeffnen", "schliessen"] },
       name: { type: "string", description: "Name des Ladens bzw. der Person, z. B. „Krämerin Berta“" },
@@ -212,7 +220,7 @@ function checkCombatEnd(ctx: ToolContext): string {
   if (w.combat && w.combat.enemies.every((e) => e.hp <= 0)) {
     w.combat = null;
     resetUses(w, "kampf");
-    return " Alle Gegner sind besiegt – der Kampf ist vorbei.";
+    return " Alle Gegner sind besiegt – der Kampf ist vorbei. Durchsuchen die Figuren die Gefallenen, lege deren Ausrüstung mit beute bereit.";
   }
   return "";
 }
@@ -351,6 +359,19 @@ export async function runAutoTool(block: { id: string; name: string; input: unkn
       if (!name) return err("name fehlt.");
       const { person, created } = upsertPerson(w, { name, role: text(input.rolle, 80), attitude: String(input.haltung ?? ""), note: text(input.notiz, 200), look: text(input.aussehen, 300) });
       return { content: `${created ? "Neu im Verzeichnis" : "Aktualisiert"}: ${person.name}${person.role ? ` (${person.role})` : ""}, ${ATTITUDE_NAME[person.attitude]}.` };
+    }
+    case "beute": {
+      const list = Array.isArray(input.gegenstaende) ? input.gegenstaende.slice(0, MAX_LOOT) : [];
+      const items: InvItem[] = [];
+      for (const r of list as Record<string, unknown>[]) {
+        const name = text(r?.name, 60);
+        if (!name) continue;
+        const stats = cleanStats(r);
+        items.push({ name, qty: Math.max(1, Math.min(20, Math.round(Number(r.anzahl) || 1))), kind: kindOf(r.art), ...(text(r.notiz, 120) ? { note: text(r.notiz, 120) } : {}), ...(stats ? { stats } : {}) });
+      }
+      if (!items.length) return err("gegenstaende fehlt (je Name und Art).");
+      w.loot = { source: text(input.herkunft, 80) || "Beute", items, log: [] };
+      return { content: `Bereitgelegt (${w.loot.source}): ${items.map((i) => itemText(i)).join(", ")}. Die Spieler wählen per Knopf, was sie mitnehmen – frag nicht nach, erzähle nur kurz, was zu sehen ist.` };
     }
     case "laden": {
       if (input.aktion === "schliessen") { w.shop = null; return { content: "Der Laden ist geschlossen." }; }

@@ -32,7 +32,7 @@ import { bindVote, voteCard } from "../lib/voteUi";
 import { bindSides, fillSide, itemDoneText, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
-import { bindShop, shopCard } from "../lib/shopUi";
+import { bindLoot, bindShop, lootCard, shopCard } from "../lib/shopUi";
 import { bindGamble, gambleCard, showGamble } from "../lib/gambleUi";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
 import { abilityList } from "../lib/abilities";
@@ -360,6 +360,8 @@ export function partyPage(): Page {
         if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.shop && !v.world.arc?.finished && myCharId) {
           content = html`${shopCard(v.world, myCharId, myChar && myChar.id === myCharId ? myChar : null)}${content}`;
         }
+        // Beute: jede Person nimmt für ihre eigene Figur
+        if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.loot?.items.length && !v.world.arc?.finished && myCharId) content = html`${lootCard(v.world)}${content}`;
         // Würfeltisch: jede Person spielt mit ihrem eigenen Geld
         if (v.status === "playing" && !v.busy && !busyLocal && !v.pendings.length && v.world?.gamble && !v.world.combat && !v.world.arc?.finished && myCharId) {
           content = html`${gambleCard(v.world, myCharId)}${content}`;
@@ -581,6 +583,10 @@ export function partyPage(): Page {
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
         bindShop(belowEl, async (action, ref) => {
           try { apply(await partyApi.shop(me, action, ref)); renderBelow(); if (action === "verkaufen") toast("Verkauft.", "success", 3000); }
+          catch (e) { toast((e as Error).message, "error", 6000); renderBelow(); }
+        });
+        bindLoot(belowEl, async (action, ref) => {
+          try { apply(await partyApi.shop(me, action, ref)); renderBelow(); }
           catch (e) { toast((e as Error).message, "error", 6000); renderBelow(); }
         });
         bindGamble(belowEl, async (bet) => {

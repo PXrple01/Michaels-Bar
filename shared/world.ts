@@ -88,6 +88,8 @@ export interface WorldState {
   limitArmed?: Record<string, boolean>;
   /** Gewählte Herausforderungen (doppelter Ruhm). */
   challenges?: ("keine_traenke" | "harte_gegner")[];
+  /** Beute zum Mitnehmen (Ausrüstung besiegter Gegner, Fundstücke) – die Spieler wählen per Knopf. */
+  loot?: import("./loot").Loot | null;
   /** Solo: verbleibende Leben (2 zu Beginn). Beim letzten Bewusstlos-Werden endet die Kampagne. Fehlt in Gruppen. */
   lives?: number;
   /** Besiegte Gegner je Figur in diesem Abenteuer. */

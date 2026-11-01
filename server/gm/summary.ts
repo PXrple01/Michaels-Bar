@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import type { Character, Rules } from "../../shared/schema";
 import { ACTS, arcSummary, currentChapter, isArc, worldSummary, type WorldState } from "../../shared/world";
 import { shopSummary } from "../../shared/shop";
+import { lootSummary } from "../../shared/loot";
 import { gambleSummary } from "../../shared/gamble";
 import { voteSummary } from "../../shared/vote";
 import { challengeSummary, powerHint } from "../../shared/growth";
@@ -39,6 +40,8 @@ export function turnSummary(w: WorldState, characters: (Pick<Character, "id" | "
   if (standing) lines.push(standingFull ? standing : "Ruf und Schicksal: unverändert wie im letzten ausführlichen <spielstand>.");
   const shop = shopSummary(w);
   if (shop) lines.push(shop);
+  const loot = lootSummary(w);
+  if (loot) lines.push(loot);
   const gamble = gambleSummary(w);
   if (gamble) lines.push(gamble);
   const used = itemLogSummary(w);

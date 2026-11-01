@@ -27,7 +27,7 @@ import { setAccessCode, streamGm } from "../lib/gm";
 import { bindSides, fillSide, itemDoneText, lageSide, lootText, playLayout, setMapData, setSkyPhase, teamSide, type TeamMember } from "../lib/playLayout";
 import { endCard } from "../lib/arc";
 import { upgradeCard, upgradeState } from "../lib/upgradeUi";
-import { bindShop, shopCard } from "../lib/shopUi";
+import { bindLoot, bindShop, lootCard, shopCard } from "../lib/shopUi";
 import { bindGamble, gambleCard, showGamble } from "../lib/gambleUi";
 import { quickStart } from "../lib/quickstart";
 import { announceLevel, bindLevelCard, levelChoiceCard, levelChoiceDue } from "../lib/levelUi";
@@ -355,6 +355,7 @@ export function playPage(): Page {
           <p class="hint center">Enter sendet, Umschalt+Enter macht eine neue Zeile. Du kannst alles versuchen – nicht nur die Ideen.</p>`;
         const world = save!.state.world;
         if (!lastError && !busy && !save!.pending && world?.shop && !world.arc?.finished) content = html`${shopCard(world, character.id, character)}${content}`;
+        if (!lastError && !busy && !save!.pending && world?.loot?.items.length && !world.arc?.finished) content = html`${lootCard(world)}${content}`;
         if (!lastError && !busy && !save!.pending && world?.gamble && !world.combat && !world.arc?.finished) content = html`${gambleCard(world, character.id)}${content}`;
         const showUpgrade = !lastError && !busy && !world?.arc?.finished && (forging || upgradeState(world, character.id) !== "none");
         if (showUpgrade) content = html`${upgradeCard(world!, character.id, abilityType, forging)}${content}`;
@@ -443,7 +444,7 @@ export function playPage(): Page {
         renderBelow();
       }
       /** Kaufen/verkaufen im offenen Laden (ohne Claude). */
-      async function doShop(action: "kaufen" | "verkaufen", ref: string) {
+      async function doShop(action: "kaufen" | "verkaufen" | "nehmen" | "liegenlassen", ref: string) {
         if (busy) return;
         undo = null;
         await streamGm("shop", { character, state: save!.state, action, ref }, (ev) => {
@@ -452,7 +453,7 @@ export function playPage(): Page {
             const before = save!.state.world?.inventory?.[character.id];
             save!.state = ev.state; persist();
             const loot = lootText(before, ev.state.world?.inventory?.[character.id]);
-            toast(action === "kaufen" ? (loot ?? "Gekauft – deine Ausrüstung ist jetzt besser.") : "Verkauft.", "success", 4000);
+            toast(action === "kaufen" ? (loot ?? "Gekauft – deine Ausrüstung ist jetzt besser.") : action === "nehmen" ? (loot ?? "Mitgenommen.") : action === "liegenlassen" ? "Der Rest bleibt liegen." : "Verkauft.", "success", 4000);
           } else if (ev.type === "error") toast(ev.message, "error", 6000);
         });
         renderWorld();
@@ -507,6 +508,7 @@ export function playPage(): Page {
         belowEl.querySelector("[data-upgrade]")?.addEventListener("click", () => void doUpgrade());
         bindLevelCard(belowEl, (choice) => void doLevel(choice));
         bindShop(belowEl, (action, ref) => void doShop(action, ref));
+        bindLoot(belowEl, (action, ref) => void doShop(action, ref));
         bindGamble(belowEl, (bet) => void doGamble(bet));
         belowEl.querySelectorAll<HTMLElement>("[data-choose]").forEach((b) => b.addEventListener("click", () => void doUpgrade(Number(b.dataset.choose))));
         belowEl.querySelector("#reroll")?.addEventListener("click", () => void begin(true));
