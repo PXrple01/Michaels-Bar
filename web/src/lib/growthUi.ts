@@ -3,7 +3,7 @@
 import { legacyOf } from "./legacy";
 import { streamGm } from "./gm";
 import { imagesEnabled, paintPortrait, portraitOf } from "./portraits";
-import { canLimitAttack, fullName, LIMIT2_AFTER, limitTier, LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, companionLevel, CALLING_AFTER, type Growth, type LifeCompanion, type PerkId } from "../../../shared/growth";
+import { canLimitAttack, fullName, LIMIT2_AFTER, limitTier, LIMIT_AFTER, limitBroken, MASTERY_BOOST, perkMax, FAME_FOR, HEIRLOOM_TWO_AFTER, heirloomSlots, toggleHeirloom, growthOf, masteredUses, masteryInfo, masteryUses, PERK_IDS, PERKS, SCARS_MAX, buyPerk, syncGrowth, companionLevel, CALLING_AFTER, LEGEND_VERSION, legendOutdated, type Growth, type LifeCompanion, type PerkId } from "../../../shared/growth";
 import { rarityOf, statsText, type InvItem } from "../../../shared/inventory";
 import type { Character, ClassDef } from "../../../shared/schema";
 import type { LegendOption } from "../../../shared/growth";
@@ -91,6 +91,16 @@ async function repaintLegend(characterId: string, tier: 1 | 2) {
   catch (e) { console.warn("[Porträt]", (e as Error).message); }
 }
 
+/** Ältere Legende neu erschaffen (stärker): erst die erste, dann ggf. die zweite – zwei Vorschläge zur Wahl. */
+export async function reforgeLegends(characterId: string, onDone?: (c: Character) => void): Promise<void> {
+  const c = characterStore.get(characterId);
+  if (!c || !legendOutdated(growthOf(c))) return;
+  toast(`Die Legende von ${fullName(c)} ist erstarkt – wähle ihre neue, mächtigere Form.`, "info", 7000);
+  await forgeLegend(characterId, onDone, 1);
+  const after = characterStore.get(characterId);
+  if (after && growthOf(after).legend2 && limitTier(growthOf(after)) >= 2 && legendOutdated(growthOf(after))) await forgeLegend(characterId, onDone, 2);
+}
+
 /** Legendäre Fähigkeit erschaffen lassen (Claude) und an der Figur speichern. */
 export async function forgeLegend(characterId: string, onDone?: (c: Character) => void, tier: 1 | 2 = 1): Promise<void> {
   const c = characterStore.get(characterId);
@@ -106,7 +116,10 @@ export async function forgeLegend(characterId: string, onDone?: (c: Character) =
   if (!pick) { toast("Keine Wahl getroffen – du kannst die Fähigkeit später auf dem Figurenbogen erwecken.", "info", 6000); return; }
   const fresh = characterStore.get(characterId) ?? c;
   const { beiname, ...legend } = pick;
-  const saved = { ...fresh, growth: { ...growthOf(fresh), ...(tier === 2 ? { legend2: legend } : { legend }), epithet: beiname }, updatedAt: new Date().toISOString() };
+  const fg = growthOf(fresh);
+  // Neu erschaffen: Version erst hochsetzen, wenn alle vorhandenen Legenden erneuert sind (Stufe 2 nach Stufe 1)
+  const done = tier === 2 || !fg.legend2 || limitTier(fg) < 2;
+  const saved = { ...fresh, growth: { ...fg, ...(tier === 2 ? { legend2: legend } : { legend }), epithet: beiname, ...(done || !legendOutdated(fg) ? { legendV: LEGEND_VERSION } : {}) }, updatedAt: new Date().toISOString() };
   characterStore.save(saved);
   toast(`${c.name} ${beiname} – legendäre Fähigkeit „${pick.name}“: ${pick.beginnerText}`, "success", 10000);
   onDone?.(saved);

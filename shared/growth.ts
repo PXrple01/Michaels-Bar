@@ -40,6 +40,11 @@ export const shopDiscount = (g: { earned: string[]; perks?: Partial<Record<strin
 /** Obergrenze eines Vorteils – nach dem Limit Break doppelt so hoch. */
 export const perkMax = (p: PerkId, g: { earned: string[] }) => PERKS[p].max * (limitBroken(g) ? 2 : 1);
 
+/** Aktuelle Version der legendären Fähigkeiten (2: deutlich stärker). Ältere werden beim Öffnen des Bogens neu erschaffen. */
+export const LEGEND_VERSION = 2;
+/** Muss die Legende dieser Figur neu erschaffen werden? (hat eine aus einer älteren Version) */
+export const legendOutdated = (g: Growth) => !!(g.legend || g.legend2) && (g.legendV ?? 1) < LEGEND_VERSION;
+
 export const ABILITY_TYPES = ["angriff", "verteidigung", "heilung", "unterstuetzung", "kontrolle", "bewegung", "wissen", "sozial", "handwerk", "magie"] as const;
 const legendSchema = z.object({
   name: z.string().min(2).max(50),
@@ -138,6 +143,8 @@ export const growthSchema = z.object({
   companion: companionSchema.nullable().optional(),
   /** Besiegte Gegner je Abenteuer (für die Bestenliste). */
   kills: z.record(z.string().max(80), z.number().int().min(0).max(9999)).default({}),
+  /** Version der legendären Fähigkeiten – ältere (schwächere) werden einmal neu erschaffen. */
+  legendV: z.number().int().min(1).max(99).optional(),
   /** Beiname nach dem Limit Break, z. B. „der Unbändige“. */
   epithet: z.string().min(3).max(40).optional(),
   /** Bestandene Abenteuer, von denen man sich erzählt (Ruf). */

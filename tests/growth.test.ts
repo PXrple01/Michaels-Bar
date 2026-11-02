@@ -214,6 +214,11 @@ describe("Legendäre Fähigkeit erwecken", () => {
     expect(evs[0].type).toBe("legend");
     expect(evs[0].options!.map((o) => o.name)).toEqual(["Zorn des Ogertöters", "Schild der Gefallenen"]); // ungültige fallen weg
     expect(JSON.stringify(calls[0])).toContain("Retter von Falkenstein");
+    // Alte Legende (vor Version 2): darf einmal neu und stärker erschaffen werden; aktuelle nicht
+    const legend = { name: "Alter Zorn", type: "angriff" as const, uses: "einmal_pro_tag" as const, text: "Ein Schlag mit 2W6 Schaden extra.", beginnerText: "Ein Hieb." };
+    expect((await run({ ...base, growth: g({ earned: ["a", "b", "c"], legend }) }))[0].type).toBe("legend");
+    expect(JSON.stringify(calls.at(-1))).toContain("VIEL stärker");
+    expect((await run({ ...base, growth: g({ earned: ["a", "b", "c"], legend, legendV: 2 }) }))[0]).toMatchObject({ type: "error" });
   });
 });
 

@@ -15,7 +15,7 @@ import { costUsd, LimitError, PRICES, type UsageGuard } from "./usage";
 import { applyPlayerRoll, AUTO_TOOLS, autoToolDefs, runAutoTool } from "./world";
 import { ensureInventory } from "../../shared/inventory";
 import { bonusParts } from "../../shared/shop";
-import { ABILITY_TYPES, LIMIT_ATTACK, growthOf, perkCount, legendOptionSchema, LIMIT_AFTER, LIMIT2_AFTER, limitBroken, limitTier, type LegendOption } from "../../shared/growth";
+import { ABILITY_TYPES, LIMIT_ATTACK, growthOf, legendOutdated, perkCount, legendOptionSchema, LIMIT_AFTER, LIMIT2_AFTER, limitBroken, limitTier, type LegendOption } from "../../shared/growth";
 
 export type Message = Anthropic.Beta.BetaMessage;
 export type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -407,12 +407,14 @@ export class Narrator {
   async forgeLegend(c: Character, data: GameData, titles: string[], who: string, tier: 1 | 2 = 1): Promise<{ options: LegendOption[]; costUsd: number }> {
     this.ensureReady();
     const g = growthOf(c);
+    // Ältere Legenden dürfen einmal neu (und stärker) erschaffen werden
+    const reforge = legendOutdated(g);
     if (tier === 1) {
       if (!limitBroken(g)) throw new GmError(`Eine legendäre Fähigkeit gibt es erst nach ${LIMIT_AFTER} bestandenen Abenteuern.`, "state");
-      if (g.legend) throw new GmError("Diese Figur hat ihre legendäre Fähigkeit schon.", "state");
+      if (g.legend && !reforge) throw new GmError("Diese Figur hat ihre legendäre Fähigkeit schon.", "state");
     } else {
       if (limitTier(g) < 2) throw new GmError(`Die zweite legendäre Fähigkeit gibt es erst nach ${LIMIT2_AFTER} bestandenen Abenteuern.`, "state");
-      if (g.legend2) throw new GmError("Diese Figur hat ihre zweite legendäre Fähigkeit schon.", "state");
+      if (g.legend2 && !reforge) throw new GmError("Diese Figur hat ihre zweite legendäre Fähigkeit schon.", "state");
     }
     await this.o.guard.check(who);
     const one = { type: "object", additionalProperties: false, required: ["name", "type", "uses", "text", "beginnerText", "beiname"], properties: {
@@ -428,7 +430,7 @@ export class Narrator {
       ...requestBase(this.model, "low"),
       output_config: { effort: "low", format: { type: "json_schema", schema } },
       max_tokens: 2000,
-      system: [{ type: "text", text: "Du entwirfst für ein deutsches Mittelalter-Rollenspiel (nach DnD-Art, Heiliges Römisches Reich um 1400, wenig Magie) eine legendäre Fähigkeit für eine Figur, die schon mehrere Abenteuer bestanden und ihr Limit gebrochen hat. Sie soll sich aus ihrer Geschichte ergeben (Narben, Erbstücke, Titel, Klasse) und sich episch anfühlen: deutlich stärker als normale Klassenfähigkeiten (z. B. 3W8 Schaden, Vorteil für die ganze Gruppe, einen Gegner eine Runde ausschalten), aber begrenzt einsetzbar und ohne Unverwundbarkeit oder sofortigen Sieg. Antworte nur im verlangten Format." }],
+      system: [{ type: "text", text: "Du entwirfst für ein deutsches Mittelalter-Rollenspiel (nach DnD-Art, Heiliges Römisches Reich um 1400, wenig Magie) eine legendäre Fähigkeit für eine Figur, die schon mehrere Abenteuer bestanden und ihr Limit gebrochen hat. Sie soll sich aus ihrer Geschichte ergeben (Narben, Erbstücke, Titel, Klasse) und sich episch anfühlen: VIEL stärker als normale Klassenfähigkeiten – eine echte Legende: z. B. 4W10+5 Schaden, mehrere Gegner gleichzeitig treffen, einen Gegner zwei Runden ausschalten, sich und die Gruppe voll heilen, eine Runde lang Vorteil auf alles für die ganze Gruppe, Gegner in Panik in die Flucht schlagen. Begrenzt einsetzbar und ohne völlige Unverwundbarkeit oder sofortigen Sieg über den Endgegner. Antworte nur im verlangten Format." }],
       messages: [{ role: "user", content: `<figur>\n${characterSheetText(c, data)}\n</figur>${titles.length ? `\nEhrentitel: ${titles.slice(0, 10).map((t) => t.slice(0, 80)).join(", ")}` : ""}${tier === 2 ? `\n\nDies ist der ZWEITE Limit Break (Limit Break II): Die Figur ist eine lebende Legende. Entwirf eine zweite legendäre Fähigkeit – noch mächtiger als die erste und deutlich anders als „${g.legend?.name ?? ""}“ – und einen gesteigerten Beinamen, der den bisherigen („${g.epithet ?? ""}“) übertrifft.` : ""}` }],
     }, () => {}, AbortSignal.timeout(40_000));
     await this.o.guard.record(msg.usage, this.model);

@@ -1,7 +1,7 @@
 import { fameRank } from "../../../shared/growth";
 import { legacyOf } from "../lib/legacy";
 import { fullName, type PerkId } from "../../../shared/growth";
-import { forgeLegend, growthSection, masteryBar, maybeLimitBreak, redeemPerk, setCompanion, chooseCalling, usesWithMastery } from "../lib/growthUi";
+import { forgeLegend, reforgeLegends, growthSection, masteryBar, maybeLimitBreak, redeemPerk, setCompanion, chooseCalling, usesWithMastery } from "../lib/growthUi";
 import { costText } from "../../../shared/campaign";
 import { avatar, imagesEnabled, paintPortrait, portraitOf } from "../lib/portraits";
 import { armorValue, attackInfo, characterRoll, findItem, modifier, skillBonusForLevel, trainedSkills, type CharacterRollType } from "../../../shared/character";
@@ -290,6 +290,8 @@ export function sheetPage(): Page {
 
       // Limit Break, falls noch nicht gesehen (z. B. in einer Gruppe auf einem anderen Gerät erreicht)
       void maybeLimitBreak(c.id);
+      // Ältere legendäre Fähigkeiten: einmal neu und stärker erschaffen
+      void reforgeLegends(c.id, (nc) => { c = nc; $("#growth-box", root).innerHTML = growthSection(c, data.classes).value; });
       enhance(root);
     },
   };
